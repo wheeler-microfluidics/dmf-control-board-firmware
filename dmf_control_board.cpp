@@ -333,7 +333,7 @@ void DmfControlBoard::ProcessCommand(uint8_t cmd) {
             return_code = RETURN_OK;
 
             // point the impedance_buffer_ to the payload_buffer_
-            float* impedance_buffer_ = (float*)payload();
+            float* impedance_buffer = (float*)payload();
 
             // update the number of bytes written
             bytes_written(n_samples*2*sizeof(float));
@@ -421,8 +421,8 @@ void DmfControlBoard::ProcessCommand(uint8_t cmd) {
                                 A1_series_resistor_index_];
                 float V_fb = (float)(fb_max-fb_min)*5.0/1024.0/2*sqrt(0.5);
 
-                impedance_buffer_[2*i] = V_fb;
-                impedance_buffer_[2*i+1] = Z_fb;
+                impedance_buffer[2*i] = V_fb;
+                impedance_buffer[2*i+1] = Z_fb;
 
                 t_delay = millis();
                 while(millis()-t_delay<delay_between_samples_ms) {
@@ -447,224 +447,6 @@ void DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
   }
   SendReply(return_code);
-}
-
-void DmfControlBoard::ProcessReply(uint8_t cmd) {
-  uint8_t reply_to = cmd^0x80;
-#ifndef AVR
-  const char* function_name = "ProcessReply()";
-  sprintf(log_message_string_,
-          "(0x%0X). This packet is a reply to command (%d)",
-          reply_to,reply_to);
-  LogMessage(log_message_string_, function_name);
-  sprintf(log_message_string_,"Return code=%d",return_code());
-  LogMessage(log_message_string_, function_name);
-  sprintf(log_message_string_,"Payload length=%d",payload_length());
-  LogMessage(log_message_string_, function_name);
-#endif
-  if(return_code()==RETURN_OK) {
-#ifndef AVR // Replies that only the PC handles
-    switch(reply_to) {
-      case CMD_GET_PROTOCOL_NAME:
-        LogMessage("CMD_GET_PROTOCOL_NAME", function_name);
-        protocol_name_ = ReadString();
-        sprintf(log_message_string_,
-                "protocol_name_=%s",
-                protocol_name_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_PROTOCOL_VERSION:
-        LogMessage("CMD_GET_PROTOCOL_VERSION", function_name);
-        protocol_version_ = ReadString();
-        sprintf(log_message_string_,
-                "protocol_version_=%s",
-                protocol_version_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_DEVICE_NAME:
-        LogMessage("CMD_GET_DEVICE_NAME", function_name);
-        name_ = ReadString();
-        sprintf(log_message_string_,
-                "name_=%s",
-                name_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_MANUFACTURER:
-        LogMessage("CMD_GET_MANUFACTURER", function_name);
-        manufacturer_ = ReadString();
-        sprintf(log_message_string_,
-                "manufacturer_=%s",
-                manufacturer_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_SOFTWARE_VERSION:
-        LogMessage("CMD_GET_SOFTWARE_VERSION", function_name);
-        software_version_ = ReadString();
-        sprintf(log_message_string_,
-                "software_version_=%s",
-                software_version_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_HARDWARE_VERSION:
-        LogMessage("CMD_GET_HARDWARE_VERSION", function_name);
-        hardware_version_ = ReadString();
-        sprintf(log_message_string_,
-                "hardware_version_=%s",
-                hardware_version_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_URL:
-        LogMessage("CMD_GET_URL", function_name);
-        url_ = ReadString();
-        sprintf(log_message_string_,
-                "url_=%s",
-                url_.c_str());
-        LogMessage(log_message_string_, function_name);
-        break;
-      case CMD_GET_NUMBER_OF_CHANNELS:
-        LogMessage("CMD_GET_DEVICE_VERSION", function_name);
-        if(payload_length()==sizeof(uint16_t)) {
-          state_of_channels_.resize(ReadUint16());
-          sprintf(log_message_string_,
-                  "state_of_channels_.size()=%d",
-                  state_of_channels_.size());
-          LogMessage(log_message_string_, function_name);
-        } else {
-          LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
-                     function_name);
-        }
-        break;
-      case CMD_GET_STATE_OF_ALL_CHANNELS:
-        LogMessage("CMD_GET_STATE_OF_ALL_CHANNELS", function_name);
-        state_of_channels_.clear();
-        for(int i=0; i<payload_length(); i++) {
-          state_of_channels_.push_back(ReadUint8());
-          sprintf(log_message_string_,
-                  "state_of_channels_[%d]=%d",
-                  i,state_of_channels_[i]);
-          LogMessage(log_message_string_, function_name);
-        }
-        break;
-      case CMD_SET_STATE_OF_ALL_CHANNELS:
-        LogMessage("CMD_SET_STATE_OF_ALL_CHANNELS", function_name);
-        LogMessage("all channels set successfully", function_name);
-        break;
-      case CMD_GET_STATE_OF_CHANNEL:
-        LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
-        if(payload_length()==sizeof(uint16_t)+sizeof(uint8_t)) {
-          uint16_t channel = ReadUint16();
-          if(channel+1>state_of_channels_.size()) {
-            state_of_channels_.resize(channel+1);
-          }
-          state_of_channels_[channel]=ReadUint8();
-          sprintf(log_message_string_,
-                "channel[%d]=%d",
-                channel,state_of_channels_[channel]);
-          LogMessage(log_message_string_, function_name);
-        } else {
-            LogError("Bad packet size", function_name);
-        }
-        break;
-      case CMD_SET_STATE_OF_CHANNEL:
-        LogMessage("CMD_SET_STATE_OF_CHANNEL", function_name);
-        LogMessage("channel set successfully", function_name);
-        break;
-      case CMD_SET_ACTUATION_VOLTAGE:
-      {
-        LogMessage("CMD_SET_ACTUATION_VOLTAGE", function_name);
-        LogMessage("volage set successfully", function_name);
-        break;
-      }
-      case CMD_SET_ACTUATION_FREQUENCY:
-      {
-        LogMessage("CMD_SET_ACTUATION_FREQUENCY", function_name);
-        LogMessage("frequency set successfully", function_name);
-        break;
-      }
-      case CMD_GET_SAMPLING_RATE:
-      {
-        LogMessage("CMD_GET_SAMPLING_RATE", function_name);
-        if(payload_length()==sizeof(float)) {
-          sampling_rate_ = ReadFloat();
-          sprintf(log_message_string_,
-                  "sampling_rate_=%.1e",sampling_rate_);
-          LogMessage(log_message_string_, function_name);
-        } else {
-          return_code_ = RETURN_BAD_PACKET_SIZE;
-          LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
-                     function_name);
-        }
-        break;
-      }
-      case CMD_SET_SAMPLING_RATE:
-      {
-        LogMessage("CMD_SET_SAMPLING_RATE", function_name);
-        LogMessage("sampling rate set successfully", function_name);
-        break;
-      }
-      case CMD_GET_SERIES_RESISTOR:
-      {
-        LogMessage("CMD_GET_SERIES_RESISTOR", function_name);
-        if(payload_length()==sizeof(float)) {
-          series_resistor_ = ReadFloat();
-          sprintf(log_message_string_,
-                  "series_resistor_=%.1e",series_resistor_);
-          LogMessage(log_message_string_, function_name);
-        } else {
-          return_code_ = RETURN_BAD_PACKET_SIZE;
-          LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
-                     function_name);
-        }
-        break;
-      }
-      case CMD_SET_SERIES_RESISTOR:
-      {
-        LogMessage("CMD_SET_SERIES_RESISTOR", function_name);
-        LogMessage("series resistor set successfully", function_name);
-        break;
-      }
-      case CMD_SET_POT:
-      {
-        LogMessage("CMD_SET_POT", function_name);
-        LogMessage("potentiometer set successfully", function_name);
-        break;
-      }
-      case CMD_SAMPLE_VOLTAGE:
-      {
-        LogMessage("CMD_SAMPLE_VOLTAGE", function_name);
-        uint16_t n_samples = payload_length()/sizeof(uint16_t);
-        sprintf(log_message_string_,"Read %d feedback samples",n_samples);
-        LogMessage(log_message_string_,function_name);
-        voltage_buffer_.resize(n_samples);
-        for(uint16_t i=0; i<n_samples; i++) {
-          voltage_buffer_[i] = ReadUint16();
-        }
-        break;
-      }
-      case CMD_MEASURE_IMPEDANCE:
-      {
-        LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
-        uint16_t n_samples = payload_length()/2/sizeof(float);
-        sprintf(log_message_string_,"Read %d impedance samples",n_samples);
-        LogMessage(log_message_string_,function_name);
-        impedance_buffer_.resize(2*n_samples);
-        for(uint16_t i=0; i<2*n_samples; i++) {
-          impedance_buffer_[i] = ReadFloat();
-        }
-        break;
-      }
-      default:
-        LogError("Unrecognized command", function_name);
-        break;
-    }
-#endif
-  } else {
-#ifndef AVR
-    sprintf(log_message_string_,"return code=%d",
-            return_code());
-    LogError(log_message_string_, function_name);
-#endif
-  }
 }
 
 #ifdef AVR
@@ -914,82 +696,23 @@ uint8_t DmfControlBoard::SendCommand(const uint8_t cmd) {
   return return_code();
 }
 
-string DmfControlBoard::protocol_name() {
-  const char* function_name = "protocol_name()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_PROTOCOL_NAME)==RETURN_OK) {
-    return protocol_name_;
-  }
-  return "";
-}
-
-string DmfControlBoard::protocol_version() {
-  const char* function_name = "protocol_version()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_PROTOCOL_VERSION)==RETURN_OK) {
-    return protocol_version_;
-  }
-  return "";
-}
-
-string DmfControlBoard::name() {
-  const char* function_name = "name()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_DEVICE_NAME)==RETURN_OK) {
-    return name_;
-  }
-  return "";
-}
-
-string DmfControlBoard::manufacturer() {
-  const char* function_name = "manufacturer()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_MANUFACTURER)==RETURN_OK) {
-    return manufacturer_;
-  }
-  return "";
-}
-
-string DmfControlBoard::software_version() {
-  const char* function_name = "software_version()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_SOFTWARE_VERSION)==RETURN_OK) {
-    return software_version_;
-  }
-  return "";
-}
-
-string DmfControlBoard::hardware_version() {
-  const char* function_name = "hardware_version()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_HARDWARE_VERSION)==RETURN_OK) {
-    return hardware_version_;
-  }
-  return "";
-}
-
-string DmfControlBoard::url() {
-  const char* function_name = "url()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if(SendCommand(CMD_GET_URL)==RETURN_OK) {
-    return url_;
-  }
-  return "";
-}
-
 uint16_t DmfControlBoard::number_of_channels() {
   const char* function_name = "number_of_channels()";
   LogSeparator();
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_NUMBER_OF_CHANNELS)==RETURN_OK) {
-    return state_of_channels_.size();
+    if(payload_length()==sizeof(uint16_t)) {
+      uint16_t number_of_channels = ReadUint16();
+      sprintf(log_message_string_,
+              "number_of_channels=%d",
+              number_of_channels);
+      LogMessage(log_message_string_, function_name);
+      return number_of_channels;
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
+                 function_name);
+    }
   }
   return 0;
 }
@@ -999,7 +722,16 @@ vector<uint8_t> DmfControlBoard::state_of_all_channels() {
   LogSeparator();
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_STATE_OF_ALL_CHANNELS)==RETURN_OK) {
-    return state_of_channels_;
+    LogMessage("CMD_GET_STATE_OF_ALL_CHANNELS", function_name);
+    std::vector<uint8_t> state_of_channels;
+    for(int i=0; i<payload_length(); i++) {
+      state_of_channels.push_back(ReadUint8());
+      sprintf(log_message_string_,
+              "state_of_channels_[%d]=%d",
+              i,state_of_channels[i]);
+      LogMessage(log_message_string_, function_name);
+    }
+    return state_of_channels;
   }
   return std::vector<uint8_t>(); // return an empty vector
 };
@@ -1010,7 +742,17 @@ uint8_t DmfControlBoard::state_of_channel(const uint16_t channel) {
   LogMessage("send command", function_name);
   Serialize(&channel,sizeof(channel));
   if(SendCommand(CMD_GET_STATE_OF_CHANNEL)==RETURN_OK) {
-    return state_of_channels_[channel];
+    LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
+    if(payload_length()==sizeof(uint16_t)+sizeof(uint8_t)) {
+      uint16_t channel = ReadUint16();
+      uint8_t state = ReadUint8();
+      sprintf(log_message_string_, "channel[%d]=%d", channel, state);
+      LogMessage(log_message_string_, function_name);
+      return state;
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      LogError("Bad packet size", function_name);
+    }
   }
   return 0;
 };
@@ -1020,7 +762,18 @@ float DmfControlBoard::sampling_rate() {
   LogSeparator();
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_SAMPLING_RATE)==RETURN_OK) {
-    return sampling_rate_;
+    LogMessage("CMD_GET_SAMPLING_RATE", function_name);
+    if(payload_length()==sizeof(float)) {
+      float sampling_rate = ReadFloat();
+      sprintf(log_message_string_,
+              "sampling_rate_=%.1e",sampling_rate);
+      LogMessage(log_message_string_, function_name);
+      return sampling_rate;
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
+                 function_name);
+    }
   }
   return 0;
 }
@@ -1031,6 +784,8 @@ uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
   LogMessage("send command", function_name);
   Serialize(&sampling_rate,sizeof(sampling_rate));
   if(SendCommand(CMD_SET_SAMPLING_RATE)==RETURN_OK) {
+    LogMessage("CMD_SET_SAMPLING_RATE", function_name);
+    LogMessage("sampling rate set successfully", function_name);
     std::ostringstream msg;
     msg << "set sampling rate," << (int)sampling_rate << endl;
     LogExperiment(msg.str().c_str());
@@ -1044,7 +799,18 @@ float DmfControlBoard::series_resistor(const uint8_t channel) {
   LogMessage("send command", function_name);
   Serialize(&channel,sizeof(channel));
   if(SendCommand(CMD_GET_SERIES_RESISTOR)==RETURN_OK) {
-    return series_resistor_;
+    LogMessage("CMD_GET_SERIES_RESISTOR", function_name);
+    if(payload_length()==sizeof(float)) {
+      float series_resistor = ReadFloat();
+      sprintf(log_message_string_,
+              "series_resistor_=%.1e",series_resistor);
+      LogMessage(log_message_string_, function_name);
+      return series_resistor;
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
+                 function_name);
+    }
   }
   return 0;
 }
@@ -1057,6 +823,8 @@ uint8_t DmfControlBoard::set_series_resistor(const uint8_t channel,
   Serialize(&channel,sizeof(channel));
   Serialize(&series_resistor,sizeof(series_resistor));
   if(SendCommand(CMD_SET_SERIES_RESISTOR)==RETURN_OK) {
+    LogMessage("CMD_SET_SERIES_RESISTOR", function_name);
+    LogMessage("series resistor set successfully", function_name);
     std::ostringstream msg;
     msg << "set series resistor," << (int)channel
         << (int)series_resistor << endl;
@@ -1072,6 +840,8 @@ uint8_t DmfControlBoard::set_pot(const uint8_t index, const uint8_t value) {
   Serialize(&index,sizeof(index));
   Serialize(&value,sizeof(value));
   if(SendCommand(CMD_SET_POT)==RETURN_OK) {
+    LogMessage("CMD_SET_POT", function_name);
+    LogMessage("potentiometer set successfully", function_name);
     std::ostringstream msg;
     msg << "set pot," << (int)index
         << (int)value << endl;
@@ -1087,39 +857,8 @@ uint8_t DmfControlBoard::set_state_of_all_channels(const vector<uint8_t> state) 
   LogMessage("send command", function_name);
   Serialize(&state[0],state.size()*sizeof(uint8_t));
   if(SendCommand(CMD_SET_STATE_OF_ALL_CHANNELS)==RETURN_OK) {
-    // check which channels have changed state
-    vector<uint8_t> on,off;
-    for(int i=0; i<state.size()&&i<state_of_channels_.size(); i++) {
-      if(state[i]!=state_of_channels_[i]) {
-        if(state[i]==0) {
-          off.push_back(i);
-        } else {
-          on.push_back(i);
-        }
-      }
-    }
-    // update state
-    state_of_channels_=state;
-
-    // log experiment
-    std::ostringstream msg;
-    msg << "set_state_of_all_channels,";
-    if(on.size()||off.size()) {
-      if(on.size()>0) {
-        msg << "Turn on:,";
-        for(int i=0; i<on.size(); i++) {
-          msg << (int)on[i] << ",";
-        }
-      }
-      if(off.size()>0) {
-        msg << "Turn off:,";
-        for(int i=0; i<off.size(); i++) {
-          msg << (int)off[i] << ",";
-        }
-      }
-    }
-    msg << endl;
-    LogExperiment(msg.str().c_str());
+    LogMessage("CMD_SET_STATE_OF_ALL_CHANNELS", function_name);
+    LogMessage("all channels set successfully", function_name);
   }
   return return_code();
 }
@@ -1131,21 +870,8 @@ uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel, const uint
   Serialize(&channel,sizeof(channel));
   Serialize(&state,sizeof(state));
   if(SendCommand(CMD_SET_STATE_OF_CHANNEL)==RETURN_OK) {
-    // keep track of the channel state
-    if(channel+1>state_of_channels_.size()) {
-      state_of_channels_.resize(channel+1);
-    }
-    state_of_channels_[channel]=state;
-
-    // log experiment
-    std::ostringstream msg;
-    msg << "set_state_of_channel,";
-    if(state==0) {
-      msg << "Turn off:," << channel << endl;
-    } else {
-      msg << "Turn on:," << channel << endl;
-    }
-    LogExperiment(msg.str().c_str());
+    LogMessage("CMD_SET_STATE_OF_CHANNEL", function_name);
+    LogMessage("channel set successfully", function_name);
   }
   return return_code();
 }
@@ -1157,6 +883,8 @@ uint8_t DmfControlBoard::set_actuation_voltage(const float v_rms){
 // TODO: gain adjustment only has 255 steps, so send a byte instead of fload
   Serialize(&v_rms,sizeof(v_rms));
   if(SendCommand(CMD_SET_ACTUATION_VOLTAGE)==RETURN_OK) {
+    LogMessage("CMD_SET_ACTUATION_VOLTAGE", function_name);
+    LogMessage("volage set successfully", function_name);
     std::ostringstream msg;
     msg << "set_actuation_voltage," << v_rms << ",Vrms" << endl;
     LogExperiment(msg.str().c_str());
@@ -1172,6 +900,8 @@ uint8_t DmfControlBoard::set_actuation_frequency(const float freq_hz) {
   LogMessage("send command", function_name);
   Serialize(&freq_hz,sizeof(freq_hz));
   if(SendCommand(CMD_SET_ACTUATION_FREQUENCY)==RETURN_OK) {
+    LogMessage("CMD_SET_ACTUATION_FREQUENCY", function_name);
+    LogMessage("frequency set successfully", function_name);
     std::ostringstream msg;
     msg << "set_actuation_frequency," << freq_hz/1000 << ",kHz" << endl;
     LogExperiment(msg.str().c_str());
@@ -1200,28 +930,34 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
   std::ostringstream msg;
   msg << "SampleVoltage,";
 
-  SerializeChannelState(state, msg);
-
   msg << endl << CSV_INDENT_ << "n_samples,"
       << (int)n_samples << endl << CSV_INDENT_ << "n_sets," << (int)n_sets
       << endl << CSV_INDENT_ << "delay_between_sets_ms,"
       << (int)delay_between_sets_ms << endl;
   if(SendCommand(CMD_SAMPLE_VOLTAGE)==RETURN_OK) {
+    LogMessage("CMD_SAMPLE_VOLTAGE", function_name);
+    uint16_t n_samples = payload_length()/sizeof(uint16_t);
+    sprintf(log_message_string_,"Read %d feedback samples",n_samples);
+    LogMessage(log_message_string_,function_name);
+    std::vector<uint16_t> voltage_buffer(n_samples);
+    for(uint16_t i=0; i<n_samples; i++) {
+      voltage_buffer[i] = ReadUint16();
+    }
     for(int i=0; i<ad_channel.size(); i++) {
       for(int j=0; j<n_sets; j++) {
         msg << CSV_INDENT_ << "voltage_buffer_[" << i << "][" << j << "],";
         // calculate the DC bias
         double dc_bias = 0;
         for(int k=0; k<n_samples; k++) {
-          dc_bias += (float)voltage_buffer_[j*ad_channel.size()*n_samples+
+          dc_bias += (float)voltage_buffer[j*ad_channel.size()*n_samples+
                                            k*ad_channel.size()+i]
                                            /1024*5/n_samples;
-          msg << (float)voltage_buffer_[j*ad_channel.size()*n_samples+
+          msg << (float)voltage_buffer[j*ad_channel.size()*n_samples+
                                        k*ad_channel.size()+i]/1024*5 << ",";
         }
         double v_rms = 0;
         for(int k=0; k<n_samples; k++) {
-          v_rms += pow((float)voltage_buffer_[j*ad_channel.size()*n_samples+
+          v_rms += pow((float)voltage_buffer[j*ad_channel.size()*n_samples+
                                              k*ad_channel.size()+i]
                                              /1024*5-dc_bias,2)/n_samples;
         }
@@ -1231,7 +967,7 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
       }
     }
     LogExperiment(msg.str().c_str());
-    return voltage_buffer_;
+    return voltage_buffer;
   }
   return std::vector<uint16_t>(); // return an empty vector
 }
@@ -1251,37 +987,20 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
   std::ostringstream msg;
   msg << "MeasureImpedance,";
 
-  SerializeChannelState(state, msg);
-
   msg << endl << CSV_INDENT_ << "sampling_time_ms," << (int)sampling_time_ms
       << "n_samples," << (int)n_samples << endl << CSV_INDENT_
       << "delay_between_samples_ms," << (int)delay_between_samples_ms << endl;
   if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
-/*
-      for(int j=0; j<n_samples; j++) {
-        msg << CSV_INDENT_ << "voltage_buffer_[" << i << "][" << j << "],";
-        // calculate the DC bias
-        double dc_bias = 0;
-        for(int k=0; k<n_samples; k++) {
-          dc_bias += (float)voltage_buffer_[j*ad_channel.size()*n_samples+
-                                           k*ad_channel.size()+i]
-                                           /1024*5/n_samples;
-          msg << (float)voltage_buffer_[j*ad_channel.size()*n_samples+
-                                       k*ad_channel.size()+i]/1024*5 << ",";
-        }
-        double v_rms = 0;
-        for(int k=0; k<n_samples; k++) {
-          v_rms += pow((float)voltage_buffer_[j*ad_channel.size()*n_samples+
-                                             k*ad_channel.size()+i]
-                                             /1024*5-dc_bias,2)/n_samples;
-        }
-        v_rms = sqrt(v_rms);
-        msg << endl << CSV_INDENT_ << "dc_bias," << dc_bias << endl
-            << CSV_INDENT_ << "v_rms," << v_rms << endl;
-      }
-*/
+    LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
+    uint16_t n_samples = payload_length()/2/sizeof(float);
+    sprintf(log_message_string_,"Read %d impedance samples",n_samples);
+    LogMessage(log_message_string_,function_name);
+    std::vector<float> impedance_buffer(2*n_samples);
+    for(uint16_t i=0; i<2*n_samples; i++) {
+      impedance_buffer[i] = ReadFloat();
+    }
     LogExperiment(msg.str().c_str());
-    return impedance_buffer_;
+    return impedance_buffer;
   }
   return std::vector<float>(); // return an empty vector
 }
@@ -1316,43 +1035,6 @@ float DmfControlBoard::MillisecondsSinceLastCheck() {
   t_last_check_ = boost::posix_time::microsec_clock::universal_time();
   return floor(0.5+(float)(boost::posix_time::microsec_clock::universal_time()-t)
          .total_microseconds()/1000);
-}
-
-void DmfControlBoard::SerializeChannelState(const std::vector<uint8_t> state,
-                                            std::ostringstream& msg) {
-  // if we're updating the channel state
-  if(state.size()) {
-    Serialize(&state[0],state.size()*sizeof(uint8_t));
-
-    // check which channels have changed state
-    vector<uint8_t> on,off;
-    for(int i=0; i<state.size()&&i<state_of_channels_.size(); i++) {
-      if(state[i]!=state_of_channels_[i]) {
-        if(state[i]==0) {
-          off.push_back(i);
-        } else {
-          on.push_back(i);
-        }
-      }
-    }
-    // update state
-    state_of_channels_=state;
-
-    if(on.size()||off.size()) {
-      if(on.size()>0) {
-        msg << "Turn on:,";
-        for(int i=0; i<on.size(); i++) {
-          msg << (int)on[i] << ",";
-        }
-      }
-      if(off.size()>0) {
-        msg << "Turn off:,";
-        for(int i=0; i<off.size(); i++) {
-          msg << (int)off[i] << ",";
-        }
-      }
-    }
-  }
 }
 
 #endif // AVR

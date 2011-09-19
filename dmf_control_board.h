@@ -84,15 +84,6 @@ public:
 
 // In our case, the PC is the only one sending commands
 #ifndef AVR
-  // Remote accessors
-  virtual std::string protocol_name();
-  virtual std::string protocol_version();
-  virtual std::string name();
-  virtual std::string manufacturer();
-  virtual std::string software_version();
-  virtual std::string hardware_version();
-  virtual std::string url();
-
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
@@ -190,8 +181,6 @@ private:
 
   // private functions
   virtual void ProcessCommand(uint8_t cmd);
-  virtual void ProcessReply(uint8_t cmd);
-
 #ifdef AVR
   void UpdateChannel(const uint16_t channel);
   void UpdateAllChannels();
@@ -217,19 +206,6 @@ private:
   uint8_t A1_series_resistor_index_;
   uint8_t peak_;
 #else
-  uint8_t pot_value_;
-  std::string protocol_name_;
-  std::string protocol_version_;
-  std::string name_;
-  std::string manufacturer_;
-  std::string software_version_;
-  std::string hardware_version_;
-  std::string url_;
-  std::vector<uint8_t> state_of_channels_;
-  std::vector<uint16_t> voltage_buffer_;
-  std::vector<float> impedance_buffer_;
-  float sampling_rate_;
-  float series_resistor_;
   std::string experiment_log_file_name_;
   std::ofstream experiment_log_file_;
   boost::posix_time::ptime t_last_check_;

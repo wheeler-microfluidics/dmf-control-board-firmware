@@ -36,10 +36,6 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
 RemoteObject::~RemoteObject() {
 }
 
-void RemoteObject::set_debug(const bool debug) {
-  debug_ = debug;
-}
-
 void RemoteObject::SendByte(const uint8_t b) {
 #ifndef AVR
   const char* function_name = "SendByte()";
@@ -255,9 +251,17 @@ void RemoteObject::ProcessPacket() {
   } else {
     return_code_ = payload_[payload_length_-1];
     payload_length_--;// -1 because we've already read the return code
-    ProcessReply(packet_cmd_);
 #ifndef AVR
-    LogSeparator();
+  const char* function_name = "ProcessPacket()";
+  sprintf(log_message_string_,
+          "(0x%0X). This packet is a reply to command (%d)",
+          packet_cmd_^0x80,packet_cmd_^0x80);
+  LogMessage(log_message_string_, function_name);
+  sprintf(log_message_string_,"Return code=%d",return_code());
+  LogMessage(log_message_string_, function_name);
+  sprintf(log_message_string_,"Payload length=%d",payload_length());
+  LogMessage(log_message_string_, function_name);
+  LogSeparator();
 #endif
   }
 }
@@ -369,7 +373,6 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
   }
   if(un_escaping_) {
     un_escaping_=false;
-
   }
 }
 
@@ -404,6 +407,115 @@ uint8_t RemoteObject::Connect(const char* port) {
     boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
   }
   return return_code;
+}
+
+void RemoteObject::set_debug(const bool debug) {
+  debug_ = debug;
+}
+
+string RemoteObject::protocol_name() {
+  const char* function_name = "protocol_name()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_PROTOCOL_NAME)==RETURN_OK) {
+    string protocol_name = ReadString();
+    sprintf(log_message_string_,
+            "protocol_name=%s",
+            protocol_name.c_str());
+    LogMessage(log_message_string_, function_name);
+    return protocol_name;
+  }
+  return "";
+}
+
+string RemoteObject::protocol_version() {
+  const char* function_name = "protocol_version()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_PROTOCOL_VERSION)==RETURN_OK) {
+    string protocol_version = ReadString();
+    sprintf(log_message_string_,
+            "protocol_version=%s",
+            protocol_version.c_str());
+    LogMessage(log_message_string_, function_name);
+    return protocol_version;
+  }
+  return "";
+}
+
+string RemoteObject::name() {
+  const char* function_name = "name()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_DEVICE_NAME)==RETURN_OK) {
+    string name = ReadString();
+    sprintf(log_message_string_,
+            "name=%s",
+            name.c_str());
+    LogMessage(log_message_string_, function_name);
+    return name;
+  }
+  return "";
+}
+
+string RemoteObject::manufacturer() {
+  const char* function_name = "manufacturer()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_MANUFACTURER)==RETURN_OK) {
+    string manufacturer = ReadString();
+    sprintf(log_message_string_,
+            "manufacturer=%s",
+            manufacturer.c_str());
+    LogMessage(log_message_string_, function_name);
+    return manufacturer;
+  }
+  return "";
+}
+
+string RemoteObject::software_version() {
+  const char* function_name = "software_version()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_SOFTWARE_VERSION)==RETURN_OK) {
+    string software_version = ReadString();
+    sprintf(log_message_string_,
+            "software_version=%s",
+            software_version.c_str());
+    LogMessage(log_message_string_, function_name);
+    return software_version;
+  }
+  return "";
+}
+
+string RemoteObject::hardware_version() {
+  const char* function_name = "hardware_version()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_HARDWARE_VERSION)==RETURN_OK) {
+    string hardware_version = ReadString();
+    sprintf(log_message_string_,
+            "hardware_version=%s",
+            hardware_version.c_str());
+    LogMessage(log_message_string_, function_name);
+    return hardware_version;
+  }
+  return "";
+}
+
+string RemoteObject::url() {
+  const char* function_name = "url()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_URL)==RETURN_OK) {
+    string url = ReadString();
+    sprintf(log_message_string_,
+            "url=%s",
+            url.c_str());
+    LogMessage(log_message_string_, function_name);
+    return url;
+  }
+  return "";
 }
 
 #endif

@@ -102,23 +102,26 @@ public:
   virtual const char* hardware_version() = 0;
   virtual const char* url() = 0;
 #else
-  // these methods query the remote device for protocol name/version
-  virtual std::string protocol_name() = 0;
-  virtual std::string protocol_version() = 0;
-  virtual std::string name() = 0;
-  virtual std::string manufacturer() = 0;
-  virtual std::string software_version() = 0;
-  virtual std::string hardware_version() = 0;
-  virtual std::string url() = 0;
+  // Remote accessors
+  std::string protocol_name();
+  std::string protocol_version();
+  std::string name();
+  std::string manufacturer();
+  std::string software_version();
+  std::string hardware_version();
+  std::string url();
+//  virtual uint16_t analog_read(uint8_t pin); TODO
+//  virtual bool digital_read(uint8_t pin); TODO
+//  virtual void analog_write(uint8_t pin, uint16_t value);  TODO
+//  virtual void digital_write(uint8_t pin, bool on); TODO
 
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
 #endif
 
 protected:
-  // these virtual methods must be overriden in the derived class
+  // this virtual method must be overriden in the derived class
   virtual void ProcessCommand(uint8_t cmd) = 0;
-  virtual void ProcessReply(uint8_t cmd) = 0;
   uint16_t payload_length() { return payload_length_; }
 
   // WARNING: The following two functions should only be used if you really
