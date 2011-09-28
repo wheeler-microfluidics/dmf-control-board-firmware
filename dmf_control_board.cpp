@@ -42,7 +42,7 @@ DmfControlBoard::DmfControlBoard()
 DmfControlBoard::~DmfControlBoard() {
 }
 
-void DmfControlBoard::ProcessCommand(uint8_t cmd) {
+uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #ifndef AVR
   const char* function_name = "ProcessCommand()";
   sprintf(log_message_string_,"command=0x%0X (%d)",
@@ -441,12 +441,16 @@ void DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
 #endif
     default:
+      return_code = RemoteObject::ProcessCommand(cmd);
 #ifndef AVR
-      LogError("Unrecognized command", function_name);
+      if(return_code == RETURN_UNKNOWN_COMMAND) {
+        LogError("Unrecognized command", function_name);
+      }
 #endif
       break;
   }
   SendReply(return_code);
+  return return_code;
 }
 
 #ifdef AVR

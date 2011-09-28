@@ -43,31 +43,30 @@ public:
   //////////////////////////////////////////////////////////////////////////////
 
   // Accessors and mutators
-  static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0x87;
-  static const uint8_t CMD_GET_STATE_OF_ALL_CHANNELS =      0x88;
-  static const uint8_t CMD_SET_STATE_OF_ALL_CHANNELS =      0x89;
-  static const uint8_t CMD_GET_STATE_OF_CHANNEL =           0x8A;
-  static const uint8_t CMD_SET_STATE_OF_CHANNEL =           0x8B;
-  static const uint8_t CMD_GET_ACTUATION_WAVEFORM =         0x8C; //TODO
-  static const uint8_t CMD_SET_ACTUATION_WAVEFORM =         0x8D; //TODO
-  static const uint8_t CMD_GET_ACTUATION_VOLTAGE =          0x8E;
-  static const uint8_t CMD_SET_ACTUATION_VOLTAGE =          0x8F;
-  static const uint8_t CMD_GET_ACTUATION_FREQUENCY =        0x90;
-  static const uint8_t CMD_SET_ACTUATION_FREQUENCY =        0x91;
-  static const uint8_t CMD_GET_SAMPLING_RATE =              0x92;
-  static const uint8_t CMD_SET_SAMPLING_RATE =              0x93;
-  static const uint8_t CMD_GET_SERIES_RESISTOR =            0x94;
-  static const uint8_t CMD_SET_SERIES_RESISTOR =            0x95;
-  static const uint8_t CMD_GET_POT =                        0x96;
-  static const uint8_t CMD_SET_POT =                        0x97;
+  static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0xA0;
+  static const uint8_t CMD_GET_STATE_OF_ALL_CHANNELS =      0xA1;
+  static const uint8_t CMD_SET_STATE_OF_ALL_CHANNELS =      0xA2;
+  static const uint8_t CMD_GET_STATE_OF_CHANNEL =           0xA3;
+  static const uint8_t CMD_SET_STATE_OF_CHANNEL =           0xA4;
+  static const uint8_t CMD_GET_ACTUATION_WAVEFORM =         0xA5; //TODO
+  static const uint8_t CMD_SET_ACTUATION_WAVEFORM =         0xA6; //TODO
+  static const uint8_t CMD_GET_ACTUATION_VOLTAGE =          0xA7;
+  static const uint8_t CMD_SET_ACTUATION_VOLTAGE =          0xA8;
+  static const uint8_t CMD_GET_ACTUATION_FREQUENCY =        0xA9;
+  static const uint8_t CMD_SET_ACTUATION_FREQUENCY =        0xAA;
+  static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
+  static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
+  static const uint8_t CMD_GET_SERIES_RESISTOR =            0xAD;
+  static const uint8_t CMD_SET_SERIES_RESISTOR =            0xAE;
+  static const uint8_t CMD_GET_POT =                        0xAF;
+  static const uint8_t CMD_SET_POT =                        0xB0;
 
   // Other commands
-  static const uint8_t CMD_SYSTEM_RESET =                   0xB0; //TODO
-  static const uint8_t CMD_DEBUG_MESSAGE =                  0xB1; //TODO
-  static const uint8_t CMD_DEBUG_ON =                       0xB2; //TODO
-  static const uint8_t CMD_SAMPLE_VOLTAGE =                 0xB3;
-  static const uint8_t CMD_MEASURE_IMPEDANCE =              0xB4;
-
+  static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
+  static const uint8_t CMD_DEBUG_MESSAGE =                  0xF2; //TODO
+  static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
+  static const uint8_t CMD_SAMPLE_VOLTAGE =                 0xF4;
+  static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF5;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -180,7 +179,7 @@ private:
 #endif
 
   // private functions
-  virtual void ProcessCommand(uint8_t cmd);
+  virtual uint8_t ProcessCommand(uint8_t cmd);
 #ifdef AVR
   void UpdateChannel(const uint16_t channel);
   void UpdateAllChannels();

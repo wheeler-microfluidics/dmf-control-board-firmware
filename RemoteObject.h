@@ -53,6 +53,7 @@ class RemoteObject {
 public:
 #ifndef AVR
   static const uint32_t TIMEOUT_MICROSECONDS = 2000000; // TODO: this should be configurable
+
 #endif
 
   // protocol constants
@@ -67,6 +68,11 @@ public:
   static const uint8_t CMD_GET_HARDWARE_VERSION = 0x84;
   static const uint8_t CMD_GET_SOFTWARE_VERSION = 0x85;
   static const uint8_t CMD_GET_URL =              0x86;
+  static const uint8_t CMD_SET_PIN_MODE =         0x87;
+  static const uint8_t CMD_DIGITAL_READ =         0x88;
+  static const uint8_t CMD_DIGITAL_WRITE =        0x89;
+  static const uint8_t CMD_ANALOG_READ =          0x90;
+  static const uint8_t CMD_ANALOG_WRITE =         0x91;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                0x00;
@@ -110,10 +116,11 @@ public:
   std::string software_version();
   std::string hardware_version();
   std::string url();
-//  virtual uint16_t analog_read(uint8_t pin); TODO
-//  virtual bool digital_read(uint8_t pin); TODO
-//  virtual void analog_write(uint8_t pin, uint16_t value);  TODO
-//  virtual void digital_write(uint8_t pin, bool on); TODO
+  void set_pin_mode(uint8_t pin, uint8_t mode);
+  uint8_t digital_read(uint8_t pin);
+  void digital_write(uint8_t pin, uint8_t value);
+  uint16_t analog_read(uint8_t pin);
+  void analog_write(uint8_t pin, uint16_t value);
 
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
@@ -121,7 +128,7 @@ public:
 
 protected:
   // this virtual method must be overriden in the derived class
-  virtual void ProcessCommand(uint8_t cmd) = 0;
+  virtual uint8_t ProcessCommand(uint8_t cmd) = 0;
   uint16_t payload_length() { return payload_length_; }
 
   // WARNING: The following two functions should only be used if you really

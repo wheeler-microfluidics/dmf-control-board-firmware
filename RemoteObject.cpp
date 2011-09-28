@@ -266,6 +266,71 @@ void RemoteObject::ProcessPacket() {
   }
 }
 
+uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
+#ifndef AVR
+  const char* function_name = "ProcessCommand()";
+  sprintf(log_message_string_,"command=0x%0X (%d)",
+          cmd,cmd);
+  LogMessage(log_message_string_, function_name);
+#endif
+  uint8_t return_code = RETURN_UNKNOWN_COMMAND;
+  switch(cmd) {
+#ifdef AVR // Commands that only the Arduino handles
+    case CMD_SET_PIN_MODE:
+      if(payload_length()==2) {
+        uint8_t pin = ReadUint8();
+        uint8_t mode = ReadUint8();
+        pinMode(pin, mode);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_DIGITAL_WRITE:
+      if(payload_length()==2) {
+        uint8_t pin = ReadUint8();
+        uint8_t value = ReadUint8();
+        digitalWrite(pin, value);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_DIGITAL_READ:
+      if(payload_length()==1) {
+        uint8_t pin = ReadUint8();
+        uint8_t value = digitalRead(pin);
+        Serialize(&value,sizeof(value));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_ANALOG_WRITE:
+      if(payload_length()==2) {
+        uint8_t pin = ReadUint8();
+        uint16_t value = ReadUint16();
+        analogWrite(pin, value);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_ANALOG_READ:
+      if(payload_length()==1) {
+        uint8_t pin = ReadUint8();
+        uint16_t value = analogRead(pin);
+        Serialize(&value,sizeof(value));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#endif
+  }
+  return return_code;
+}
+
 void RemoteObject::ProcessSerialInput(uint8_t b) {
 #ifndef AVR
   const char* function_name = "ProcessSerialInput()";
@@ -516,6 +581,75 @@ string RemoteObject::url() {
     return url;
   }
   return "";
+}
+
+void RemoteObject::set_pin_mode(uint8_t pin, uint8_t mode) {
+  const char* function_name = "set_pin_mode()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  Serialize(&pin,sizeof(mode));
+  if(SendCommand(CMD_SET_PIN_MODE)==RETURN_OK) {
+    sprintf(log_message_string_,"pin %d mode=%d",
+            pin, mode);
+    LogMessage(log_message_string_, function_name);
+  }
+}
+
+uint8_t RemoteObject::digital_read(uint8_t pin) {
+  const char* function_name = "digital_read()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  if(SendCommand(CMD_DIGITAL_READ)==RETURN_OK) {
+    uint8_t value = ReadUint8();
+    sprintf(log_message_string_,"pin %d value=%d",
+            pin, value);
+    LogMessage(log_message_string_, function_name);
+    return value;
+  }
+  return 0;
+}
+
+void RemoteObject::digital_write(uint8_t pin, uint8_t value) {
+  const char* function_name = "digital_write()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  Serialize(&value,sizeof(value));
+  if(SendCommand(CMD_DIGITAL_WRITE)==RETURN_OK) {
+    sprintf(log_message_string_,"pin %d value=%d",
+            pin, value);
+    LogMessage(log_message_string_, function_name);
+  }
+}
+
+uint16_t RemoteObject::analog_read(uint8_t pin) {
+  const char* function_name = "analog_read()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  if(SendCommand(CMD_ANALOG_READ)==RETURN_OK) {
+    uint16_t value = ReadUint16();
+    sprintf(log_message_string_,"pin %d value=%d",
+            pin, value);
+    LogMessage(log_message_string_, function_name);
+    return value;
+  }
+  return 0;
+}
+
+void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
+  const char* function_name = "analog_write()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  Serialize(&value,sizeof(value));
+  if(SendCommand(CMD_DIGITAL_WRITE)==RETURN_OK) {
+    sprintf(log_message_string_,"pin %d value=%d",
+            pin, value);
+    LogMessage(log_message_string_, function_name);
+  }
 }
 
 #endif

@@ -15,6 +15,11 @@ const uint8_t RemoteObject::RETURN_BAD_CRC;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
+  scope().attr("INPUT") = 0;
+  scope().attr("OUTPUT") = 1;
+  scope().attr("HIGH") = 1;
+  scope().attr("LOW") = 0;
+  
   class_<std::vector<uint8_t> >("uint8_tVector")
     .def(vector_indexing_suite<std::vector<uint8_t> >())
   ;
@@ -40,10 +45,11 @@ object DmfControlBoard_class
     .def("software_version",&DmfControlBoard::software_version)
     .def("hardware_version",&DmfControlBoard::hardware_version)
     .def("url",&DmfControlBoard::url)
-//    .def("analog_read",&DmfControlBoard::analog_read)
-//    .def("analog_write",&DmfControlBoard::analog_write)
-//    .def("digital_read",&DmfControlBoard::digital_read)
-//    .def("digital_write",&DmfControlBoard::digital_write)
+    .def("set_pin_mode",&DmfControlBoard::set_pin_mode)
+    .def("digital_read",&DmfControlBoard::digital_read)
+    .def("digital_write",&DmfControlBoard::digital_write)
+    .def("analog_read",&DmfControlBoard::analog_read)
+    .def("analog_write",&DmfControlBoard::analog_write)
     .def("number_of_channels",&DmfControlBoard::number_of_channels)
     .def("state_of_all_channels",&DmfControlBoard::state_of_all_channels)
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
