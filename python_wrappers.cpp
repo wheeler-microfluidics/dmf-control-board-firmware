@@ -4,6 +4,8 @@
 
 using namespace boost::python;
 
+const uint16_t RemoteObject::EEPROM_PIN_MODE_ADDRESS;
+const uint16_t RemoteObject::EEPROM_PIN_STATE_ADDRESS;
 const uint8_t RemoteObject::RETURN_OK;
 const uint8_t RemoteObject::RETURN_GENERAL_ERROR;
 const uint8_t RemoteObject::RETURN_UNKNOWN_COMMAND;
@@ -50,6 +52,8 @@ object DmfControlBoard_class
     .def("digital_write",&DmfControlBoard::digital_write)
     .def("analog_read",&DmfControlBoard::analog_read)
     .def("analog_write",&DmfControlBoard::analog_write)
+    .def("eeprom_read",&DmfControlBoard::eeprom_read)
+    .def("eeprom_write",&DmfControlBoard::eeprom_write)
     .def("number_of_channels",&DmfControlBoard::number_of_channels)
     .def("state_of_all_channels",&DmfControlBoard::state_of_all_channels)
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
@@ -67,6 +71,8 @@ object DmfControlBoard_class
     .def("LogExperiment",&DmfControlBoard::SetExperimentLogFile)
     .def("MeasureImpedance",&DmfControlBoard::MeasureImpedance)
   ;
+DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::EEPROM_PIN_MODE_ADDRESS;
+DmfControlBoard_class.attr("EEPROM_PIN_STATE_ADDRESS") = DmfControlBoard::EEPROM_PIN_STATE_ADDRESS;
 DmfControlBoard_class.attr("RETURN_OK") = DmfControlBoard::RETURN_OK;
 DmfControlBoard_class.attr("RETURN_GENERAL_ERROR") = DmfControlBoard::RETURN_GENERAL_ERROR;
 DmfControlBoard_class.attr("RETURN_UNKNOWN_COMMAND") = DmfControlBoard::RETURN_UNKNOWN_COMMAND;

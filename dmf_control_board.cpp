@@ -461,6 +461,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void DmfControlBoard::begin() {
+  RemoteObject::begin();
+
   analogReference(EXTERNAL);
 
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);

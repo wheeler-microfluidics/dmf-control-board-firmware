@@ -43,7 +43,9 @@
 
 #include <stdint.h>
 
-#ifndef AVR
+#ifdef AVR
+  #include <EEPROM.h>
+#else
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
@@ -53,8 +55,10 @@ class RemoteObject {
 public:
 #ifndef AVR
   static const uint32_t TIMEOUT_MICROSECONDS = 2000000; // TODO: this should be configurable
-
 #endif
+  // EEPROM addresses
+  static const uint16_t EEPROM_PIN_MODE_ADDRESS =    0;
+  static const uint16_t EEPROM_PIN_STATE_ADDRESS =   7;
 
   // protocol constants
   static const uint16_t MAX_PAYLOAD_LENGTH =      2001;
@@ -71,8 +75,10 @@ public:
   static const uint8_t CMD_SET_PIN_MODE =         0x87;
   static const uint8_t CMD_DIGITAL_READ =         0x88;
   static const uint8_t CMD_DIGITAL_WRITE =        0x89;
-  static const uint8_t CMD_ANALOG_READ =          0x90;
-  static const uint8_t CMD_ANALOG_WRITE =         0x91;
+  static const uint8_t CMD_ANALOG_READ =          0x8A;
+  static const uint8_t CMD_ANALOG_WRITE =         0x8B;
+  static const uint8_t CMD_EEPROM_READ =          0x8C;
+  static const uint8_t CMD_EEPROM_WRITE =         0x8D;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                0x00;
@@ -92,12 +98,13 @@ public:
                  );
   ~RemoteObject();
 
-  void set_debug(const bool debug);
   uint8_t return_code() {return return_code_; }
   bool crc_enabled() { return crc_enabled_; }
 
 #ifdef AVR
   void Listen();
+  virtual void begin();
+
   // these methods force the derived class to define functions that
   // return the following attributes
   virtual const char* protocol_name() = 0;
@@ -121,7 +128,10 @@ public:
   void digital_write(uint8_t pin, uint8_t value);
   uint16_t analog_read(uint8_t pin);
   void analog_write(uint8_t pin, uint16_t value);
+  uint8_t eeprom_read(uint16_t address);
+  void eeprom_write(uint16_t address, uint8_t value);
 
+  void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
 #endif

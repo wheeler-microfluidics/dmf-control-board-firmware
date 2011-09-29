@@ -31,6 +31,21 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
   bytes_read_ = 0;
   bytes_written_ = 0;
   debug_ = false;
+
+#ifdef AVR
+  // initialize pin mode and state of digital pins
+  // from EEPROM
+  for(uint8_t i=0; i<=54/8; i++) {
+    uint8_t mode = EEPROM.read(EEPROM_PIN_MODE_ADDRESS+i);
+    uint8_t state = EEPROM.read(EEPROM_PIN_STATE_ADDRESS+i);
+    for(uint8_t j=0; j<8; j++) {
+      if(i*8+j<54) {
+        pinMode(i*8+j,(~mode>>j)&0x01);
+        digitalWrite(i*8+j,(~state>>j)&0x01);
+      }
+    }
+  }
+#endif
 }
 
 RemoteObject::~RemoteObject() {
@@ -326,6 +341,26 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_EEPROM_WRITE:
+      if(payload_length()==3) {
+        uint16_t address = ReadUint16();
+        uint8_t value = ReadUint8();
+        EEPROM.write(address, value);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_EEPROM_READ:
+      if(payload_length()==2) {
+        uint16_t address = ReadUint16();
+        uint8_t value = EEPROM.read(address);
+        Serialize(&value,sizeof(value));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   return return_code;
@@ -447,6 +482,10 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
 // These functions are only defined on the Arduino
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+void RemoteObject::begin() {
+  Serial.begin(57600);
+}
 
 void RemoteObject::Listen() {
   while(Serial.available()>0) {
@@ -648,6 +687,34 @@ void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   if(SendCommand(CMD_DIGITAL_WRITE)==RETURN_OK) {
     sprintf(log_message_string_,"pin %d value=%d",
             pin, value);
+    LogMessage(log_message_string_, function_name);
+  }
+}
+
+uint8_t RemoteObject::eeprom_read(uint16_t address) {
+  const char* function_name = "eeprom_read()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&address,sizeof(address));
+  if(SendCommand(CMD_EEPROM_READ)==RETURN_OK) {
+    uint8_t value = ReadUint8();
+    sprintf(log_message_string_,"address %d value=%d",
+            address, value);
+    LogMessage(log_message_string_, function_name);
+    return value;
+  }
+  return 0;
+}
+
+void RemoteObject::eeprom_write(uint16_t address, uint8_t value) {
+  const char* function_name = "eeprom_write()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&address,sizeof(address));
+  Serialize(&value,sizeof(value));
+  if(SendCommand(CMD_EEPROM_WRITE)==RETURN_OK) {
+    sprintf(log_message_string_,"address %d value=%d",
+            address, value);
     LogMessage(log_message_string_, function_name);
   }
 }
