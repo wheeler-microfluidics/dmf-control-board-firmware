@@ -361,6 +361,67 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_ONEWIRE_GET_ADDRESS:
+      if(payload_length()==2) {
+        uint8_t pin = ReadUint8();
+        uint8_t index = ReadUint8();
+        uint8_t addr[8];
+        uint8_t ret;
+        OneWire ow(pin);
+        ow.reset_search();
+        for(uint8_t i=0; i<=index; i++) {
+          ret = ow.search(addr);
+        }
+        if(ret) {
+          Serialize(addr, 8*sizeof(uint8_t));
+          return_code = RETURN_OK;
+        } else { // No more addresses
+          return_code = RETURN_BAD_INDEX;
+        }
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_ONEWIRE_READ:
+      if(payload_length()==11) {
+        uint8_t pin = ReadUint8();
+        uint8_t addr[8];
+        for(uint8_t i=0; i<8; i++) {
+          addr[i] = ReadUint8();
+        }
+        uint8_t command = ReadUint8();
+        uint8_t n_bytes = ReadUint8();
+        OneWire ow(pin);
+        ow.reset();
+        ow.select(addr);
+        ow.write(command);
+        for(uint8_t i=0; i<n_bytes; i++) {
+          uint8_t data = ow.read();
+          Serialize(&data, sizeof(uint8_t));
+        }
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_ONEWIRE_WRITE:
+      if(payload_length()==11) {
+        uint8_t pin = ReadUint8();
+        uint8_t addr[8];
+        for(uint8_t i=0; i<8; i++) {
+          addr[i] = ReadUint8();
+        }
+        uint8_t value = ReadUint8();
+        uint8_t power = ReadUint8();
+        OneWire ow(pin);
+        ow.reset();
+        ow.select(addr);
+        ow.write(value,power);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   return return_code;
@@ -715,6 +776,71 @@ void RemoteObject::eeprom_write(uint16_t address, uint8_t value) {
   if(SendCommand(CMD_EEPROM_WRITE)==RETURN_OK) {
     sprintf(log_message_string_,"address %d value=%d",
             address, value);
+    LogMessage(log_message_string_, function_name);
+  }
+}
+
+std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
+                                                   uint8_t index) {
+  const char* function_name = "onewire_address()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin, sizeof(pin));
+  Serialize(&index, sizeof(index));
+  if(SendCommand(CMD_ONEWIRE_GET_ADDRESS)==RETURN_OK) {
+    sprintf(log_message_string_,"pin %d, index=%d",
+            pin, index);
+    LogMessage(log_message_string_, function_name);
+    std::vector<uint8_t> address;
+    for(int i=0; i<payload_length(); i++) {
+      address.push_back(ReadUint8());
+    }
+    return address;
+  }
+  return std::vector<uint8_t>();
+}
+
+std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
+                                                std::vector<uint8_t> address,
+                                                uint8_t command,
+                                                uint8_t n_bytes) {
+  const char* function_name = "onewire_read()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(address.size()==8) {
+    Serialize(&pin,sizeof(pin));
+    Serialize(&address[0],8*sizeof(uint8_t));
+    Serialize(&command,sizeof(command));
+    Serialize(&n_bytes,sizeof(n_bytes));
+    if(SendCommand(CMD_ONEWIRE_READ)==RETURN_OK) {
+      std::vector<uint8_t> data;
+      for(uint8_t i=0; i<n_bytes; i++) {
+        data.push_back(ReadUint8());
+      }
+      sprintf(log_message_string_,"pin %d, command=%d, n_bytes=%d",
+              pin, command, n_bytes);
+      LogMessage(log_message_string_, function_name);
+      return data;
+    }
+  }
+  return std::vector<uint8_t>();
+}
+
+void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
+                                 uint8_t value, uint8_t power) {
+  const char* function_name = "onewire_write()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(address.size()==8) {
+    Serialize(&pin,sizeof(pin));
+    Serialize(&address[0],8*sizeof(uint8_t));
+    Serialize(&value,sizeof(value));
+    Serialize(&power,sizeof(power));
+    if(SendCommand(CMD_ONEWIRE_WRITE)==RETURN_OK) {
+      sprintf(log_message_string_,
+              "pin %d, value=%d, power=%d",
+              pin, value, power);
+    }
     LogMessage(log_message_string_, function_name);
   }
 }

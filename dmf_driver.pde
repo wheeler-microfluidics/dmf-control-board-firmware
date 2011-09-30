@@ -9,6 +9,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <EEPROM.h>
+#include <OneWire.h>
 #include "Memory.h"
 #include "RemoteObject.h"
 #include "dmf_control_board.h"

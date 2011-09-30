@@ -45,6 +45,7 @@
 
 #ifdef AVR
   #include <EEPROM.h>
+  #include <OneWire.h>
 #else
   #include "logging.h"
   #include "SimpleSerial.h"
@@ -54,41 +55,44 @@
 class RemoteObject {
 public:
 #ifndef AVR
-  static const uint32_t TIMEOUT_MICROSECONDS = 2000000; // TODO: this should be configurable
+  static const uint32_t TIMEOUT_MICROSECONDS =   2000000; // TODO: this should be configurable
 #endif
   // EEPROM addresses
-  static const uint16_t EEPROM_PIN_MODE_ADDRESS =    0;
-  static const uint16_t EEPROM_PIN_STATE_ADDRESS =   7;
+  static const uint16_t EEPROM_PIN_MODE_ADDRESS =      0;
+  static const uint16_t EEPROM_PIN_STATE_ADDRESS =     7;
 
   // protocol constants
-  static const uint16_t MAX_PAYLOAD_LENGTH =      2001;
-  static const uint8_t MAX_STRING_SIZE =            80;
+  static const uint16_t MAX_PAYLOAD_LENGTH =        2001;
+  static const uint8_t MAX_STRING_SIZE =              80;
 
   // reserved commands
-  static const uint8_t CMD_GET_PROTOCOL_NAME =    0x80;
-  static const uint8_t CMD_GET_PROTOCOL_VERSION = 0x81;
-  static const uint8_t CMD_GET_DEVICE_NAME =      0x82;
-  static const uint8_t CMD_GET_MANUFACTURER =     0x83;
-  static const uint8_t CMD_GET_HARDWARE_VERSION = 0x84;
-  static const uint8_t CMD_GET_SOFTWARE_VERSION = 0x85;
-  static const uint8_t CMD_GET_URL =              0x86;
-  static const uint8_t CMD_SET_PIN_MODE =         0x87;
-  static const uint8_t CMD_DIGITAL_READ =         0x88;
-  static const uint8_t CMD_DIGITAL_WRITE =        0x89;
-  static const uint8_t CMD_ANALOG_READ =          0x8A;
-  static const uint8_t CMD_ANALOG_WRITE =         0x8B;
-  static const uint8_t CMD_EEPROM_READ =          0x8C;
-  static const uint8_t CMD_EEPROM_WRITE =         0x8D;
+  static const uint8_t CMD_GET_PROTOCOL_NAME =      0x80;
+  static const uint8_t CMD_GET_PROTOCOL_VERSION =   0x81;
+  static const uint8_t CMD_GET_DEVICE_NAME =        0x82;
+  static const uint8_t CMD_GET_MANUFACTURER =       0x83;
+  static const uint8_t CMD_GET_HARDWARE_VERSION =   0x84;
+  static const uint8_t CMD_GET_SOFTWARE_VERSION =   0x85;
+  static const uint8_t CMD_GET_URL =                0x86;
+  static const uint8_t CMD_SET_PIN_MODE =           0x87;
+  static const uint8_t CMD_DIGITAL_READ =           0x88;
+  static const uint8_t CMD_DIGITAL_WRITE =          0x89;
+  static const uint8_t CMD_ANALOG_READ =            0x8A;
+  static const uint8_t CMD_ANALOG_WRITE =           0x8B;
+  static const uint8_t CMD_EEPROM_READ =            0x8C;
+  static const uint8_t CMD_EEPROM_WRITE =           0x8D;
+  static const uint8_t CMD_ONEWIRE_GET_ADDRESS =    0x8E;
+  static const uint8_t CMD_ONEWIRE_WRITE =          0x8F;
+  static const uint8_t CMD_ONEWIRE_READ =           0x90;
 
   // reserved return codes
-  static const uint8_t RETURN_OK =                0x00;
-  static const uint8_t RETURN_GENERAL_ERROR =     0x01;
-  static const uint8_t RETURN_UNKNOWN_COMMAND =   0x02;
-  static const uint8_t RETURN_TIMEOUT =           0x03;
-  static const uint8_t RETURN_NOT_CONNECTED =     0x04;
-  static const uint8_t RETURN_BAD_INDEX =         0x05;
-  static const uint8_t RETURN_BAD_PACKET_SIZE =   0x06;
-  static const uint8_t RETURN_BAD_CRC =           0x07;
+  static const uint8_t RETURN_OK =                  0x00;
+  static const uint8_t RETURN_GENERAL_ERROR =       0x01;
+  static const uint8_t RETURN_UNKNOWN_COMMAND =     0x02;
+  static const uint8_t RETURN_TIMEOUT =             0x03;
+  static const uint8_t RETURN_NOT_CONNECTED =       0x04;
+  static const uint8_t RETURN_BAD_INDEX =           0x05;
+  static const uint8_t RETURN_BAD_PACKET_SIZE =     0x06;
+  static const uint8_t RETURN_BAD_CRC =             0x07;
 
   RemoteObject(uint32_t baud_rate,
                  bool crc_enabled_
@@ -130,6 +134,11 @@ public:
   void analog_write(uint8_t pin, uint16_t value);
   uint8_t eeprom_read(uint16_t address);
   void eeprom_write(uint16_t address, uint8_t value);
+  std::vector<uint8_t> onewire_address(uint8_t pin, uint8_t index);
+  std::vector<uint8_t> onewire_read(uint8_t pin, std::vector<uint8_t> address,
+                                    uint8_t command, uint8_t n_bytes);
+  void onewire_write(uint8_t pin, std::vector<uint8_t> address,
+                     uint8_t value, uint8_t power);
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  
