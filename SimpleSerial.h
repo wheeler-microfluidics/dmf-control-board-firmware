@@ -1,9 +1,17 @@
 /*
- * File:   SimpleSerial.h
- * Author: Terraneo Federico
- * Distributed under the Boost Software License, Version 1.0.
- * Created on September 7, 2009, 10:46 AM
- */
+SimpleSerial.h
+
+This class is heavily based on Terraneo Federico's AsyncSerial
+class, available at http://gitorious.org/serial-port. It is
+basically a cross platform wrapper for the boost asio library.
+
+The interface was modified by Ryan Fobel to match the Arduino
+Serial library so that classes written for an Arduino and/or PC
+can share the same code.
+
+This software is distributed under the Boost Software License,
+Version 1.0.
+*/
 
 #ifndef _SIMPLESERIAL_H
 #define	_SIMPLESERIAL_H

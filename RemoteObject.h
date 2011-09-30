@@ -1,42 +1,60 @@
-////////////////////////////////////////////////////////////////////////////////
-//
-// RemoteObject
-//
-// This class implements a simple communication protocol between a PC and
-// Arduino over an RS-232 link using HDLC-like framing.  We use a wrapper
-// for the boost asio library (SimpleSerial) that provides an interface that
-// closely matches the Serial library on the Arduino.  This allows us to share
-// the bulk of the code between the PC (Windows, Linux or Mac) and the Arduino.
-//
-// This implementation was partly inspired by Alvaro Lopes' serpro project:
-//   https://github.com/alvieboy/arduino-serpro
-//
-// Each packet has the following structure:
-//
-//  +------------+---------+----------------+---------+------------+----------+
-//  | Start Flag | Command | Payload Length | Payload |    CRC     | End Flag |
-//  |   1 byte   | 1 byte  |    1-2 bytes   | N bytes |  2 bytes   |  1 byte  |
-//  |    0x7E    |         |                |         | (optional) |   0x7E   |
-//  +------------+---------+----------------+---------+------------+----------+
-//
-// The payload length can be one or two bytes.  If the payload is less than 128
-// bytes, it's length is expressed as a single byte.  If the most-significant
-// bit is set, the length is expressed as two bytes and can be recovered by
-// clearing the most significant byte (i.e. PAYLOAD_LENGTH & 0x7FFF).
-//
-//   Examples:
-//
-//     payload length of 3, one byte: 0x04
-//     payload length of 512, two bytes: 0x82 0x01
-//
-// Total packet length (not including flags) = Header Length (2-3 bytes)
-//                                             + Payload Length
-//                                             (+ 2 if CRC is enabled)
-//
-// To use this class, you must derive a class based on it and reimplement the
-// virtual member function "ProcessPacket(...)".
-//
-////////////////////////////////////////////////////////////////////////////////
+/*
+RemoteObject
+
+This class implements a simple communication protocol between a PC and
+Arduino over an RS-232 link using HDLC-like framing.  We use a wrapper
+for the boost asio library (SimpleSerial) that provides an interface that
+closely matches the Serial library on the Arduino.  This allows us to share
+the bulk of the code between the PC (Windows, Linux or Mac) and the Arduino.
+
+This implementation was partly inspired by Alvaro Lopes' serpro project:
+  https://github.com/alvieboy/arduino-serpro
+
+Each packet has the following structure:
+
++------------+---------+----------------+---------+------------+----------+
+| Start Flag | Command | Payload Length | Payload |    CRC     | End Flag |
+|   1 byte   | 1 byte  |    1-2 bytes   | N bytes |  2 bytes   |  1 byte  |
+|    0x7E    |         |                |         | (optional) |   0x7E   |
++------------+---------+----------------+---------+------------+----------+
+
+The payload length can be one or two bytes.  If the payload is less than 128
+bytes, it's length is expressed as a single byte.  If the most-significant
+bit is set, the length is expressed as two bytes and can be recovered by
+clearing the most significant byte (i.e. PAYLOAD_LENGTH & 0x7FFF).
+
+ Examples:
+
+   payload length of 3, one byte: 0x04
+   payload length of 512, two bytes: 0x82 0x01
+
+Total packet length (not including flags) = Header Length (2-3 bytes)
+                                            + Payload Length
+                                            (+ 2 if CRC is enabled)
+
+To use this class, you must derive a class based on it and reimplement the
+virtual member function "ProcessPacket(...)".
+
+
+________________________________________________________________________
+
+Copyright 2011 Ryan Fobel
+
+This file is part of dmf_control_board.
+
+Microdrop is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Microdrop is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Microdrop.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #ifndef _REMOTE_OBJECT_H
 #define	_REMOTE_OBJECT_H

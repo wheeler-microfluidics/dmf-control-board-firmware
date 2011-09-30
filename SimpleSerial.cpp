@@ -1,22 +1,29 @@
 /*
- * File:   SimpleSerial.cpp
- * Author: Terraneo Federico
- * Distributed under the Boost Software License, Version 1.0.
- * Created on September 7, 2009, 10:46 AM
- *
- * IMPORTANT:
- * On Mac OS X boost asio's serial ports have bugs, and the usual implementation
- * of this class does not work. So a workaround class was written temporarily,
- * until asio (hopefully) will fix Mac compatibility for serial ports.
- *
- * Please note that unlike said in the documentation on OS X until asio will
- * be fixed serial port *writes* are *not* asynchronous, but at least
- * asynchronous *read* works.
- * In addition the serial port open ignores the following options: parity,
- * character size, flow, stop bits, and defaults to 8N1 format.
- * I know it is bad but at least it's better than nothing.
- *
- */
+SimpleSerial.cpp
+
+This class is heavily based on Terraneo Federico's AsyncSerial
+class, available at http://gitorious.org/serial-port. It is
+basically a cross platform wrapper for the boost asio library.
+
+The interface was modified by Ryan Fobel to match the Arduino
+Serial library so that classes written for an Arduino and/or PC
+can share the same code.
+
+This software is distributed under the Boost Software License,
+Version 1.0.
+
+IMPORTANT:
+On Mac OS X boost asio's serial ports have bugs, and the usual implementation
+of this class does not work. So a workaround class was written temporarily,
+until asio (hopefully) will fix Mac compatibility for serial ports.
+
+Please note that unlike said in the documentation on OS X until asio will
+be fixed serial port *writes* are *not* asynchronous, but at least
+asynchronous *read* works.
+In addition the serial port open ignores the following options: parity,
+character size, flow, stop bits, and defaults to 8N1 format.
+I know it is bad but at least it's better than nothing.
+*/
 
 #include "SimpleSerial.h"
 
