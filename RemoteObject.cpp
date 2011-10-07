@@ -585,11 +585,6 @@ uint8_t RemoteObject::Connect(const char* port) {
   sprintf(log_message_string_,"Serial.begin(%s,%d)=%d",
           port,baud_rate_,return_code);
   LogMessage(log_message_string_, function_name);
-  if(return_code==0) {
-    LogMessage("Sleep for 2 second so the Arduino can get ready.",
-               function_name);
-    boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
-  }
   return return_code;
 }
 
