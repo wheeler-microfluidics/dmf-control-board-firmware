@@ -1,0 +1,3 @@
+[submodule "site_scons/site_tools/doxygen"]
+	path = site_scons/site_tools/doxygen
+	url = https://github.com/cfobel/doxygen___scons_tool.git

@@ -1,0 +1,13 @@
+#env = Environment()
+Import('env')
+
+import SCons.Environment
+
+import os
+print os.getcwd()
+
+SCons.Environment.apply_tools(env, tools=['default', 'doxygen'], toolpath='.')
+doc = env.Doxygen('doxy.cfg')
+
+env.AlwaysBuild(doc)
+Export('doc')

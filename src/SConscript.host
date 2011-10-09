@@ -1,0 +1,3 @@
+Import('env')
+
+env.SharedLibrary('dmf_control_board', Glob('*.cpp'), SHLIBPREFIX='')
