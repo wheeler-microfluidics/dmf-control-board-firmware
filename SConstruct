@@ -1,3 +1,5 @@
+import os
+
 env = Environment()
 env.Append(LIBS=['python2.7',
                     'boost_python',
@@ -12,12 +14,17 @@ if 'arduino' in COMMAND_LINE_TARGETS:
     print 'should build arduino'
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
-# Build host binaries
-VariantDir('build/host', 'src', duplicate=0)
-SConscript('build/host/SConscript.host')
 
-# Build Arduino binaries
-SConscript('src/SConscript.arduino')
+if os.name == 'nt':
+    raise Warning('Windows support for building host/Arduino binaries is currently not supported')
+else:
+    # Build host binaries
+    VariantDir('build/host', 'src', duplicate=0)
+    SConscript('build/host/SConscript.host')
+
+    # Build Arduino binaries
+    SConscript('src/SConscript.arduino')
+
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
