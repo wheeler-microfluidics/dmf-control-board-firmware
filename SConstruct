@@ -1,4 +1,5 @@
 import os
+import warnings
 
 env = Environment()
 env.Append(LIBS=['python2.7',
@@ -16,7 +17,7 @@ print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
 
 if os.name == 'nt':
-    raise Warning('Windows support for building host/Arduino binaries is currently not supported')
+    warnings.warn('Windows support for building host/Arduino binaries is currently not supported', Warning)
 else:
     # Build host binaries
     VariantDir('build/host', 'src', duplicate=0)
