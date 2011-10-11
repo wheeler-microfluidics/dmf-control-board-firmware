@@ -55,7 +55,7 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
 
 object DmfControlBoard_class
   = class_<DmfControlBoard,boost::noncopyable>("DmfControlBoard")
-    .def("Connect",&DmfControlBoard::Connect)
+    .def("connect",&DmfControlBoard::Connect)
     .def("connected",&DmfControlBoard::connected)
     .def("return_code",&DmfControlBoard::return_code)
     .def("set_debug",&DmfControlBoard::set_debug)
@@ -88,10 +88,10 @@ object DmfControlBoard_class
     .def("set_sampling_rate",&DmfControlBoard::set_sampling_rate)
     .def("set_series_resistor",&DmfControlBoard::set_series_resistor)
     .def("set_pot",&DmfControlBoard::set_pot)
-    .def("SampleVoltage",&DmfControlBoard::SampleVoltage)
-    .def("SetExperimentLogFile",&DmfControlBoard::SetExperimentLogFile)
-    .def("LogExperiment",&DmfControlBoard::SetExperimentLogFile)
-    .def("MeasureImpedance",&DmfControlBoard::MeasureImpedance)
+    .def("sample_voltage",&DmfControlBoard::SampleVoltage)
+    .def("set_experiment_log_file",&DmfControlBoard::SetExperimentLogFile)
+    .def("log_experiment",&DmfControlBoard::LogExperiment)
+    .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
   ;
 DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::EEPROM_PIN_MODE_ADDRESS;
 DmfControlBoard_class.attr("EEPROM_PIN_STATE_ADDRESS") = DmfControlBoard::EEPROM_PIN_STATE_ADDRESS;
