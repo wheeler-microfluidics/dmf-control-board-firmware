@@ -264,7 +264,7 @@ avrdudeOpts = ['-V', '-F', '-c %s'%UPLOAD_PROTOCOL, '-b %s'%UPLOAD_SPEED,
 if AVRDUDE_CONF:
     avrdudeOpts += ['-C %s'%AVRDUDE_CONF]
 
-fuse_cmd = '%s %s'%(AVRDUDE_BIN, ' '.join(avrdudeOpts))
+fuse_cmd = '"%s" %s'%(AVRDUDE_BIN, ' '.join(avrdudeOpts))
 
 #upload = envArduino.Alias('upload', TARGET+'.hex', [reset_cmd, fuse_cmd]);
 upload = envArduino.Alias('upload', TARGET+'.hex', [fuse_cmd]);
