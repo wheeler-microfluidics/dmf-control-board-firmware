@@ -1,3 +1,9 @@
 Import('env')
 
-env.SharedLibrary('dmf_control_board', Glob('*.cpp'), SHLIBPREFIX='')
+import os
+
+pyext = env.SharedLibrary('dmf_control_board_base', Glob('*.cpp'), SHLIBPREFIX='')
+if os.name == 'nt':
+    # In Windows, we must rename the compiled dll to have the extension 'pyd'.
+    # Otherwise, it will not be recognizes as a Python extension.
+    Command('dmf_control_board_base.pyd', pyext, [Copy("$TARGET", "$SOURCE")])
