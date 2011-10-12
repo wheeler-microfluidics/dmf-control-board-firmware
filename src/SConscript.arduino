@@ -70,7 +70,8 @@ if platform == 'darwin':
 elif platform == 'win32':
     # For Windows, use environment variables.
     #ARDUINO_PORT_DEFAULT = os.environ.get('ARDUINO_PORT')
-    ARDUINO_PORT_DEFAULT = 'COM3'
+    #ARDUINO_PORT_DEFAULT = 'COM3'
+    ARDUINO_PORT_DEFAULT = 'COM1'
 else:
     # For Ubuntu Linux (9.10 or higher)
     ARDUINO_PORT_DEFAULT = getUsbTty('/dev/ttyUSB*')
@@ -260,7 +261,7 @@ UPLOAD_SPEED = getBoardConf(r'^%s\.upload\.speed=(.*)'%ARDUINO_BOARD)
 avrdudeOpts = ['-V', '-F', '-c %s'%UPLOAD_PROTOCOL, '-b %s'%UPLOAD_SPEED,
     '-p %s'%MCU, '-P %s'%ARDUINO_PORT, '-U flash:w:$SOURCES']
 if AVRDUDE_CONF:
-    avrdudeOpts += ['-C %s'%AVRDUDE_CONF]
+    avrdudeOpts += ['-C "%s"'%AVRDUDE_CONF]
 
 fuse_cmd = '"%s" %s'%(AVRDUDE_BIN, ' '.join(avrdudeOpts))
 
