@@ -5,11 +5,10 @@ env = Environment()
 
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
-
 if os.name == 'nt':
     # Initialize ENV with OS environment.  Without this, PATH is not set
     # correctly, leading to doxygen not being found in Windows.
-    env['ENV'] = os.environ
+    env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
     env.Append(LIBS=['python27',
                     'ws2_32',

@@ -149,10 +149,11 @@ except AssertionError:
 cFlags = ['-ffunction-sections', '-fdata-sections', '-fno-exceptions',
     '-funsigned-char', '-funsigned-bitfields', '-fpack-struct', '-fshort-enums',
     '-Os', '-mmcu=%s'%MCU]
-envArduino = Environment(CC = AVR_BIN_PREFIX+'gcc', CXX = AVR_BIN_PREFIX+'g++',
-    CPPPATH = ['build/core'],
-    CPPDEFINES = {'F_CPU':F_CPU, 'ARDUINO':ARDUINO_VER, 'AVR': None},
-    CFLAGS = cFlags+['-std=gnu99'], CCFLAGS = cFlags, TOOLS = ['gcc','g++'])
+envArduino = Environment(CC='"%s"' % (AVR_BIN_PREFIX + 'gcc'),
+                        CXX='"%s"' % (AVR_BIN_PREFIX + 'g++'),
+                        CPPPATH=['build/core'],
+                        CPPDEFINES={'F_CPU': F_CPU, 'ARDUINO': ARDUINO_VER, 'AVR': None},
+                        CFLAGS=cFlags+['-std=gnu99'], CCFLAGS=cFlags, TOOLS=['gcc','g++'])
 
 def fnProcessing(target, source, env):
     wp = open ('%s'%target[0], 'wb')
@@ -164,8 +165,7 @@ def fnProcessing(target, source, env):
     wp.close()
     return None
 
-envArduino.Append(BUILDERS = {'Processing':Builder(action = fnProcessing,
-        suffix = '.cpp', src_suffix = '.pde')})
+envArduino.Append(BUILDERS={'Processing':Builder(action=fnProcessing, suffix='.cpp', src_suffix='.pde')})
 envArduino.Append(BUILDERS={'Elf':Builder(action=AVR_BIN_PREFIX+'gcc '+
         '-mmcu=%s -Os -Wl,--gc-sections -o $TARGET $SOURCES -lm'%MCU)})
 envArduino.Append(BUILDERS={'Hex':Builder(action=AVR_BIN_PREFIX+'objcopy '+
