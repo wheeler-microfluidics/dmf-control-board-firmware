@@ -166,10 +166,8 @@ def fnProcessing(target, source, env):
     return None
 
 envArduino.Append(BUILDERS={'Processing':Builder(action=fnProcessing, suffix='.cpp', src_suffix='.pde')})
-envArduino.Append(BUILDERS={'Elf':Builder(action=AVR_BIN_PREFIX+'gcc '+
-        '-mmcu=%s -Os -Wl,--gc-sections -o $TARGET $SOURCES -lm'%MCU)})
-envArduino.Append(BUILDERS={'Hex':Builder(action=AVR_BIN_PREFIX+'objcopy '+
-        '-O ihex -R .eeprom $SOURCES $TARGET')})
+envArduino.Append(BUILDERS={'Elf':Builder(action='"%s"' % (AVR_BIN_PREFIX + 'gcc') + ' -mmcu=%s -Os -Wl,--gc-sections -o $TARGET $SOURCES -lm'%MCU)})
+envArduino.Append(BUILDERS={'Hex':Builder(action='"%s"' % (AVR_BIN_PREFIX + 'objcopy') + ' -O ihex -R .eeprom $SOURCES $TARGET')})
 
 # add arduino core sources
 VariantDir('build/core', ARDUINO_CORE)
@@ -237,7 +235,7 @@ envArduino.Hex(TARGET+'.hex', TARGET+'.elf')
 # TODO: check binary size
 MAX_SIZE = getBoardConf(r'^%s\.upload.maximum_size=(.*)'%ARDUINO_BOARD)
 print ("maximum size for hex file: %s bytes"%MAX_SIZE)
-envArduino.Command(None, TARGET+'.hex', AVR_BIN_PREFIX+'size --target=ihex $SOURCE')
+envArduino.Command(None, TARGET+'.hex', '"%s"' % (AVR_BIN_PREFIX + 'size') + ' --target=ihex $SOURCE')
 
 # Reset
 def pulseDTR(target, source, env):
