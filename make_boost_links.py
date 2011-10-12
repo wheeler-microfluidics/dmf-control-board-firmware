@@ -2,7 +2,7 @@
 from subprocess import check_call, CalledProcessError
 import re
 
-from path import path
+from site_scons.path import path
 
 
 get_target = lambda x: ['libboost_%(name)s%(extension)s', 'libboost_%(name)s_%(variation)s%(extension)s'][x['variation'] is not None] % x
@@ -21,6 +21,11 @@ def get_link_info(boost_lib_path):
 
 if __name__ == '__main__':
     import sys
+    import os
+
+    if not os.name == 'nt':
+        print >> sys.stderr, 'Program must be run in Windows.'
+        sys.exit(1)
 
     if not len(sys.argv) == 2:
         print >> sys.stderr, '''usage: %s <boost lib path> (e.g, 'C:\\boost\\stage\\lib')''' % sys.argv[0]

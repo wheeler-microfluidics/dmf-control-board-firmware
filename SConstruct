@@ -26,7 +26,9 @@ if os.name == 'nt':
     Export('env')
     VariantDir('build/host', 'src', duplicate=0)
     SConscript('build/host/SConscript.host')
-    warnings.warn('Windows support for building Arduino binaries is currently not supported', Warning)
+
+    # Build Arduino binaries
+    SConscript('src/SConscript.arduino')
 else:
     env.Append(LIBS=['boost_python',
                     'boost_thread',
