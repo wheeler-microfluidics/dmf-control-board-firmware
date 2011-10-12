@@ -1,24 +1,38 @@
 import os
 import warnings
 
+import auto_config
+
+
 env = Environment()
 
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
+Import('PYTHON_LIB')
+
 if os.name == 'nt':
+    Import('BOOST_HOME')
+    Import('BOOST_LIB_PATH')
+    Import('PYTHON_LIB_PATH')
+    Import('PYTHON_INC_PATH')
+    print PYTHON_LIB_PATH
+    print PYTHON_INC_PATH
+    print(BOOST_HOME)
+    print(BOOST_LIB_PATH)
+
     # Initialize ENV with OS environment.  Without this, PATH is not set
     # correctly, leading to doxygen not being found in Windows.
     env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
-    env.Append(LIBS=['python27',
+    env.Append(LIBS=[PYTHON_LIB,
                     'ws2_32',
                     'boost_python_mt',
                     'boost_thread_mt',
                     'boost_filesystem_mt',
                     'boost_iostreams_mt',
                     'boost_system_mt'])
-    env.Append(CPPPATH=['C:/Python27/include', 'C:/boost'])
-    env.Append(LIBPATH=['C:/Python27/libs', 'C:/boost/stage/lib'])
+    env.Append(CPPPATH=[PYTHON_INC_PATH, BOOST_HOME])
+    env.Append(LIBPATH=[PYTHON_LIB_PATH, BOOST_LIB_PATH])
 
     # Build host binaries
 
@@ -33,8 +47,8 @@ else:
                     'boost_thread',
                     'boost_filesystem',
                     'boost_system',
-                    'python2.7'])
-    env.Append(CPPPATH=['/usr/include/python2.7'])
+                    PYTHON_LIB])
+    env.Append(CPPPATH=['/usr/include/%s' % PYTHON_LIB])
 
     # Build host binaries
 
