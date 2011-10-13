@@ -5,7 +5,7 @@ import re
 from site_scons.path import path
 
 
-get_target = lambda x: ['libboost_%(name)s%(extension)s', 'libboost_%(name)s_%(variation)s%(extension)s'][x['variation'] is not None] % x
+get_target = lambda x: ['libboost_%(name)s%(extension)s', 'libboost_%(name)s-%(variation)s%(extension)s'][x['variation'] is not None] % x
 
 
 def get_link_info(boost_lib_path):
