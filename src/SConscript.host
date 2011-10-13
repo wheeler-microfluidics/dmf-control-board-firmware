@@ -6,9 +6,12 @@ from git_util import GitUtil
 
 g = GitUtil(None)
 
+host_defines = {'___SOFTWARE_VERSION___': '\\"%s\\"' % g.describe()}
+host_defines.update(env.get('CPPDEFINES', {}))
+
 pyext = env.SharedLibrary('dmf_control_board_base',
                 Glob('*.cpp'),
-                CPPDEFINES={'___SOFTWARE_VERSION___': '\\"%s\\"' % g.describe()},
+                CPPDEFINES=host_defines,
                 SHLIBPREFIX='')
 if os.name == 'nt':
     # In Windows, we must rename the compiled dll to have the extension 'pyd'.

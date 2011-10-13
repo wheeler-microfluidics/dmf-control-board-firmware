@@ -2,6 +2,7 @@ import os
 import warnings
 
 import auto_config
+from static_libs import get_static_lib
 
 
 env = Environment()
@@ -24,15 +25,29 @@ if os.name == 'nt':
     # correctly, leading to doxygen not being found in Windows.
     env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
-    env.Append(LIBS=[PYTHON_LIB,
-                    'ws2_32',
-                    'boost_python_mt',
-                    'boost_thread_mt',
-                    'boost_filesystem_mt',
-                    'boost_iostreams_mt',
-                    'boost_system_mt'])
+    lib_path = [PYTHON_LIB_PATH, BOOST_LIB_PATH]
+
+    BUILD_STATIC = True
+    if BUILD_STATIC:
+        env.Append(LIBS=[get_static_lib(lib, LIBPATH=lib_path) \
+                            for lib in [PYTHON_LIB,
+                                        'boost_filesystem_mt',
+                                        'boost_thread_mt',
+                                        'boost_python_mt',
+                                        'boost_iostreams_mt',
+                                        'boost_system_mt',]]
+                                    + ['ws2_32'])
+        env.Append(CPPDEFINES=dict(BOOST_PYTHON_STATIC_LIB=None, BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
+    else:
+        env.Append(LIBS=[PYTHON_LIB,
+                        'boost_filesystem_mt',
+                        'boost_thread_mt',
+                        'boost_python_mt',
+                        'boost_iostreams_mt',
+                        'boost_system_mt',
+                        'ws2_32'])
     env.Append(CPPPATH=[PYTHON_INC_PATH, BOOST_HOME])
-    env.Append(LIBPATH=[PYTHON_LIB_PATH, BOOST_LIB_PATH])
+    env.Append(LIBPATH=lib_path)
 
     # Build host binaries
 
@@ -43,11 +58,11 @@ if os.name == 'nt':
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
 else:
-    env.Append(LIBS=['boost_python',
+    env.Append(LIBS=[get_static_lib(lib) for lib in ['boost_python',
                     'boost_thread',
                     'boost_filesystem',
                     'boost_system',
-                    PYTHON_LIB])
+                    PYTHON_LIB]])
     env.Append(CPPPATH=['/usr/include/%s' % PYTHON_LIB])
 
     # Build host binaries

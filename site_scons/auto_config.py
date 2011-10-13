@@ -22,6 +22,7 @@ def get_boost_paths():
         boost_home = boost_home.parent
     return boost_home, boost_lib
 
+
 v = sys.version_info
 if os.name == 'nt':
     PYTHON_LIB = 'python%(major)s%(minor)s' % dict(major=v[0], minor=v[1])
