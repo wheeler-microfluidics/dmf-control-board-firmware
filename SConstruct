@@ -29,12 +29,11 @@ if os.name == 'nt':
     BUILD_STATIC = True
     if BUILD_STATIC:
         env.Append(LIBS=[get_static_lib(lib, LIBPATH=lib_path) \
-                            for lib in [PYTHON_LIB,
-                                        'boost_filesystem',
+                            for lib in ['boost_filesystem',
                                         'boost_thread-mt',
                                         'boost_python',
                                         'boost_system',]]
-                                    + ['ws2_32'])
+                                    + ['ws2_32', PYTHON_LIB])
         env.Append(CPPDEFINES=dict(BOOST_PYTHON_STATIC_LIB=None, BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
     else:
         env.Append(LIBS=[PYTHON_LIB,
