@@ -39,7 +39,7 @@ if __name__ == '__main__':
         link = parent / path(w[1])
         if link.exists():
             link.remove()
-        cmd = 'mklink "%s" "%s"' % (link, target)
+        cmd = 'fsutil hardlink create "%s" "%s"' % (link, target)
         try:
             check_call(cmd, shell=True)
         except CalledProcessError, why:
