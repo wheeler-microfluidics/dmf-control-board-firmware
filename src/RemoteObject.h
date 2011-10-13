@@ -232,7 +232,8 @@ private:
   uint16_t bytes_read_; // bytes that have been read (by Read methods)
   uint16_t bytes_written_; // bytes that have been written (by Serialize method)
   bool un_escaping_; // flag that the last byte was an escape
-  bool waiting_for_reply_; // flag that we are waiting for a response
+  bool is_reply; // flag that the command we are processing is a reply
+  uint8_t waiting_for_reply_to_; // command that we are expecting a reply to
   bool crc_enabled_;
   uint16_t tx_crc_;
   uint16_t rx_crc_;

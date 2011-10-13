@@ -258,8 +258,8 @@ uint8_t RemoteObject::WaitForReply() {
   LogMessage("", "WaitForReply()");
 #endif
   char b;
-  waiting_for_reply_ = true;
-  while(waiting_for_reply_) {
+  waiting_for_reply_to_ = packet_cmd_;
+  while(waiting_for_reply_to_) {
     if(Serial.available()) {
       b = Serial.read();
       ProcessSerialInput(b);
@@ -268,7 +268,7 @@ uint8_t RemoteObject::WaitForReply() {
       else if((boost::posix_time::microsec_clock::universal_time()
        -time_cmd_sent_).total_microseconds()>TIMEOUT_MICROSECONDS) {
       return_code_ = RETURN_TIMEOUT;
-      waiting_for_reply_ = false;
+      waiting_for_reply_to_ = 0;
     }
 #endif
   }
@@ -532,23 +532,37 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
     LogMessage(log_message_string_, function_name);
 #endif
     if(bytes_received_==payload_length_+header_length_+2*crc_enabled_) {
-      waiting_for_reply_ = false;
       bytes_received_ = 0;
       bytes_read_ = 0;
       bytes_written_ = 0;
-#ifndef AVR
       if(crc_enabled_) {
         if(rx_crc_==0) {
+#ifndef AVR
           LogMessage("End of Packet. CRC OK.", function_name);
+#endif
         } else {
+#ifndef AVR
           LogMessage("End of Packet. CRC Error.", function_name);
+#endif
         }
       } else {
+#ifndef AVR
         LogMessage("End of Packet", function_name);
+#endif
       }
+#ifndef AVR
       LogSeparator();
 #endif
-      ProcessPacket();
+      // only process the packet if we're not expecting something else
+      if(packet_cmd_==(waiting_for_reply_to_^0x80)) {
+        waiting_for_reply_to_ = 0;
+        ProcessPacket();
+      }
+#ifndef AVR
+      else {
+        LogMessage("Not the expected reply, keep waiting.", function_name);
+      }
+#endif
     }
   }
   if(un_escaping_) {
