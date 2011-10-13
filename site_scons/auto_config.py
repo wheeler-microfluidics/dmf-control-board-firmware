@@ -24,11 +24,11 @@ def get_boost_paths():
 
 v = sys.version_info
 if os.name == 'nt':
-    PYTHON_LIB = 'python%(major)s%(minor)s' % dict(major=v.major, minor=v.minor)
+    PYTHON_LIB = 'python%(major)s%(minor)s' % dict(major=v[0], minor=v[1])
     boost_home, boost_lib_path = get_boost_paths()
     Export(BOOST_LIB_PATH=boost_lib_path, BOOST_HOME=boost_home)
 else:
-    PYTHON_LIB = 'python%(major)s.%(minor)s' % dict(major=v.major, minor=v.minor)
+    PYTHON_LIB = 'python%(major)s.%(minor)s' % dict(major=v[0], minor=v[1])
 Export(PYTHON_LIB=PYTHON_LIB)
 
 PYTHON_PATH = get_python_path().parent
