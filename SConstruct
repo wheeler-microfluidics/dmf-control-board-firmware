@@ -1,7 +1,6 @@
 import os
 import warnings
-
-import auto_config
+import site_scons.auto_config
 
 
 env = Environment()
