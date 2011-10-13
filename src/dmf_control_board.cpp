@@ -46,9 +46,9 @@ const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
 const char DmfControlBoard::HARDWARE_VERSION_[] = "1.1";
 const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca";
 #else
-const char DmfControlBoard::SOFTWARE_VERSION_[] = "0.1";
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
+const char DmfControlBoard::SOFTWARE_VERSION_[] = "0.1";
 
 DmfControlBoard::DmfControlBoard()
   : RemoteObject(BAUD_RATE,true
