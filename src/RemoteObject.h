@@ -137,6 +137,8 @@ public:
   virtual const char* hardware_version() = 0;
   virtual const char* url() = 0;
 #else
+  virtual std::string host_software_version() = 0;
+
   // Remote accessors
   std::string protocol_name();
   std::string protocol_version();
@@ -161,6 +163,7 @@ public:
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
+  void flush() { Serial.flush(); }
 #endif
 
 protected:

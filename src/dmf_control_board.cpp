@@ -43,10 +43,10 @@ const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
 const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
-const char DmfControlBoard::SOFTWARE_VERSION_[] = "0.1";
 const char DmfControlBoard::HARDWARE_VERSION_[] = "1.1";
 const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca";
 #else
+const char DmfControlBoard::SOFTWARE_VERSION_[] = "0.1";
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
 
@@ -480,8 +480,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void DmfControlBoard::begin() {
-  RemoteObject::begin();
-
   analogReference(EXTERNAL);
 
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);

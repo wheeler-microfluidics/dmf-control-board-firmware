@@ -120,6 +120,7 @@ bool SimpleSerial::errorStatus() const
 void SimpleSerial::end()
 {
     if(!isOpen()) return;
+    flush();
 
     pimpl->open=false;
     pimpl->io.post(boost::bind(&SimpleSerial::doClose, this));
