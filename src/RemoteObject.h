@@ -68,11 +68,19 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
+  #include <exception>
 #endif
 
 class RemoteObject {
 public:
 #ifndef AVR
+  class CommunicationError: public std::exception {
+    public:
+      virtual const char* what() const throw() {
+        return "Communication Error.";
+      }
+  };
+
   static const uint32_t TIMEOUT_MICROSECONDS =   2000000; // TODO: this should be configurable
 #endif
   // EEPROM addresses

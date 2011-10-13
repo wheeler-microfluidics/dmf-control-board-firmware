@@ -152,6 +152,9 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
           return_code_, (boost::posix_time::microsec_clock::universal_time()
                          -time_cmd_sent_).total_microseconds());
   LogMessage(log_message_string_, function_name);
+  if(return_code_!=RETURN_OK) {
+    throw CommunicationError();
+  }
 #endif
   return return_code_;
 }
