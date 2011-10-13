@@ -12,7 +12,7 @@ def get_link_info(boost_lib_path):
     libs = path('%s' % boost_path)
     fs = libs.files('*')
 
-    cre_link = re.compile(r'libboost_(?P<name>.*)-mgw\d+-((?P<variation>[^0-9-]*)-)?.*?(?P<extension>(\.\w+)+)')
+    cre_link = re.compile(r'libboost_(?P<name>.*)-mgw\d+-((?P<variation>[^0-9]*)-)?\d+_\d+.*?(?P<extension>(\.\w+)+)')
 
     link_info = [(f, cre_link.search(f).groupdict()) for f in fs if cre_link.search(f)]
     link_info = [(li[0], get_target(li[1])) for li in link_info]
