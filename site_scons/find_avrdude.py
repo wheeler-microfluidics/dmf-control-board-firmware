@@ -1,15 +1,16 @@
 import sys
 import os
 from itertools import chain
-
 from path import path
 
 home_dir = path('~').expand()
 
 ARDUINO_SEARCH_PATHS = [home_dir, ]
 if os.name == 'nt':
+    from win32com.shell import shell, shellcon
+    mydocs = shell.SHGetFolderPath(0, shellcon.CSIDL_PERSONAL, 0, 0)
     AVRDUDE_NAME = 'avrdude.exe'
-    ARDUINO_SEARCH_PATHS += [home_dir / path('Documents'),
+    ARDUINO_SEARCH_PATHS += [path(mydocs), 
                             path('%SYSTEMDRIVE%/').expand(),
                             path('%PROGRAMFILES%').expand(), ]
 else:
