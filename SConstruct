@@ -30,11 +30,10 @@ if os.name == 'nt':
     if BUILD_STATIC:
         env.Append(LIBS=[get_static_lib(lib, LIBPATH=lib_path) \
                             for lib in [PYTHON_LIB,
-                                        'boost_filesystem_mt',
+                                        'boost_filesystem',
                                         'boost_thread_mt',
-                                        'boost_python_mt',
-                                        'boost_iostreams_mt',
-                                        'boost_system_mt',]]
+                                        'boost_python',
+                                        'boost_system',]]
                                     + ['ws2_32'])
         env.Append(CPPDEFINES=dict(BOOST_PYTHON_STATIC_LIB=None, BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
     else:
@@ -42,7 +41,6 @@ if os.name == 'nt':
                         'boost_filesystem_mt',
                         'boost_thread_mt',
                         'boost_python_mt',
-                        'boost_iostreams_mt',
                         'boost_system_mt',
                         'ws2_32'])
     env.Append(CPPPATH=[PYTHON_INC_PATH, BOOST_HOME])
