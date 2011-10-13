@@ -2,8 +2,17 @@ Import('env')
 
 import os
 
-pyext = env.SharedLibrary('dmf_control_board_base', Glob('*.cpp'), SHLIBPREFIX='')
+from git_util import GitUtil
+
+g = GitUtil(None)
+
+pyext = env.SharedLibrary('dmf_control_board_base',
+                Glob('*.cpp'),
+                CPPDEFINES={'___SOFTWARE_VERSION___': '\\"%s\\"' % g.describe()},
+                SHLIBPREFIX='')
 if os.name == 'nt':
     # In Windows, we must rename the compiled dll to have the extension 'pyd'.
     # Otherwise, it will not be recognizes as a Python extension.
-    Command('dmf_control_board_base.pyd', pyext, [Copy("$TARGET", "$SOURCE")])
+    pyext = Command('dmf_control_board_base.pyd', pyext, [Copy("$TARGET", "$SOURCE")])
+
+Export(pyext=pyext)

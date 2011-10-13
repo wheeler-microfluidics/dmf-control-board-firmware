@@ -59,6 +59,11 @@ else:
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
 
+Import('arduino_hex')
+Import('pyext')
+Install('bin', arduino_hex)
+Install('bin', pyext)
+
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
