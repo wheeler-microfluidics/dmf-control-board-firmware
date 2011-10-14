@@ -600,6 +600,17 @@ void RemoteObject::Listen() {
 uint8_t RemoteObject::Connect(const char* port) {
   const char* function_name = "Connect()";
   int return_code = Serial.begin(port, baud_rate_);
+
+  // wait up to 10 s for the Arduino to send something on the
+  // serial port so that we know it's ready
+  if(return_code==RETURN_OK) {
+    boost::posix_time::ptime t = 
+      boost::posix_time::microsec_clock::universal_time();
+    while(Serial.available()==false && \
+      (boost::posix_time::microsec_clock::universal_time()-t)
+      .total_seconds()<10) {
+    }
+  }
   sprintf(log_message_string_,"Serial.begin(%s,%d)=%d",
           port,baud_rate_,return_code);
   LogMessage(log_message_string_, function_name);
