@@ -1,22 +1,29 @@
-/*
-RemoteObject
+/**
+RemoteObject:
 
 This class implements a simple communication protocol between a PC and
-Arduino over an RS-232 link using HDLC-like framing.  We use a wrapper
+Arduino over an RS-232 link using HDLC-like framing. It uses a wrapper
 for the boost asio library (SimpleSerial) that provides an interface that
-closely matches the Serial library on the Arduino.  This allows us to share
-the bulk of the code between the PC (Windows, Linux or Mac) and the Arduino.
+closely matches the Serial library on the Arduino. This allows sharing
+of the bulk of the code between the PC (Windows, Linux or Mac) and the
+Arduino. This implementation was partly inspired by Alvaro Lopes' serpro
+project:
 
-This implementation was partly inspired by Alvaro Lopes' serpro project:
   https://github.com/alvieboy/arduino-serpro
 
 Each packet has the following structure:
 
+<pre>
 +------------+---------+----------------+---------+------------+----------+
 | Start Flag | Command | Payload Length | Payload |    CRC     | End Flag |
 |   1 byte   | 1 byte  |    1-2 bytes   | N bytes |  2 bytes   |  1 byte  |
 |    0x7E    |         |                |         | (optional) |   0x7E   |
 +------------+---------+----------------+---------+------------+----------+
+</pre>
+
+Commands are uint8_t and should have the MSB=1 (replies have MSB=0). The
+RemoteObject base class reserves the commands 0x80 to 0x9F, while derived
+classes should restrict themselves to commands in the range 0xA0 to 0xFF. 
 
 The payload length can be one or two bytes.  If the payload is less than 128
 bytes, it's length is expressed as a single byte.  If the most-significant
@@ -35,8 +42,9 @@ Total packet length (not including flags) = Header Length (2-3 bytes)
 To use this class, you must derive a class based on it and reimplement the
 virtual member function "ProcessPacket(...)".
 
-
-________________________________________________________________________
+*/
+/*
+__________________________________________________________________________
 
 Copyright 2011 Ryan Fobel
 
@@ -54,6 +62,8 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
+
+__________________________________________________________________________
 */
 
 #ifndef _REMOTE_OBJECT_H
@@ -127,8 +137,8 @@ public:
   void Listen();
   virtual void begin();
 
-  // these methods force the derived class to define functions that
-  // return the following attributes
+  // These methods force the derived class to define functions that
+  // return the following attributes:
   virtual const char* protocol_name() = 0;
   virtual const char* protocol_version() = 0;
   virtual const char* name() = 0;
@@ -139,13 +149,25 @@ public:
 #else
   virtual std::string host_software_version() = 0;
 
+  /////////////////////////////////////////////////////////////////////////
+  //
   // Remote accessors
+  //
+  /////////////////////////////////////////////////////////////////////////
+
+  /**\brief Get the remote device's protocol name.*/
   std::string protocol_name();
+  /**\brief Get the remote device's protocol version.*/
   std::string protocol_version();
+  /**\brief Get the remote device's name.*/
   std::string name();
+  /**\brief Get the remote device's manufacturer.*/
   std::string manufacturer();
+  /**\brief Get the remote device's software version.*/
   std::string software_version();
+  /**\brief Get the remote device's hardware version.*/
   std::string hardware_version();
+  /**\brief Get the remote device's url.*/
   std::string url();
   void set_pin_mode(uint8_t pin, uint8_t mode);
   uint8_t digital_read(uint8_t pin);
@@ -194,6 +216,15 @@ protected:
   uint8_t ReadUint8();
   float ReadFloat();
   uint8_t WaitForReply();
+
+  /**
+  \brief Send a command packet to the Arduino.
+  
+  Prior to calling this function, the caller should serialize any data that needs
+  to be included in the payload.
+  \sa Serialize()
+  \returns RETURN_OK if successfull.
+  */
   uint8_t SendCommand(const uint8_t cmd);
 
 #ifndef AVR

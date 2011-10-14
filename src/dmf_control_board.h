@@ -40,27 +40,6 @@ public:
   static const uint16_t MAX_SAMPLES =
                           (RemoteObject::MAX_PAYLOAD_LENGTH-1)/sizeof(uint16_t);
 
-  //////////////////////////////////////////////////////////////////////////////
-  //
-  // Commands:
-  //
-  // Commands are uint8_t and should have the MSB=1 (replies will have MSB=0).
-  //
-  // Valid commands are in the range 0x80 to 0xFF.
-  //
-  // The following commands are reserved (they are defined by the
-  // RemoteObject class):
-  //
-  // 0x80 -> CMD_GET_PROTOCOL_NAME
-  // 0x81 -> CMD_GET_PROTOCOL_VERSION
-  // 0x82 -> CMD_GET_DEVICE_NAME
-  // 0x83 -> CMD_GET_MANUFACTURER
-  // 0x84 -> CMD_GET_SOFTWARE_VERSION
-  // 0x85 -> CMD_GET_HARDWARE_VERSION
-  // 0x86 -> CMD_GET_URL
-  //
-  //////////////////////////////////////////////////////////////////////////////
-
   // Accessors and mutators
   static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0xA0;
   static const uint8_t CMD_GET_STATE_OF_ALL_CHANNELS =      0xA1;
