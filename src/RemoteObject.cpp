@@ -28,6 +28,7 @@ void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #include <boost/thread.hpp>
 #include <boost/timer.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <exception>
 using namespace std;
 
 char RemoteObject::log_message_string_[MAX_STRING_SIZE];
@@ -153,7 +154,8 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
                          -time_cmd_sent_).total_microseconds());
   LogMessage(log_message_string_, function_name);
   if(return_code_!=RETURN_OK) {
-    throw CommunicationError();
+    //LogMessage("Throw exception",function_name);
+    //throw runtime_error("Communication error.");
   }
 #endif
   return return_code_;
