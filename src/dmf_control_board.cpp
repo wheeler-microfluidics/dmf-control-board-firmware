@@ -145,9 +145,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_SET_STATE_OF_ALL_CHANNELS:
-      if(payload_length()==NUMBER_OF_CHANNELS_*sizeof(uint8_t)) {
-        ReadArray(state_of_channels_,
-                  NUMBER_OF_CHANNELS_*sizeof(uint8_t));
+      if(payload_length()<=NUMBER_OF_CHANNELS_*sizeof(uint8_t)) {
+        ReadArray(state_of_channels_, payload_length());
         UpdateAllChannels();
         return_code = RETURN_OK;
       } else {
