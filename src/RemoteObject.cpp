@@ -543,6 +543,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
 #ifndef AVR
           LogMessage("End of Packet. CRC OK.", function_name);
 #endif
+          ProcessPacket();
         } else {
 #ifndef AVR
           LogMessage("End of Packet. CRC Error.", function_name);
@@ -552,14 +553,14 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
 #ifndef AVR
         LogMessage("End of Packet", function_name);
 #endif
+        ProcessPacket();
       }
 #ifndef AVR
       LogSeparator();
 #endif
-      // only process the packet if we're not expecting something else
+      // if we're not expecting something else, stop waiting
       if(packet_cmd_==(waiting_for_reply_to_^0x80)) {
         waiting_for_reply_to_ = 0;
-        ProcessPacket();
       }
 #ifndef AVR
       else {
