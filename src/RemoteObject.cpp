@@ -612,6 +612,11 @@ uint8_t RemoteObject::Connect(const char* port) {
       (boost::posix_time::microsec_clock::universal_time()-t)
       .total_seconds()<10) {
     }
+    // flush the serial buffer to clear startup message
+    while(Serial.available()) {
+      boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+      Serial.flush();
+    }
   }
   sprintf(log_message_string_,"Serial.begin(%s,%d)=%d",
           port,baud_rate_,return_code);
