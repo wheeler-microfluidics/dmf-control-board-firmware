@@ -15,7 +15,7 @@ if os.name == 'nt':
                             path('%PROGRAMFILES%').expand(), ]
 else:
     AVRDUDE_NAME = 'avrdude'
-    ARDUINO_SEARCH_PATHS += [home_dir / path('local/opt'), ]
+    ARDUINO_SEARCH_PATHS += [path("/usr/share/")]
 
 
 def get_arduino_paths():
