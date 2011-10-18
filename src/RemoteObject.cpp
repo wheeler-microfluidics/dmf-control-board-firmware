@@ -154,8 +154,9 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
                          -time_cmd_sent_).total_microseconds());
   LogMessage(log_message_string_, function_name);
   if(return_code_!=RETURN_OK) {
-    //LogMessage("Throw exception",function_name);
-    //throw runtime_error("Communication error.");
+    Serial.end();
+    LogMessage("Throw exception",function_name);
+    throw runtime_error("Communication error.");
   }
 #endif
   return return_code_;
@@ -291,16 +292,16 @@ void RemoteObject::ProcessPacket() {
     return_code_ = payload_[payload_length_-1];
     payload_length_--;// -1 because we've already read the return code
 #ifndef AVR
-  const char* function_name = "ProcessPacket()";
-  sprintf(log_message_string_,
-          "(0x%0X). This packet is a reply to command (%d)",
-          packet_cmd_^0x80,packet_cmd_^0x80);
-  LogMessage(log_message_string_, function_name);
-  sprintf(log_message_string_,"Return code=%d",return_code());
-  LogMessage(log_message_string_, function_name);
-  sprintf(log_message_string_,"Payload length=%d",payload_length());
-  LogMessage(log_message_string_, function_name);
-  LogSeparator();
+    const char* function_name = "ProcessPacket()";
+    sprintf(log_message_string_,
+            "(0x%0X). This packet is a reply to command (%d)",
+            packet_cmd_^0x80,packet_cmd_^0x80);
+    LogMessage(log_message_string_, function_name);
+    sprintf(log_message_string_,"Return code=%d",return_code());
+    LogMessage(log_message_string_, function_name);
+    sprintf(log_message_string_,"Payload length=%d",payload_length());
+    LogMessage(log_message_string_, function_name);
+    LogSeparator();
 #endif
   }
 }
