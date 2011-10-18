@@ -37,10 +37,10 @@ if os.name == 'nt':
         env.Append(CPPDEFINES=dict(BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
     else:
         env.Append(LIBS=[PYTHON_LIB,
-                        'boost_filesystem',
+                        'boost_filesystem-mt',
                         'boost_thread-mt',
-                        'boost_python',
-                        'boost_system',
+                        'boost_python-mt',
+                        'boost_system-mt',
                         'ws2_32'])
     env.Append(CPPPATH=[PYTHON_INC_PATH, BOOST_HOME])
     env.Append(LIBPATH=lib_path)
@@ -56,11 +56,11 @@ if os.name == 'nt':
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
 else:
-    env.Append(LIBS=[get_lib(lib) for lib in ['boost_python',
-                    'boost_thread-mt',
-                    'boost_filesystem',
-                    'boost_system',
-                    PYTHON_LIB]])
+    env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
+                    'libboost_thread-mt.so',
+                    'libboost_filesystem-mt.so',
+                    'libboost_system-mt.so']] \
+                    + [PYTHON_LIB])
     env.Append(CPPPATH=['/usr/include/%s' % PYTHON_LIB])
 
     # Build host binaries
