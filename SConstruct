@@ -1,7 +1,7 @@
 import os
 import warnings
 import auto_config
-from static_libs import get_static_lib
+from get_libs import get_lib
 
 
 env = Environment()
@@ -28,13 +28,13 @@ if os.name == 'nt':
 
     BUILD_STATIC = True
     if BUILD_STATIC:
-        env.Append(LIBS=[get_static_lib(lib, LIBPATH=lib_path) \
-                            for lib in ['boost_filesystem',
-                                        'boost_thread-mt',
-                                        'boost_python',
-                                        'boost_system',]]
+        env.Append(LIBS=[get_lib(lib, LIBPATH=lib_path) \
+                            for lib in ['libboost_python*-mt-*.dll.a',
+                                        'libboost_filesystem*-mt-*.a',
+                                        'libboost_thread*-mt-*.a',
+                                        'libboost_system*-mt-*.a',]]
                                     + ['ws2_32', PYTHON_LIB])
-        env.Append(CPPDEFINES=dict(BOOST_PYTHON_STATIC_LIB=None, BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
+        env.Append(CPPDEFINES=dict(BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
     else:
         env.Append(LIBS=[PYTHON_LIB,
                         'boost_filesystem',
@@ -51,11 +51,12 @@ if os.name == 'nt':
     Export('env')
     VariantDir('build/host', 'src', duplicate=0)
     SConscript('build/host/SConscript.host')
+    Install('bin', get_lib('libboost_python-*-mt-*.dll'))
 
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
 else:
-    env.Append(LIBS=[get_static_lib(lib) for lib in ['boost_python',
+    env.Append(LIBS=[get_lib(lib) for lib in ['boost_python',
                     'boost_thread-mt',
                     'boost_filesystem',
                     'boost_system',
