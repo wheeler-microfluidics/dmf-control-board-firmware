@@ -52,6 +52,7 @@ if os.name == 'nt':
     VariantDir('build/host', 'src', duplicate=0)
     SConscript('build/host/SConscript.host')
     Install('bin', get_lib('libboost_python-*-mt-*.dll'))
+    Install('bin', get_lib('mingwm10.dll'))
 
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
