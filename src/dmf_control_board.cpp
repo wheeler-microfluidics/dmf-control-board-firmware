@@ -43,7 +43,7 @@ const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
 const char DmfControlBoard::HARDWARE_VERSION_[] = "1.1";
-const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca";
+const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control/board";
 #else
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
