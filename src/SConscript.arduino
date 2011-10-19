@@ -47,6 +47,8 @@ from find_avrdude import get_arduino_paths
 from git_util import GitUtil
 
 g = GitUtil(None)
+m = re.match('v(\d+)\.(\d+)-(\d+)', g.describe())
+SOFTWARE_VERSION = "%s.%s.%s" % (m.group(1), m.group(2), m.group(3))
 
 pathJoin = os.path.join
 
@@ -157,7 +159,7 @@ envArduino = Environment(CC='"%s"' % (AVR_BIN_PREFIX + 'gcc'),
                         CXX='"%s"' % (AVR_BIN_PREFIX + 'g++'),
                         CPPPATH=['build/core'],
                         CPPDEFINES={'F_CPU': F_CPU, 'ARDUINO': ARDUINO_VER, 'AVR': None,
-                                    '___SOFTWARE_VERSION___': '\\"%s\\"' % g.describe()},
+                                    '___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION},
                         CFLAGS=cFlags+['-std=gnu99'], CCFLAGS=cFlags, TOOLS=['gcc','g++'])
 
 def fnProcessing(target, source, env):
