@@ -154,7 +154,6 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
                          -time_cmd_sent_).total_microseconds());
   LogMessage(log_message_string_, function_name);
   if(return_code_!=RETURN_OK) {
-    Serial.end();
     LogMessage("Throw exception",function_name);
     throw runtime_error("Communication error.");
   }
