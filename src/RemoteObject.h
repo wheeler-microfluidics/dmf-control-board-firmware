@@ -30,18 +30,16 @@ bytes, it's length is expressed as a single byte.  If the most-significant
 bit is set, the length is expressed as two bytes and can be recovered by
 clearing the most significant byte (i.e. PAYLOAD_LENGTH & 0x7FFF).
 
- Examples:
-
-   payload length of 3, one byte: 0x04
-   payload length of 512, two bytes: 0x82 0x01
+<b>Examples:</b>
+   - payload length of 3, one byte: 0x04
+   - payload length of 512, two bytes: 0x82 0x01
 
 Total packet length (not including flags) = Header Length (2-3 bytes)
                                             + Payload Length
                                             (+ 2 if CRC is enabled)
 
 To use this class, you must derive a class based on it and reimplement the
-virtual member function "ProcessPacket(...)".
-
+virtual member function ProcessCommand().
 */
 /*
 __________________________________________________________________________
@@ -113,9 +111,11 @@ public:
   static const uint8_t CMD_ONEWIRE_READ =           0x90;
   static const uint8_t CMD_I2C_WRITE =              0x91;
   static const uint8_t CMD_I2C_READ =               0x92;
-  static const uint8_t CMD_SPI_WRITE =              0x93;
-  static const uint8_t CMD_SPI_READ =               0x94;
-
+  static const uint8_t CMD_SPI_SET_BIT_ORDER =      0x93;
+  static const uint8_t CMD_SPI_CLOCK_DIVIDER =      0x94;
+  static const uint8_t CMD_SPI_DATA_MODE =          0x95;
+  static const uint8_t CMD_SPI_TRANSFER =           0x96;
+  
   // reserved return codes
   static const uint8_t RETURN_OK =                  0x00;
   static const uint8_t RETURN_GENERAL_ERROR =       0x01;
@@ -173,9 +173,9 @@ public:
   std::string hardware_version();
   /**\brief Get the remote device's url.*/
   std::string url();
-  void set_pin_mode(uint8_t pin, uint8_t mode);
+  void set_pin_mode(uint8_t pin, bool mode);
   uint8_t digital_read(uint8_t pin);
-  void digital_write(uint8_t pin, uint8_t value);
+  void digital_write(uint8_t pin, bool value);
   uint16_t analog_read(uint8_t pin);
   void analog_write(uint8_t pin, uint16_t value);
   uint8_t eeprom_read(uint16_t address);
@@ -188,6 +188,46 @@ public:
   void i2c_write(uint8_t address, std::vector<uint8_t> data);
   std::vector<uint8_t> i2c_read(uint8_t address, uint8_t n_bytes);
 
+  /**Set the order of the bits shifted out of and into the SPI bus, either
+  LSBFIRST (least-significant bit first) or MSBFIRST (most-significant bit
+  first).
+  \param order either LSBFIRST or MSBFIRST
+  \returns None
+  \sa spi_set_data_mode()
+  */
+  void spi_set_bit_order(bool order);
+
+  /**Set the SPI clock divider relative to the system clock. The dividers
+  available are 2, 4, 8, 16, 32, 64, or 128. The default setting is
+  SPI_CLOCK_DIV4, which sets the SPI clock to one-quarter the frequency of
+  the system clock.
+  \param divider
+    SPI_CLOCK_DIV2,
+    SPI_CLOCK_DIV4,
+    SPI_CLOCK_DIV8,
+    SPI_CLOCK_DIV16,
+    SPI_CLOCK_DIV32,
+    SPI_CLOCK_DIV64, or
+    SPI_CLOCK_DIV128 
+  \returns None
+  */
+  void spi_set_clock_divider(uint8_t divider);
+
+  /**Set the SPI data mode: that is, clock polarity and phase. See
+  <a href="http://en.wikipedia.org/wiki/Serial_Peripheral_Interface_Bus">
+  the Wikipedia article on SPI</a> for details.
+  \param mode SPI_MODE0, SPI_MODE1, SPI_MODE2, or SPI_MODE3
+  \returns None
+  \sa spi_set_bit_order() 
+  */
+  void spi_set_data_mode(uint8_t mode);
+  
+  /**Transfers one byte over the SPI bus, both sending and receiving.
+  \param value the byte to send out over the bus
+  \returns the byte read from the bus
+  */
+  uint8_t spi_transfer(uint8_t value);
+
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
@@ -195,7 +235,11 @@ public:
 #endif
 
 protected:
-  // this virtual method must be overriden in the derived class
+  /**Process a received command. Derived classes should reimplement this
+  function, and make sure to call the base class class method.
+  \param cmd command code
+  \returns RETURN_OK if successfull
+  */
   virtual uint8_t ProcessCommand(uint8_t cmd) = 0;
   uint16_t payload_length() { return payload_length_; }
 
@@ -224,12 +268,10 @@ protected:
   uint8_t WaitForReply();
 
   /**
-  \brief Send a command packet to the Arduino.
-  
-  Prior to calling this function, the caller should serialize any data that needs
-  to be included in the payload.
-  \sa Serialize()
+  Send a command packet to the Arduino. Prior to calling this function, the
+  caller should serialize any data that needs to be included in the payload.
   \returns RETURN_OK if successfull.
+  \sa Serialize()
   */
   uint8_t SendCommand(const uint8_t cmd);
 
@@ -256,8 +298,8 @@ private:
   void SendPayload();
   void SendByte(uint8_t b);
   uint16_t UpdateCrc(uint16_t crc, uint8_t data);
-  void ProcessPacket();
   void ProcessSerialInput(const uint8_t byte);
+  void ProcessPacket();
 
   uint8_t packet_cmd_; // command
   uint8_t payload_[MAX_PAYLOAD_LENGTH]; // payload
