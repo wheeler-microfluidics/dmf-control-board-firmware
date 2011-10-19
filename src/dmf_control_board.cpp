@@ -48,7 +48,7 @@ const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca";
 #else
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
-const char DmfControlBoard::SOFTWARE_VERSION_[] = "0.1";
+const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 
 DmfControlBoard::DmfControlBoard()
   : RemoteObject(BAUD_RATE,true
