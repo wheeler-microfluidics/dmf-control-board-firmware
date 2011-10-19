@@ -22,6 +22,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #ifdef AVR
 #include <util/crc16.h>
 #include "WProgram.h"
+#include <Wire.h>
+#include <SPI.h>
 extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
 void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #else
@@ -446,6 +448,19 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_I2C_WRITE:
+      if(payload_length()>1) {
+        uint8_t address = ReadUint8();
+        Wire.beginTransmission(address);
+        for(uint8_t i=0; i<payload_length()-1; i++) {
+          Wire.send(ReadUint8());
+        }
+        Wire.endTransmission();
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   return return_code;
@@ -585,6 +600,8 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
 
 void RemoteObject::begin() {
   Serial.begin(57600);
+  Wire.begin();
+  SPI.begin();
 }
 
 void RemoteObject::Listen() {
@@ -893,6 +910,26 @@ void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
     }
     LogMessage(log_message_string_, function_name);
   }
+}
+
+void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
+  const char* function_name = "i2c_write()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&address,sizeof(address));
+  Serialize(&data[0],data.size()*sizeof(uint8_t));
+  if(SendCommand(CMD_I2C_WRITE)==RETURN_OK) {
+    sprintf(log_message_string_, "address %d", address);
+    LogMessage(log_message_string_, function_name);
+    for(uint8_t i=0; i<data.size(); i++) {
+      sprintf(log_message_string_, "data[%d]=%d", i, data[i]);
+      LogMessage(log_message_string_, function_name);
+    }
+  }
+}
+
+std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address, uint8_t n_bytes) {
+  return std::vector<uint8_t>();
 }
 
 #endif

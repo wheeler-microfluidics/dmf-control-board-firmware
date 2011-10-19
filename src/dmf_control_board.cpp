@@ -19,7 +19,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdint.h>
 #include "dmf_control_board.h"
-
 #ifndef AVR
 using namespace std;
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -479,6 +478,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void DmfControlBoard::begin() {
+  RemoteObject::begin();
   analogReference(EXTERNAL);
 
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
@@ -487,9 +487,6 @@ void DmfControlBoard::begin() {
   pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
   pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
   pinMode(WAVEFORM_SELECT_, OUTPUT);
-
-  Wire.begin();
-  SPI.begin();
 
   // set PCA0505 ports in output mode
   for(uint8_t chip=0; chip<NUMBER_OF_CHANNELS_/40; chip++) {

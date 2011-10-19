@@ -111,6 +111,10 @@ public:
   static const uint8_t CMD_ONEWIRE_GET_ADDRESS =    0x8E;
   static const uint8_t CMD_ONEWIRE_WRITE =          0x8F;
   static const uint8_t CMD_ONEWIRE_READ =           0x90;
+  static const uint8_t CMD_I2C_WRITE =              0x91;
+  static const uint8_t CMD_I2C_READ =               0x92;
+  static const uint8_t CMD_SPI_WRITE =              0x93;
+  static const uint8_t CMD_SPI_READ =               0x94;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                  0x00;
@@ -181,6 +185,8 @@ public:
                                     uint8_t command, uint8_t n_bytes);
   void onewire_write(uint8_t pin, std::vector<uint8_t> address,
                      uint8_t value, uint8_t power);
+  void i2c_write(uint8_t address, std::vector<uint8_t> data);
+  std::vector<uint8_t> i2c_read(uint8_t address, uint8_t n_bytes);
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  

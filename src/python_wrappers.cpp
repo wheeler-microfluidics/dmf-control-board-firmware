@@ -76,6 +76,8 @@ object DmfControlBoard_class
     .def("onewire_address",&DmfControlBoard::onewire_address)
     .def("onewire_read",&DmfControlBoard::onewire_read)
     .def("onewire_write",&DmfControlBoard::onewire_write)
+    .def("i2c_read",&DmfControlBoard::i2c_read)
+    .def("i2c_write",&DmfControlBoard::i2c_write)
     .def("number_of_channels",&DmfControlBoard::number_of_channels)
     .def("state_of_all_channels",&DmfControlBoard::state_of_all_channels)
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
