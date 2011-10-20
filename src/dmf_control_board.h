@@ -64,18 +64,16 @@ public:
   static const uint8_t CMD_SET_STATE_OF_ALL_CHANNELS =      0xA2;
   static const uint8_t CMD_GET_STATE_OF_CHANNEL =           0xA3;
   static const uint8_t CMD_SET_STATE_OF_CHANNEL =           0xA4;
-  static const uint8_t CMD_GET_ACTUATION_WAVEFORM =         0xA5; //TODO
-  static const uint8_t CMD_SET_ACTUATION_WAVEFORM =         0xA6; //TODO
-  static const uint8_t CMD_GET_ACTUATION_VOLTAGE =          0xA7;
-  static const uint8_t CMD_SET_ACTUATION_VOLTAGE =          0xA8;
-  static const uint8_t CMD_GET_ACTUATION_FREQUENCY =        0xA9;
-  static const uint8_t CMD_SET_ACTUATION_FREQUENCY =        0xAA;
+  static const uint8_t CMD_GET_WAVEFORM =                   0xA5; //TODO
+  static const uint8_t CMD_SET_WAVEFORM =                   0xA6; //TODO
+  static const uint8_t CMD_GET_WAVEFORM_VOLTAGE =           0xA7;
+  static const uint8_t CMD_SET_WAVEFORM_VOLTAGE =           0xA8;
+  static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9;
+  static const uint8_t CMD_SET_WAVEFORM_FREQUENCY =         0xAA;
   static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
   static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
   static const uint8_t CMD_GET_SERIES_RESISTOR =            0xAD;
   static const uint8_t CMD_SET_SERIES_RESISTOR =            0xAE;
-  static const uint8_t CMD_GET_POT =                        0xAF;
-  static const uint8_t CMD_SET_POT =                        0xB0;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -108,8 +106,8 @@ public:
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
   uint8_t set_state_of_all_channels(const std::vector<uint8_t> state);
-  uint8_t set_actuation_voltage(const float v_rms);
-  uint8_t set_actuation_frequency(const float freq_hz);
+  uint8_t set_waveform_voltage(const float v_rms);
+  uint8_t set_waveform_frequency(const float freq_hz);
   uint8_t set_sampling_rate(const uint8_t sampling_rate);
   uint8_t set_series_resistor(const uint8_t channel,
                               const uint8_t series_resistor);

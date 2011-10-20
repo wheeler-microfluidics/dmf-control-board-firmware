@@ -182,36 +182,38 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_GET_ACTUATION_WAVEFORM:
+    case CMD_GET_WAVEFORM:
       //TODO
       break;
-    case CMD_SET_ACTUATION_WAVEFORM:
+    case CMD_SET_WAVEFORM:
       //TODO
       break;
-    case CMD_GET_ACTUATION_VOLTAGE:
+    case CMD_GET_WAVEFORM_VOLTAGE:
       //TODO
       break;
-    case CMD_SET_ACTUATION_VOLTAGE:
+    case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(uint8_t)) {
         uint8_t voltage = ReadUint8();
-          SendSPI(AD5204_SLAVE_SELECT_PIN_,4,voltage);
+          SetPot(POT_INDEX_WAVEOUT_GAIN_2_,voltage);
           return_code = RETURN_OK;
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_GET_ACTUATION_FREQUENCY:
+    case CMD_GET_WAVEFORM_FREQUENCY:
       //TODO
       break;
-    case CMD_SET_ACTUATION_FREQUENCY:
+    case CMD_SET_WAVEFORM_FREQUENCY:
       if(payload_length()==sizeof(float)) {
-        float freq = ReadFloat();
+        // the frequency of the LTC6904 oscillator needs to be set to 50x
+        // the fundamental frequency
+        float freq = ReadFloat()*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
           return_code = RETURN_GENERAL_ERROR;
         } else {
           uint8_t oct = 3.322*log(freq/1039)/log(10);
-          uint16_t dac = round(2048-(2078*(float)(1<<(10+oct)))/freq);
+          uint16_t dac = round(2048-(2078*pow(2, 10+oct))/freq);
           uint8_t cnf = 2; // CLK on, /CLK off
           // msb = OCT3 OCT2 OCT1 OCT0 DAC9 DAC8 DAC7 DAC6
           uint8_t msb = (oct << 4) | (dac >> 6);
@@ -267,14 +269,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if(payload_length()==2*sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
         return_code = SetSeriesResistor(channel, ReadUint8());
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_SET_POT:
-      if(payload_length()==2*sizeof(uint8_t)) {
-        uint8_t index = ReadUint8();
-        return_code = SetPot(index, ReadUint8());
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
@@ -895,31 +889,39 @@ uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel, const uint
   return return_code();
 }
 
-uint8_t DmfControlBoard::set_actuation_voltage(const float v_rms){
-  const char* function_name = "set_actuation_voltage()";
+uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
+  const char* function_name = "set_waveform_voltage()";
+  std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
-// TODO: gain adjustment only has 255 steps, so send a byte instead of fload
-  Serialize(&v_rms,sizeof(v_rms));
-  if(SendCommand(CMD_SET_ACTUATION_VOLTAGE)==RETURN_OK) {
-    LogMessage("CMD_SET_ACTUATION_VOLTAGE", function_name);
-    LogMessage("volage set successfully", function_name);
-    std::ostringstream msg;
-    msg << "set_actuation_voltage," << v_rms << ",Vrms" << endl;
-    LogExperiment(msg.str().c_str());
+  if(v_rms>=0 && v_rms<=4) {
+    uint8_t data = v_rms/4*255;
+    Serialize(&data,sizeof(data));
+    msg << "data=" << (int)data;
+    LogMessage(msg.str().c_str(), function_name);
+    if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
+      LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
+      LogMessage("volage set successfully", function_name);
+      msg.str("");
+      msg << "set_actuation_voltage," << v_rms << ",Vrms" << endl;
+      LogExperiment(msg.str().c_str());
+    }
+  } else {
+    return_code_ = RETURN_BAD_VALUE;
+    throw runtime_error("Value out of bounds.");
   }
   return return_code();
 }
 
-uint8_t DmfControlBoard::set_actuation_frequency(const float freq_hz) {
+uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
   const char* function_name = "set_actuation_frequency()";
   LogSeparator();
   sprintf(log_message_string_,"freq_hz=%.1f",freq_hz);
   LogMessage(log_message_string_, function_name);
   LogMessage("send command", function_name);
   Serialize(&freq_hz,sizeof(freq_hz));
-  if(SendCommand(CMD_SET_ACTUATION_FREQUENCY)==RETURN_OK) {
-    LogMessage("CMD_SET_ACTUATION_FREQUENCY", function_name);
+  if(SendCommand(CMD_SET_WAVEFORM_FREQUENCY)==RETURN_OK) {
+    LogMessage("CMD_SET_WAVEFORM_FREQUENCY", function_name);
     LogMessage("frequency set successfully", function_name);
     std::ostringstream msg;
     msg << "set_actuation_frequency," << freq_hz/1000 << ",kHz" << endl;

@@ -122,6 +122,7 @@ public:
   static const uint8_t RETURN_BAD_INDEX =           0x05;
   static const uint8_t RETURN_BAD_PACKET_SIZE =     0x06;
   static const uint8_t RETURN_BAD_CRC =             0x07;
+  static const uint8_t RETURN_BAD_VALUE =           0x08;
 
   RemoteObject(uint32_t baud_rate,
                  bool crc_enabled_
