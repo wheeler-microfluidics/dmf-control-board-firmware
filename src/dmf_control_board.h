@@ -113,7 +113,6 @@ public:
   uint8_t set_sampling_rate(const uint8_t sampling_rate);
   uint8_t set_series_resistor(const uint8_t channel,
                               const uint8_t series_resistor);
-  uint8_t set_pot(const uint8_t index, const uint8_t value);
 
   // other functions
   std::vector<uint16_t> SampleVoltage(

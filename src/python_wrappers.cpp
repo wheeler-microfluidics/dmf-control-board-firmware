@@ -93,7 +93,6 @@ object DmfControlBoard_class
     .def("set_actuation_frequency",&DmfControlBoard::set_actuation_frequency)
     .def("set_sampling_rate",&DmfControlBoard::set_sampling_rate)
     .def("set_series_resistor",&DmfControlBoard::set_series_resistor)
-    .def("set_pot",&DmfControlBoard::set_pot)
     .def("sample_voltage",&DmfControlBoard::SampleVoltage)
     .def("set_experiment_log_file",&DmfControlBoard::SetExperimentLogFile)
     .def("log_experiment",&DmfControlBoard::LogExperiment)

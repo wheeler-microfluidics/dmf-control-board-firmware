@@ -870,24 +870,6 @@ uint8_t DmfControlBoard::set_series_resistor(const uint8_t channel,
   return return_code();
 }
 
-uint8_t DmfControlBoard::set_pot(const uint8_t index, const uint8_t value) {
-  const char* function_name = "set_pot()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&index,sizeof(index));
-  Serialize(&value,sizeof(value));
-  if(SendCommand(CMD_SET_POT)==RETURN_OK) {
-    LogMessage("CMD_SET_POT", function_name);
-    LogMessage("potentiometer set successfully", function_name);
-    std::ostringstream msg;
-    msg << "set pot," << (int)index
-        << (int)value << endl;
-    LogExperiment(msg.str().c_str());
-  }
-  return return_code();
-}
-
-
 uint8_t DmfControlBoard::set_state_of_all_channels(const vector<uint8_t> state) {
   const char* function_name = "set_state_of_all_channels()";
   LogSeparator();
