@@ -69,10 +69,7 @@ __________________________________________________________________________
 
 #include <stdint.h>
 
-#ifdef AVR
-  #include <EEPROM.h>
-  #include <OneWire.h>
-#else
+#ifndef AVR
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
@@ -112,8 +109,8 @@ public:
   static const uint8_t CMD_I2C_WRITE =              0x91;
   static const uint8_t CMD_I2C_READ =               0x92;
   static const uint8_t CMD_SPI_SET_BIT_ORDER =      0x93;
-  static const uint8_t CMD_SPI_CLOCK_DIVIDER =      0x94;
-  static const uint8_t CMD_SPI_DATA_MODE =          0x95;
+  static const uint8_t CMD_SPI_SET_CLOCK_DIVIDER =  0x94;
+  static const uint8_t CMD_SPI_SET_DATA_MODE =      0x95;
   static const uint8_t CMD_SPI_TRANSFER =           0x96;
   
   // reserved return codes
@@ -134,7 +131,7 @@ public:
                  );
   ~RemoteObject();
 
-  uint8_t return_code() {return return_code_; }
+  uint8_t return_code() { return return_code_; }
   bool crc_enabled() { return crc_enabled_; }
 
 #ifdef AVR
@@ -236,7 +233,8 @@ public:
 
 protected:
   /**Process a received command. Derived classes should reimplement this
-  function, and make sure to call the base class class method.
+  function to handle additional commands and they should also make sure to
+  call the base class class method.
   \param cmd command code
   \returns RETURN_OK if successfull
   */

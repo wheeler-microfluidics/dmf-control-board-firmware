@@ -26,6 +26,7 @@ using namespace std;
 #include "WProgram.h"
 #include <Wire.h>
 #include <SPI.h>
+#include <EEPROM.h>
 #include <math.h>
 #endif
 
@@ -501,11 +502,28 @@ void DmfControlBoard::begin() {
   // set all channels to ground
   UpdateAllChannels();
 
-  // set all potentiometers
-  SetPot(POT_AREF_, 255);
-  SetPot(POT_VGND_, 124);
-  SetPot(POT_WAVEOUT_GAIN_1_, 128);
-  SetPot(POT_WAVEOUT_GAIN_2_, 255);
+  // sets the maximum output voltage for the waveform generator
+  uint8_t waveout_gain_1 = 112;
+
+  // sets the value of the analog reference
+  uint8_t aref = 255;
+
+  // sets the value of the virtual ground
+  uint8_t vgnd = 124;
+
+  // if the EEPROM_INIT flag has been set, replace default values with those
+  // stored in EEPROM
+  if(EEPROM.read(EEPROM_INIT)==0) {
+    waveout_gain_1 = EEPROM.read(EEPROM_POT_WAVEOUT_GAIN_1);
+    aref = EEPROM.read(EEPROM_AREF);
+    vgnd = EEPROM.read(EEPROM_VGND);
+  }
+
+  // set all digital pots
+  SetPot(POT_INDEX_AREF_, aref);
+  SetPot(POT_INDEX_VGND_, vgnd);
+  SetPot(POT_INDEX_WAVEOUT_GAIN_1_, waveout_gain_1);
+  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
 
   Serial.begin(DmfControlBoard::BAUD_RATE);
   SetSeriesResistor(0, 0);
@@ -515,7 +533,7 @@ void DmfControlBoard::begin() {
 
 void DmfControlBoard::PeakExceeded() {
   peak_++;
-  SetPot(POT_AREF_, peak_);
+  SetPot(POT_INDEX_AREF_, peak_);
 }
 
 // send a command and some data to one of the I2C chips
@@ -643,11 +661,11 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
 uint8_t DmfControlBoard::GetPeak(const uint8_t channel,
                                const uint16_t sample_time_ms) {
   peak_ = 128;
-  SetPot(POT_AREF_, peak_);
+  SetPot(POT_INDEX_AREF_, peak_);
   attachInterrupt(channel, PeakExceededWrapper, RISING);
   delay(sample_time_ms);
   detachInterrupt(channel);
-  SetPot(POT_AREF_, 255);
+  SetPot(POT_INDEX_AREF_, 255);
   return peak_;
 }
 

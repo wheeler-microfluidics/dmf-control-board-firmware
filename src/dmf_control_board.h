@@ -32,6 +32,24 @@ class DmfControlBoard : public RemoteObject {
 public:
   static const uint32_t BAUD_RATE = 115200;
 
+  /**\brief When the byte stored at this address is set to 0, configuration
+  settings are loaded from the EEPROM. If this byte is set to 0xFF
+  (default), the EEPROM is ignored and default values are used.*/
+  static const uint16_t EEPROM_INIT =                        100;
+
+  /**\brief The byte stored at this address sets the maximum output voltage
+  for the waveform generator. It should be trimmed so that the output
+  waveform is 4Vp-p when POT_WAVEOUT_GAIN_2 is set to 255.*/
+  static const uint16_t EEPROM_POT_WAVEOUT_GAIN_1 =          101;
+
+  /**\brief The byte stored at this address sets the value of the analog
+  reference (between 0 and ~5V).*/
+  static const uint16_t EEPROM_AREF =                        102;
+
+  /**\brief The byte stored at this address sets the value of the virtual
+  ground referenc (between 0 and 5V).*/
+  static const uint16_t EEPROM_VGND =                        103;
+
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
   //  The PC can interogate device using CMD_GET_NUMBER_OF_AD_CHANNELS,
@@ -136,12 +154,12 @@ private:
   static const char MANUFACTURER_[];
   static const char HARDWARE_VERSION_[];
   static const char URL_[];
-  static const uint8_t AD5204_SLAVE_SELECT_PIN_ = 53; // digital pot
 
-  static const uint8_t POT_AREF_ = 0;
-  static const uint8_t POT_VGND_ = 1;
-  static const uint8_t POT_WAVEOUT_GAIN_1_ = 2;
-  static const uint8_t POT_WAVEOUT_GAIN_2_ = 3;
+  static const uint8_t AD5204_SLAVE_SELECT_PIN_ = 53; // digital pot
+  static const uint8_t POT_INDEX_AREF_ = 0;
+  static const uint8_t POT_INDEX_VGND_ = 1;
+  static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
+  static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
 
   static const uint8_t WAVEFORM_SELECT_ = 9;
 

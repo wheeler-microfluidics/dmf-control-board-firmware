@@ -24,6 +24,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include "WProgram.h"
 #include <Wire.h>
 #include <SPI.h>
+#include <OneWire.h>
+#include <EEPROM.h>
 extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
 void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #else
@@ -464,14 +466,38 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_SPI_SET_BIT_ORDER:
+      if(payload_length()==1) {
+        uint8_t order = ReadUint8();
+        SPI.setBitOrder(order);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SPI_SET_CLOCK_DIVIDER:
+      if(payload_length()==1) {
+        uint8_t divider = ReadUint8();
+        SPI.setClockDivider(divider);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SPI_SET_DATA_MODE:
+      if(payload_length()==1) {
+        uint8_t mode = ReadUint8();
+        SPI.setDataMode(mode);
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
     case CMD_SPI_TRANSFER:
       if(payload_length()==1) {
-        uint8_t address = ReadUint8();
-        Wire.beginTransmission(address);
-        for(uint8_t i=0; i<payload_length()-1; i++) {
-          Wire.send(ReadUint8());
-        }
-        Wire.endTransmission();
+        uint8_t value = ReadUint8();
+        uint8_t data = SPI.transfer(value);
+        Serialize(&data, sizeof(data));
         return_code = RETURN_OK;
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
@@ -952,22 +978,43 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address, uint8_t n_bytes) {
 }
 
 void RemoteObject::spi_set_bit_order(bool order) {
-  //TODO
+  const char* function_name = "spi_set_bit_order()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&order, sizeof(order));
+  if(SendCommand(CMD_SPI_SET_BIT_ORDER)==RETURN_OK) {
+    sprintf(log_message_string_, "order %d", order);
+    LogMessage(log_message_string_, function_name);
+  }
 }
 
 void RemoteObject::spi_set_clock_divider(uint8_t divider) {
-  //TODO
+  const char* function_name = "spi_set_clock_divider()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&divider, sizeof(divider));
+  if(SendCommand(CMD_SPI_SET_CLOCK_DIVIDER)==RETURN_OK) {
+    sprintf(log_message_string_, "divider %d", divider);
+    LogMessage(log_message_string_, function_name);
+  }
 }
 
 void RemoteObject::spi_set_data_mode(uint8_t mode) {
-  //TODO
+  const char* function_name = "spi_set_data_mode()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&mode, sizeof(mode));
+  if(SendCommand(CMD_SPI_SET_DATA_MODE)==RETURN_OK) {
+    sprintf(log_message_string_, "mode %d", mode);
+    LogMessage(log_message_string_, function_name);
+  }
 }
 
 uint8_t RemoteObject::spi_transfer(uint8_t value) {
   const char* function_name = "spi_transfer()";
   LogSeparator();
   LogMessage("send command", function_name);
-  Serialize(&value,sizeof(value));
+  Serialize(&value, sizeof(value));
   if(SendCommand(CMD_SPI_TRANSFER)==RETURN_OK) {
     uint8_t data = ReadUint8();
     sprintf(log_message_string_, "sent: %d, received: %d",
