@@ -183,10 +183,26 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_GET_WAVEFORM:
-      //TODO
+      if(payload_length()==0) {
+        return_code = RETURN_OK;
+        uint8_t waveform = digitalRead(WAVEFORM_SELECT_);
+        Serialize(&waveform, sizeof(waveform));
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
       break;
     case CMD_SET_WAVEFORM:
-      //TODO
+      if(payload_length()==sizeof(uint8_t)) {
+        uint8_t waveform = ReadUint8();
+        if(waveform==SINE || waveform==SQUARE) {
+          digitalWrite(WAVEFORM_SELECT_, waveform);
+          return_code = RETURN_OK;
+        } else {
+          return_code = RETURN_BAD_VALUE;
+        }
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
       break;
     case CMD_GET_WAVEFORM_VOLTAGE:
       //TODO
@@ -210,7 +226,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         float freq = ReadFloat()*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
-          return_code = RETURN_GENERAL_ERROR;
+          return_code = RETURN_BAD_VALUE;
         } else {
           uint8_t oct = 3.322*log(freq/1039)/log(10);
           uint16_t dac = round(2048-(2078*pow(2, 10+oct))/freq);
@@ -490,8 +506,8 @@ void DmfControlBoard::begin() {
     }
   }
 
-  // set waveform (SINE=LOW, SQUARE=HIGH)
-  digitalWrite(WAVEFORM_SELECT_, LOW);
+  // set waveform (SINE=0, SQUARE=1)
+  digitalWrite(WAVEFORM_SELECT_, SINE);
 
   // set all channels to ground
   UpdateAllChannels();
@@ -846,6 +862,38 @@ float DmfControlBoard::series_resistor(const uint8_t channel) {
   return 0;
 }
 
+std::string DmfControlBoard::waveform() {
+  const char* function_name = "waveform()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_WAVEFORM)==RETURN_OK) {
+    LogMessage("CMD_GET_WAVEFORM", function_name);
+    if(payload_length()==1) {
+      uint8_t waveform = ReadUint8();
+      std::string waveform_str;
+      if(waveform==SINE || waveform==SQUARE) {
+        if(waveform==SINE) {
+          waveform_str = "SINE";
+        } else if(waveform==SQUARE) {
+          waveform_str = "SQUARE";
+        }
+        std::ostringstream msg;
+        msg << "waveform=" << waveform_str;
+        LogMessage(msg.str().c_str(), function_name);
+      } else {
+        return_code_ = RETURN_BAD_VALUE;
+        LogMessage("CMD_GET_WAVEFORM, Bad value",
+                   function_name);
+      }
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      LogMessage("CMD_GET_WAVEFORM, Bad packet size",
+                 function_name);
+    }
+  }
+  return "";
+}
+
 uint8_t DmfControlBoard::set_series_resistor(const uint8_t channel,
                                            const uint8_t series_resistor) {
   const char* function_name = "set_series_resistor()";
@@ -885,6 +933,20 @@ uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel, const uint
   if(SendCommand(CMD_SET_STATE_OF_CHANNEL)==RETURN_OK) {
     LogMessage("CMD_SET_STATE_OF_CHANNEL", function_name);
     LogMessage("channel set successfully", function_name);
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_waveform(bool waveform) {
+  const char* function_name = "set_waveform()";
+  std::ostringstream msg;
+  LogSeparator();
+  LogMessage("send command", function_name);
+  uint8_t data = waveform;
+  Serialize(&data,sizeof(data));
+  if(SendCommand(CMD_SET_WAVEFORM)==RETURN_OK) {
+    LogMessage("CMD_SET_WAVEFORM", function_name);
+    LogMessage("waveform set successfully", function_name);
   }
   return return_code();
 }

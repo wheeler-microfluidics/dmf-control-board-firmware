@@ -33,6 +33,8 @@ const uint8_t RemoteObject::RETURN_NOT_CONNECTED;
 const uint8_t RemoteObject::RETURN_BAD_INDEX;
 const uint8_t RemoteObject::RETURN_BAD_PACKET_SIZE;
 const uint8_t RemoteObject::RETURN_BAD_CRC;
+const uint8_t DmfControlBoard::SINE;
+const uint8_t DmfControlBoard::SQUARE;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
@@ -40,6 +42,8 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
   scope().attr("OUTPUT") = 1;
   scope().attr("HIGH") = 1;
   scope().attr("LOW") = 0;
+  scope().attr("SINE") = DmfControlBoard::SINE;
+  scope().attr("SQUARE") = DmfControlBoard::SQUARE;
   
   class_<std::vector<uint8_t> >("uint8_tVector")
     .def(vector_indexing_suite<std::vector<uint8_t> >())
@@ -87,8 +91,10 @@ object DmfControlBoard_class
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
     .def("sampling_rate",&DmfControlBoard::sampling_rate)
     .def("series_resistor",&DmfControlBoard::series_resistor)
+    .def("waveform",&DmfControlBoard::waveform)
     .def("set_state_of_channel",&DmfControlBoard::set_state_of_channel)
     .def("set_state_of_all_channels",&DmfControlBoard::set_state_of_all_channels)
+    .def("set_waveform",&DmfControlBoard::set_waveform)
     .def("set_waveform_voltage",&DmfControlBoard::set_waveform_voltage)
     .def("set_waveform_frequency",&DmfControlBoard::set_waveform_frequency)
     .def("set_sampling_rate",&DmfControlBoard::set_sampling_rate)

@@ -31,6 +31,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 class DmfControlBoard : public RemoteObject {
 public:
   static const uint32_t BAUD_RATE = 115200;
+  static const uint8_t SINE = 0;
+  static const uint8_t SQUARE = 1;
 
   /**\brief When the byte stored at this address is set to 0, configuration
   settings are loaded from the EEPROM. If this byte is set to 0xFF
@@ -65,10 +67,10 @@ public:
   static const uint8_t CMD_GET_STATE_OF_CHANNEL =           0xA3;
   static const uint8_t CMD_SET_STATE_OF_CHANNEL =           0xA4;
   static const uint8_t CMD_GET_WAVEFORM =                   0xA5; //TODO
-  static const uint8_t CMD_SET_WAVEFORM =                   0xA6; //TODO
-  static const uint8_t CMD_GET_WAVEFORM_VOLTAGE =           0xA7;
+  static const uint8_t CMD_SET_WAVEFORM =                   0xA6;
+  static const uint8_t CMD_GET_WAVEFORM_VOLTAGE =           0xA7; //TODO
   static const uint8_t CMD_SET_WAVEFORM_VOLTAGE =           0xA8;
-  static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9;
+  static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9; //TODO
   static const uint8_t CMD_SET_WAVEFORM_FREQUENCY =         0xAA;
   static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
   static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
@@ -102,12 +104,14 @@ public:
   uint8_t state_of_channel(const uint16_t channel);
   float sampling_rate();
   float series_resistor(const uint8_t channel);
+  std::string waveform();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
   uint8_t set_state_of_all_channels(const std::vector<uint8_t> state);
   uint8_t set_waveform_voltage(const float v_rms);
   uint8_t set_waveform_frequency(const float freq_hz);
+  uint8_t set_waveform(bool waveform);
   uint8_t set_sampling_rate(const uint8_t sampling_rate);
   uint8_t set_series_resistor(const uint8_t channel,
                               const uint8_t series_resistor);
