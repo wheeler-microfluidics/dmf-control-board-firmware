@@ -86,11 +86,13 @@ env2 = Environment(tools = ["default", "disttar"],
 
 g = GitUtil()
 version = re.sub(r'-[^-]+$', '', g.describe())
+version_target = Command('bin/version.txt', None,
+                        'echo "%s" > $TARGET' % version)
 archive_name = 'dmf_control_board-%s.tar.gz' % version
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
 tar = env2.DistTar('bin/%s' % archive_name, Glob('bin/*'))
-Depends(tar, [package_hex, package_pyext])
+Depends(tar, [package_hex, package_pyext, version_target])
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
