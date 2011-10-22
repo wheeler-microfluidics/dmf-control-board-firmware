@@ -1,7 +1,9 @@
+import re
 import os
 import warnings
 import auto_config
 from get_libs import get_lib
+from git_util import GitUtil
 
 
 env = Environment()
@@ -75,9 +77,20 @@ else:
 
 Import('arduino_hex')
 Import('pyext')
-Install('bin', arduino_hex)
-Install('bin', pyext)
+package_hex = Install('bin', arduino_hex)
+package_pyext = Install('bin', pyext)
 
+
+env2 = Environment(tools = ["default", "disttar"],
+                    DISTTAR_EXCLUDEEXTS=['.gz'])
+
+g = GitUtil()
+version = re.sub(r'-[^-]+$', '', g.describe())
+archive_name = 'dmf_control_board-%s.tar.gz' % version
+
+# This will build an archive using what ever DISTTAR_FORMAT that is set.
+tar = env2.DistTar('bin/%s' % archive_name, Glob('bin/*'))
+Depends(tar, [package_hex, package_pyext])
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
