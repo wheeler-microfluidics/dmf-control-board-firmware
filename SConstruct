@@ -10,8 +10,14 @@ env = Environment()
 
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
+g = GitUtil(None)
+m = re.match('v(\d+)\.(\d+)-(\d+)', g.describe())
+SOFTWARE_VERSION = "%s.%s.%s" % (m.group(1), m.group(2), m.group(3))
+Export('SOFTWARE_VERSION')
+
 Import('PYTHON_LIB')
 
+extra_files = []
 if os.name == 'nt':
     Import('BOOST_HOME')
     Import('BOOST_LIB_PATH')
@@ -53,8 +59,8 @@ if os.name == 'nt':
     Export('env')
     VariantDir('build/host', 'src', duplicate=0)
     SConscript('build/host/SConscript.host')
-    Install('bin', get_lib('libboost_python-*-mt-*.dll'))
-    Install('bin', get_lib('mingwm10.dll'))
+    extra_files.append(Install('bin', get_lib('libboost_python-*-mt-*.dll')))
+    extra_files.append(Install('bin', get_lib('mingwm10.dll')))
 
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
@@ -84,15 +90,18 @@ package_pyext = Install('bin', pyext)
 env2 = Environment(tools = ["default", "disttar"],
                     DISTTAR_EXCLUDEEXTS=['.gz'])
 
-g = GitUtil()
-version = re.sub(r'-[^-]+$', '', g.describe())
 version_target = Command('bin/version.txt', None,
-                        'echo "%s" > $TARGET' % version)
-archive_name = 'dmf_control_board-%s.tar.gz' % version
+                        'echo "%s" > $TARGET' % SOFTWARE_VERSION)
+archive_name = 'dmf_control_board-%s.tar.gz' % SOFTWARE_VERSION
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
 tar = env2.DistTar('bin/%s' % archive_name, Glob('bin/*'))
-Depends(tar, [package_hex, package_pyext, version_target])
+if 'DMF_ARCHIVE_DIR' in os.environ:
+    target_archive_dir = os.environ['DMF_ARCHIVE_DIR']
+    Install(target_archive_dir, tar)
+
+Depends(tar, [package_hex, package_pyext, version_target] + extra_files)
+
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:

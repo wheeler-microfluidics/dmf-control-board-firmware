@@ -46,9 +46,7 @@ from itertools import chain
 from find_avrdude import get_arduino_paths
 from git_util import GitUtil
 
-g = GitUtil(None)
-m = re.match('v(\d+)\.(\d+)-(\d+)', g.describe())
-SOFTWARE_VERSION = "%s.%s.%s" % (m.group(1), m.group(2), m.group(3))
+Import('SOFTWARE_VERSION')
 
 pathJoin = os.path.join
 

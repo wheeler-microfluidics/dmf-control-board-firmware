@@ -3,11 +3,7 @@ Import('env')
 import os
 import re
 
-from git_util import GitUtil
-
-g = GitUtil(None)
-m = re.match('v(\d+)\.(\d+)-(\d+)', g.describe())
-SOFTWARE_VERSION = "%s.%s.%s" % (m.group(1), m.group(2), m.group(3))
+Import('SOFTWARE_VERSION')
 
 host_defines = {'___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION}
 host_defines.update(env.get('CPPDEFINES', {}))
