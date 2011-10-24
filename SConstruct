@@ -91,7 +91,7 @@ env2 = Environment(tools = ["default", "disttar"],
                     DISTTAR_EXCLUDEEXTS=['.gz'])
 
 version_target = Command('bin/version.txt', None,
-                        'echo "%s" > $TARGET' % SOFTWARE_VERSION)
+                        'echo %s > $TARGET' % SOFTWARE_VERSION)
 archive_name = 'dmf_control_board-%s.tar.gz' % SOFTWARE_VERSION
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
