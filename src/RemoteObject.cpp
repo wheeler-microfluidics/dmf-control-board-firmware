@@ -452,6 +452,31 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_I2C_READ:
+      if(payload_length()>=3) {
+        uint8_t n_bytes_read=0;
+        uint8_t address = ReadUint8();
+        Wire.beginTransmission(address);
+        for(uint8_t i=0; i<payload_length()-2; i++) {
+          Wire.send(ReadUint8());
+        }
+        Wire.endTransmission();
+        uint8_t n_bytes_to_read = ReadUint8();
+        Wire.requestFrom(address, n_bytes_to_read);
+        while(Wire.available()) {
+          uint8_t data = Wire.receive();
+          Serialize(&data, sizeof(uint8_t));
+          n_bytes_read++;
+        }
+        if(n_bytes_read==n_bytes_to_read) {
+          return_code = RETURN_OK;
+        } else {
+          return_code = RETURN_GENERAL_ERROR;
+        }
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
     case CMD_I2C_WRITE:
       if(payload_length()>1) {
         uint8_t address = ReadUint8();
@@ -971,8 +996,27 @@ void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
   }
 }
 
-std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address, uint8_t n_bytes) {
-  //TODO
+std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
+                                            std::vector<uint8_t> send_data,
+                                            uint8_t n_bytes_to_read) {
+  const char* function_name = "i2c_read()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&address,sizeof(address));
+  Serialize(&send_data[0],send_data.size()*sizeof(uint8_t));
+  Serialize(&n_bytes_to_read,sizeof(n_bytes_to_read));
+  if(SendCommand(CMD_I2C_READ)==RETURN_OK) {
+    sprintf(log_message_string_, "address %d", address);
+    LogMessage(log_message_string_, function_name);
+    std::vector<uint8_t> received_data;
+    for(uint8_t i=0; i<n_bytes_to_read; i++) {
+      received_data.push_back(ReadUint8());
+      sprintf(log_message_string_, "received_data[%d]=%d",
+              i, received_data[i]);
+      LogMessage(log_message_string_, function_name);
+    }
+    return received_data;
+  }
   return std::vector<uint8_t>();
 }
 

@@ -184,7 +184,9 @@ public:
   void onewire_write(uint8_t pin, std::vector<uint8_t> address,
                      uint8_t value, uint8_t power);
   void i2c_write(uint8_t address, std::vector<uint8_t> data);
-  std::vector<uint8_t> i2c_read(uint8_t address, uint8_t n_bytes);
+  std::vector<uint8_t> i2c_read(uint8_t address,
+                                std::vector<uint8_t> send_data,
+                                uint8_t n_bytes_to_read);
 
   /**Set the order of the bits shifted out of and into the SPI bus, either
   LSBFIRST (least-significant bit first) or MSBFIRST (most-significant bit
