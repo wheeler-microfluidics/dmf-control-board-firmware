@@ -4,6 +4,7 @@ import warnings
 import auto_config
 from get_libs import get_lib
 from git_util import GitUtil
+from path import path
 
 
 env = Environment()
@@ -30,7 +31,7 @@ if os.name == 'nt':
 
     # Initialize ENV with OS environment.  Without this, PATH is not set
     # correctly, leading to doxygen not being found in Windows.
-    env = Environment(tools=['mingw'], ENV=os.environ)
+    env = Environment(tools=['mingw'], ENV=os.environ) 
     env['LIBPREFIX'] = ''
     lib_path = [PYTHON_LIB_PATH, BOOST_LIB_PATH]
 
@@ -59,8 +60,14 @@ if os.name == 'nt':
     Export('env')
     VariantDir('build/host', 'src', duplicate=0)
     SConscript('build/host/SConscript.host')
-    extra_files.append(Install('bin', get_lib('libboost_python-*-mt-*.dll')))
-    extra_files.append(Install('bin', get_lib('mingwm10.dll')))
+
+    # Copy dlls to the current dir if necessary
+    libs = [get_lib('libboost_python-*-mt-*.dll'),
+            get_lib('mingwm10.dll')]
+    for lib in libs:
+        if path(lib.name).exists()==False:
+            path(lib).copy('.')
+        extra_files.append(lib.name)
 
     # Build Arduino binaries
     SConscript('src/SConscript.arduino')
@@ -83,19 +90,19 @@ else:
 
 Import('arduino_hex')
 Import('pyext')
-package_hex = Install('bin', arduino_hex)
-package_pyext = Install('bin', pyext)
+package_hex = Install('.', arduino_hex)
+package_pyext = Install('.', pyext)
 
+env = Environment(tools = ["default", "disttar"],
+                  DISTTAR_EXCLUDEEXTS=['.gz'])
 
-env2 = Environment(tools = ["default", "disttar"],
-                    DISTTAR_EXCLUDEEXTS=['.gz'])
-
-version_target = Command('bin/version.txt', None,
+version_target = Command('version.txt', None,
                         'echo %s > $TARGET' % SOFTWARE_VERSION)
 archive_name = 'dmf_control_board-%s.tar.gz' % SOFTWARE_VERSION
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
-tar = env2.DistTar('bin/%s' % archive_name, Glob('bin/*'))
+tar = env.DistTar('%s' % archive_name, [package_hex, package_pyext,
+                  version_target, Glob('*.py')] + extra_files)
 if 'DMF_ARCHIVE_DIR' in os.environ:
     target_archive_dir = os.environ['DMF_ARCHIVE_DIR']
     Install(target_archive_dir, tar)
