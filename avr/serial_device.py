@@ -19,8 +19,6 @@ along with Microdrop.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 
-import dmf_control_board.path
-
 class ConnectionError(Exception):
     pass
 

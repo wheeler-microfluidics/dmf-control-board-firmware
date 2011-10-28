@@ -1,3 +1,11 @@
+src/build
 build/*
+src/*.o
 .sconsign.dblite
 *.pyc
+version.txt
+*.hex
+*.elf
+*.dll
+*.pyd
+*.so

@@ -25,7 +25,6 @@ import warnings
 from subprocess import Popen, PIPE, CalledProcessError
 
 from serial_device import SerialDevice, ConnectionError
-from dmf_control_board import path
 
     
 class FirmwareError(Exception):
