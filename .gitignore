@@ -1,3 +1,4 @@
+*.tar.gz
 src/build
 build/*
 src/*.o
