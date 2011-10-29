@@ -104,6 +104,8 @@ object DmfControlBoard_class
     .def("log_experiment",&DmfControlBoard::LogExperiment)
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
     .def("flush",&DmfControlBoard::flush)
+    .def("host_name",&DmfControlBoard::host_name)
+    .def("host_hardware_version",&DmfControlBoard::host_hardware_version)
     .def("host_software_version",&DmfControlBoard::host_software_version)
   ;
 DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::EEPROM_PIN_MODE_ADDRESS;

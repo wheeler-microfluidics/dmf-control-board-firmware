@@ -102,7 +102,9 @@ class DmfControlBoard(Base, SerialDevice):
         return numpy.array(Base.i2c_read(self, address, send_data_, n_bytes_to_read))
 
     def test_connection(self, port):
-        if self.connect(port)==self.RETURN_OK:
-            return True
-        else:
-            return False
+        try:
+            if self.connect(port)==self.RETURN_OK:
+                return True
+        except:
+            pass
+        return False

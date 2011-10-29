@@ -688,7 +688,7 @@ uint8_t RemoteObject::Connect(const char* port) {
 
   // wait up to 10 s for the Arduino to send something on the
   // serial port so that we know it's ready
-  if(return_code==RETURN_OK) {
+  if(return_code==0) {
     boost::posix_time::ptime t = 
       boost::posix_time::microsec_clock::universal_time();
     while(Serial.available()==false && \
@@ -701,10 +701,33 @@ uint8_t RemoteObject::Connect(const char* port) {
       Serial.flush();
     }
   }
-  sprintf(log_message_string_,"Serial.begin(%s,%d)=%d",
-          port,baud_rate_,return_code);
-  LogMessage(log_message_string_, function_name);
-  return return_code;
+  std::ostringstream msg;
+  msg << "Serial.begin(" << port << "," << baud_rate_ << ")="
+      << return_code;
+  LogMessage(msg.str().c_str(), function_name);
+
+  if(return_code==0) {
+    // verify that the device name and hardware version are correct
+    std::string remote_name = name();
+    std::string remote_hardware_version = hardware_version();
+    msg.str("");
+    msg << "name()=\"" << remote_name.c_str() << "\", hardware_version()=\""
+      << remote_hardware_version.c_str() << "\"";
+    LogMessage(msg.str().c_str(), function_name);
+    if(remote_name==host_name() &&
+      remote_hardware_version==host_hardware_version()) {
+      return RETURN_OK;
+    } else {
+      Serial.end();
+      msg.str("");
+      msg << "Remote device is not a " << host_name() << " version "
+          << host_hardware_version();
+      throw runtime_error(msg.str().c_str());
+    }
+  }
+  msg.str("");
+  msg << "Could not connect to port " << port;
+  throw runtime_error(msg.str().c_str());
 }
 
 void RemoteObject::set_debug(const bool debug) {
