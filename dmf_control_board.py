@@ -17,13 +17,29 @@ You should have received a copy of the GNU General Public License
 along with Microdrop.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import time
+
 import numpy
 
 from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
-from avr.serial_device import SerialDevice, ConnectionError
+from serial_device import SerialDevice, ConnectionError
+from avr import AvrDude
+from path import path
 
 class DmfControlBoard(Base, SerialDevice):
+    def __init__(self):
+        Base.__init__(self)
+        SerialDevice.__init__(self)
+
+    def connect(self, port=None):
+        if port:
+            Base.connect(self, port)
+            self.port = port
+        else:
+            self.get_port()
+        return self.RETURN_OK
+    
     def state_of_all_channels(self):
         return numpy.array(Base.state_of_all_channels(self))
 
@@ -108,3 +124,26 @@ class DmfControlBoard(Base, SerialDevice):
         except:
             pass
         return False
+    
+    def flash_firmware(self):
+        reconnect = self.connected()  
+        if reconnect:
+            self.disconnect()
+        try:
+            hex_path = path(__file__).parent / path("dmf_driver.hex")
+            avrdude = AvrDude(self.port)
+            stdout, stderr = avrdude.flash(hex_path.abspath())
+            if stdout:
+                print stdout
+            if stderr:
+                print stderr
+            if reconnect:
+                # need to sleep here, otherwise reconnect fails
+                time.sleep(.1)
+                self.connect(self.port)
+            return True
+        except Exception, why:
+            print why
+            if reconnect:
+                self.connect(self.port)
+            return False

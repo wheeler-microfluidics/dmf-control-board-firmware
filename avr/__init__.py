@@ -24,7 +24,8 @@ import re
 import warnings
 from subprocess import Popen, PIPE, CalledProcessError
 
-from serial_device import SerialDevice, ConnectionError
+from ..serial_device import SerialDevice, ConnectionError
+from ..path import path
 
     
 class FirmwareError(Exception):
@@ -32,23 +33,27 @@ class FirmwareError(Exception):
 
 
 class AvrDude(SerialDevice):
-    def __init__(self):
+    def __init__(self, port=None):
         p = path(__file__)
         if os.name == 'nt':
-            self.avrdude = p.parent / path('avrdude.exe')
+            self.avrdude = (p.parent / path('avrdude.exe')).abspath()
         else:
-            self.avrdude = p.parent / path('avrdude')
+            self.avrdude = (p.parent / path('avrdude')).abspath()
         if not self.avrdude.exists():
             raise FirmwareError('avrdude not installed')
-        self.avrconf = p.parent / path('avrdude.conf')
-        self.port = self.get_port()
-        print 'avrdude successfully connected on port: ', self.port
+        self.avrconf = (p.parent / path('avrdude.conf')).abspath()
+        if port:
+            self.port = port
+        else:
+            self.port = self.get_port()
+            print 'avrdude successfully connected on port: ', self.port
 
     def _run_command(self, flags, verbose=False):
         config = dict(avrdude=self.avrdude, avrconf=self.avrconf)
 
         cmd = ['%(avrdude)s'] + flags
         cmd = [v % config for v in cmd]
+        
         if verbose:
             print ' '.join(cmd)
         p = Popen(cmd, stdout=PIPE, stderr=PIPE)

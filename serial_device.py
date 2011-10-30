@@ -24,30 +24,33 @@ class ConnectionError(Exception):
 
 
 class SerialDevice(object):
+    def __init__(self):
+        self.port = None
+    
     def get_port(self):
-        port = None
+        self.port = None
         if os.name == 'nt':
             # Windows
             for i in range(0,31):
                 test_port = "COM%d" % i
                 if self.test_connection(test_port):
-                    port = test_port
+                    self.port = test_port
                     break
         else:
             # Assume Linux (Ubuntu)...
             for tty in path('/dev').walk('ttyUSB*'):
                 if self.test_connection(tty):
-                    port = tty
+                    self.port = tty
                     break
             # or Ubuntu in a VirtualBox
             if port is None:
                 for tty in path('/dev').walk('ttyACM*'):
                     if self.test_connection(tty):
-                        port = tty
+                        self.port = tty
                         break
-        if port is None:
+        if self.port is None:
             raise ConnectionError('could not connect to serial device.')
-        return port
+        return self.port
 
 
     def test_connection(self, port):
