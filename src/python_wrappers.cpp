@@ -60,6 +60,7 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
 object DmfControlBoard_class
   = class_<DmfControlBoard,boost::noncopyable>("DmfControlBoard")
     .def("connect",&DmfControlBoard::Connect)
+    .def("disconnect",&DmfControlBoard::Disconnect)
     .def("connected",&DmfControlBoard::connected)
     .def("return_code",&DmfControlBoard::return_code)
     .def("set_debug",&DmfControlBoard::set_debug)
