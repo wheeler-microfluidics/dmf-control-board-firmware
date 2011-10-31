@@ -193,7 +193,6 @@ private:
 
   // LTC6904 (programmable oscillator) chip address
   static const uint8_t LTC6904_ = 0x17;
-  static const uint16_t NUMBER_OF_CHANNELS_ = 120;
 #else
   static const char CSV_INDENT_[];
 #endif
@@ -201,7 +200,7 @@ private:
   // private functions
   virtual uint8_t ProcessCommand(uint8_t cmd);
 #ifdef AVR
-  void UpdateChannel(const uint16_t channel);
+  uint8_t UpdateChannel(const uint16_t channel, const uint8_t state);
   void UpdateAllChannels();
   void SendI2C(uint8_t row, uint8_t cmd, uint8_t data);
   void SendSPI(uint8_t pin, uint8_t address, uint8_t data);
@@ -219,7 +218,7 @@ private:
 
   //private members
 #ifdef AVR
-  uint8_t state_of_channels_[NUMBER_OF_CHANNELS_];
+  uint16_t number_of_channels_;
   uint8_t sampling_rate_index_;
   uint8_t A0_series_resistor_index_;
   uint8_t A1_series_resistor_index_;

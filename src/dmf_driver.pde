@@ -35,9 +35,6 @@ extern "C" {
 
 void setup() {
   dmf_control_board.begin();
-  Serial.print(dmf_control_board.name());
-  Serial.print(" v");
-  Serial.println(dmf_control_board.software_version());
   Serial.print("ram="); Serial.println(ram_size(), DEC);
   Serial.print(".data="); Serial.println(data_size(), DEC);
   Serial.print(".bss="); Serial.println(bss_size(), DEC);

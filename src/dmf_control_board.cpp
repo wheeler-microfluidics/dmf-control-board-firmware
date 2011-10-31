@@ -129,8 +129,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_GET_NUMBER_OF_CHANNELS:
       if(payload_length()==0) {
-        uint16_t n = NUMBER_OF_CHANNELS_;
-        Serialize(&n,sizeof(n));
+        Serialize(&number_of_channels_,sizeof(number_of_channels_));
         return_code = RETURN_OK;
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
@@ -138,15 +137,32 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_GET_STATE_OF_ALL_CHANNELS:
       if(payload_length()==0) {
-        Serialize(state_of_channels_,NUMBER_OF_CHANNELS_*sizeof(uint8_t));
         return_code = RETURN_OK;
+        for(uint8_t chip=0; chip<number_of_channels_/40; chip++) {
+          for(uint8_t port=0; port<5; port++) {
+            Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+            Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+            Wire.endTransmission();
+            Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+            if (Wire.available()) {
+              uint8_t data = Wire.receive();
+              uint8_t state;
+              for(uint8_t bit=0; bit<8; bit++) {
+                state = (data >> bit & 0x01)==0;
+                Serialize(&state, sizeof(state));
+              }
+            } else {
+              return_code = RETURN_GENERAL_ERROR;
+              break; break;
+            }
+          }
+        }
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_STATE_OF_ALL_CHANNELS:
-      if(payload_length()<=NUMBER_OF_CHANNELS_*sizeof(uint8_t)) {
-        ReadArray(state_of_channels_, payload_length());
+      if(payload_length()==number_of_channels_*sizeof(uint8_t)) {
         UpdateAllChannels();
         return_code = RETURN_OK;
       } else {
@@ -156,13 +172,24 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
     case CMD_GET_STATE_OF_CHANNEL:
       if(payload_length()==sizeof(uint16_t)) {
         uint16_t channel = ReadUint16();
-        if(channel>=NUMBER_OF_CHANNELS_||channel<0) {
+        if(channel>=number_of_channels_||channel<0) {
           return_code = RETURN_BAD_INDEX;
         } else {
-          Serialize(&channel,sizeof(channel));
-          Serialize(&state_of_channels_[channel],
-                    sizeof(state_of_channels_[channel]));
-          return_code = RETURN_OK;
+          uint8_t chip = channel/40;
+          uint8_t port = (channel%40)/8;
+          uint8_t bit = (channel%40)%8;
+          Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+          Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+          Wire.endTransmission();
+          Wire.requestFrom(PCA9505_ADDRESS_+chip, 1);
+          if(Wire.available()) {
+            uint8_t data = Wire.receive();
+            data = (data >> bit & 0x01)==0;
+            Serialize(&data, sizeof(data));
+            return_code = RETURN_OK;
+          } else {
+            return_code = RETURN_GENERAL_ERROR;
+          }
         }
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
@@ -171,10 +198,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
     case CMD_SET_STATE_OF_CHANNEL:
       if(payload_length()==sizeof(uint16_t)+sizeof(uint8_t)) {
         uint16_t channel = ReadUint16();
-        if(channel<NUMBER_OF_CHANNELS_) {
-          state_of_channels_[channel] = ReadUint8();
-          UpdateChannel(channel);
-          return_code = RETURN_OK;
+        uint8_t state = ReadUint8();
+        if(channel<number_of_channels_) {
+          return_code = UpdateChannel(channel, state);
         } else {
           return_code = RETURN_BAD_INDEX;
         }
@@ -304,7 +330,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
              +n_channels*sizeof(uint8_t))
              || (payload_length()==sizeof(uint8_t)+3*sizeof(uint16_t)
              +n_channels*sizeof(uint8_t)
-             +NUMBER_OF_CHANNELS_*sizeof(uint8_t))) {
+             +number_of_channels_*sizeof(uint8_t))) {
             return_code = RETURN_OK;
 
             // point the voltage_buffer_ to the payload_buffer_
@@ -319,9 +345,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             // update the channels (if they were included in the packet)
             if(payload_length()==sizeof(uint8_t)+3*sizeof(uint16_t)
                +n_channels*sizeof(uint8_t)
-               +NUMBER_OF_CHANNELS_*sizeof(uint8_t)){
-              ReadArray(state_of_channels_,
-                        NUMBER_OF_CHANNELS_*sizeof(uint8_t));
+               +number_of_channels_*sizeof(uint8_t)){
               UpdateAllChannels();
             }
             // sample the voltages
@@ -357,7 +381,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         } else {
           if(payload_length()==3*sizeof(uint16_t) ||
              (payload_length()==3*sizeof(uint16_t)
-             +NUMBER_OF_CHANNELS_*sizeof(uint8_t))) {
+             +number_of_channels_*sizeof(uint8_t))) {
             return_code = RETURN_OK;
 
             // point the impedance_buffer_ to the payload_buffer_
@@ -410,9 +434,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
               // update the channels (if they were included in the packet)
               if(payload_length()==3*sizeof(uint16_t)
-                  +NUMBER_OF_CHANNELS_*sizeof(uint8_t)){
-                ReadArray(state_of_channels_,
-                          NUMBER_OF_CHANNELS_*sizeof(uint8_t));
+                  +number_of_channels_*sizeof(uint8_t)){
                 UpdateAllChannels();
               }
 
@@ -499,18 +521,42 @@ void DmfControlBoard::begin() {
   pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
   pinMode(WAVEFORM_SELECT_, OUTPUT);
 
-  // set PCA0505 ports in output mode
-  for(uint8_t chip=0; chip<NUMBER_OF_CHANNELS_/40; chip++) {
-    for(uint8_t port=0; port<5; port++) {
-      SendI2C(PCA9505_ADDRESS_+chip, PCA9505_CONFIG_IO_REGISTER_+port, 0x00);
+  Serial.begin(DmfControlBoard::BAUD_RATE);
+
+  Serial.print(name());
+  Serial.print(" v");
+  Serial.println(hardware_version());
+  Serial.print("Firmware version: ");
+  Serial.println(software_version());
+
+  // Check how many switching boards are connected.  Each additional board's
+  // address must equal the previous boards address +1 to be valid.
+  number_of_channels_ = 0;
+  for(uint8_t chip=0; chip<8; chip++) {
+    Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+    Wire.send(PCA9505_CONFIG_IO_REGISTER_);
+    Wire.endTransmission();
+    Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+    if (Wire.available()) {
+      Wire.receive();
+      if(number_of_channels_==40*chip) {
+        number_of_channels_ = 40*(chip+1);
+      }
+      Serial.print("HV board ");
+      Serial.print((int)chip);
+      Serial.println(" connected.");
+      // set all PCA0505 ports in output mode and initialize to ground
+      for(uint8_t port=0; port<5; port++) {
+        SendI2C(PCA9505_ADDRESS_+chip, PCA9505_CONFIG_IO_REGISTER_+port, 0x00);
+        SendI2C(PCA9505_ADDRESS_+chip, PCA9505_OUTPUT_PORT_REGISTER_+port, 0xFF);
+      }
     }
   }
+  Serial.print(number_of_channels_);
+  Serial.println(" channels available.");
 
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
-
-  // set all channels to ground
-  UpdateAllChannels();
 
   // sets the maximum output voltage for the waveform generator
   uint8_t waveout_gain_1 = 112;
@@ -535,7 +581,6 @@ void DmfControlBoard::begin() {
   SetPot(POT_INDEX_WAVEOUT_GAIN_1_, waveout_gain_1);
   SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
 
-  Serial.begin(DmfControlBoard::BAUD_RATE);
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
   SetAdcPrescaler(4);
@@ -688,35 +733,41 @@ void DmfControlBoard::UpdateAllChannels() {
   // first PCA9505 chip stores the state of channels 0-7, the second register
   // represents channels 8-15, etc.).
   uint8_t data = 0;
-  for(uint8_t chip=0; chip<NUMBER_OF_CHANNELS_/40; chip++) {
+  for(uint8_t chip=0; chip<number_of_channels_/40; chip++) {
     for(uint8_t port=0; port<5; port++) {
       data = 0;
       for(uint8_t i=0; i<8; i++) {
-        data += (state_of_channels_[chip*40+port*8+i]==0)<<i;
+        data += (ReadUint8()==0)<<i;
       }
       SendI2C(PCA9505_ADDRESS_+chip, PCA9505_OUTPUT_PORT_REGISTER_+port, data);
     }
   }
 }
 
-// update the state of single channel
+// Update the state of single channel.
 // Note: Do not use this function in a loop to update all channels. If you
 //       want to update all channels, use the UpdateAllChannels function
 //       instead because it will be 8x more efficient.
-void DmfControlBoard::UpdateChannel(const uint16_t channel) {
+uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
+                                       const uint8_t state) {
   uint8_t data = 0;
-  uint16_t chip = channel/40;
-  uint8_t port = (channel-40*chip)/8;
-
-  // We can't update single channels; instead we need to update all 8
-  // channels that share a common output port register. See
-  // UpdateAllChannels for more details.
-  for(uint8_t i=0; i<8; i++) {
-    data += (state_of_channels_[chip*40+port*8+i]==0)<<i;
+  uint8_t chip = channel/40;
+  uint8_t port = (channel%40)/8;
+  uint8_t bit = (channel%40)%8;
+  Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+  Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+  Wire.endTransmission();
+  Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+  if (Wire.available()) {
+    uint8_t data = Wire.receive();
+    bitWrite(data, bit, state==0);
+    SendI2C(PCA9505_ADDRESS_+chip,
+            PCA9505_OUTPUT_PORT_REGISTER_+port,
+            data);
+    return RETURN_OK;
+  } else {
+    return RETURN_GENERAL_ERROR;
   }
-  SendI2C(PCA9505_ADDRESS_+chip,
-          PCA9505_OUTPUT_PORT_REGISTER_+port,
-          data);
 }
 
 #else
@@ -756,9 +807,9 @@ uint16_t DmfControlBoard::number_of_channels() {
       LogMessage(log_message_string_, function_name);
       return number_of_channels;
     } else {
-      return_code_ = RETURN_BAD_PACKET_SIZE;
       LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
                  function_name);
+      throw runtime_error("Bad packet size.");
     }
   }
   return 0;
@@ -790,15 +841,14 @@ uint8_t DmfControlBoard::state_of_channel(const uint16_t channel) {
   Serialize(&channel,sizeof(channel));
   if(SendCommand(CMD_GET_STATE_OF_CHANNEL)==RETURN_OK) {
     LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
-    if(payload_length()==sizeof(uint16_t)+sizeof(uint8_t)) {
-      uint16_t channel = ReadUint16();
+    if(payload_length()==sizeof(uint8_t)) {
       uint8_t state = ReadUint8();
-      sprintf(log_message_string_, "channel[%d]=%d", channel, state);
+      sprintf(log_message_string_, "state=%d", state);
       LogMessage(log_message_string_, function_name);
       return state;
     } else {
-      return_code_ = RETURN_BAD_PACKET_SIZE;
       LogError("Bad packet size", function_name);
+      throw runtime_error("Bad packet size.");
     }
   }
   return 0;
@@ -817,9 +867,9 @@ float DmfControlBoard::sampling_rate() {
       LogMessage(log_message_string_, function_name);
       return sampling_rate;
     } else {
-      return_code_ = RETURN_BAD_PACKET_SIZE;
       LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
                  function_name);
+      throw runtime_error("Bad packet size.");
     }
   }
   return 0;
@@ -854,9 +904,9 @@ float DmfControlBoard::series_resistor(const uint8_t channel) {
       LogMessage(log_message_string_, function_name);
       return series_resistor;
     } else {
-      return_code_ = RETURN_BAD_PACKET_SIZE;
       LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
                  function_name);
+      throw runtime_error("Bad packet size.");
     }
   }
   return 0;
@@ -886,9 +936,9 @@ std::string DmfControlBoard::waveform() {
                    function_name);
       }
     } else {
-      return_code_ = RETURN_BAD_PACKET_SIZE;
       LogMessage("CMD_GET_WAVEFORM, Bad packet size",
                  function_name);
+      throw runtime_error("Bad packet size.");
     }
   }
   return "";
@@ -1102,7 +1152,7 @@ uint8_t DmfControlBoard::SetExperimentLogFile(const char* file_name) {
   if(experiment_log_file_.fail()==false) {
     return RETURN_OK;
   } else {
-    return RETURN_GENERAL_ERROR;
+    throw runtime_error("Error creating log file.");
   }
 }
 
