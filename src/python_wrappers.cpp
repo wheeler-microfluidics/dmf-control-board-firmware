@@ -106,8 +106,10 @@ object DmfControlBoard_class
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
     .def("flush",&DmfControlBoard::flush)
     .def("host_name",&DmfControlBoard::host_name)
+    .def("host_manufacturer",&DmfControlBoard::host_manufacturer)
     .def("host_hardware_version",&DmfControlBoard::host_hardware_version)
     .def("host_software_version",&DmfControlBoard::host_software_version)
+    .def("host_url",&DmfControlBoard::host_url)
   ;
 DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::EEPROM_PIN_MODE_ADDRESS;
 DmfControlBoard_class.attr("EEPROM_PIN_STATE_ADDRESS") = DmfControlBoard::EEPROM_PIN_STATE_ADDRESS;

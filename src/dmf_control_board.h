@@ -131,8 +131,10 @@ public:
   uint8_t SetExperimentLogFile(const char* file_name);
   void LogExperiment(const char* message);
   std::string host_name() { return NAME_; }
+  std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_hardware_version() { return HARDWARE_VERSION_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
+  std::string host_url() { return URL_; }
 #else
   void begin();
   void PeakExceeded();
@@ -152,11 +154,11 @@ private:
   static const char SOFTWARE_VERSION_[];
   static const char NAME_[];
   static const char HARDWARE_VERSION_[];
+  static const char MANUFACTURER_[];
+  static const char URL_[];
 #ifdef AVR
   static const char PROTOCOL_NAME_[];
   static const char PROTOCOL_VERSION_[];
-  static const char MANUFACTURER_[];
-  static const char URL_[];
 
   static const uint8_t AD5204_SLAVE_SELECT_PIN_ = 53; // digital pot
   static const uint8_t POT_INDEX_AREF_ = 0;

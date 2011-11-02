@@ -152,6 +152,8 @@ public:
   virtual std::string host_name() = 0;
   virtual std::string host_hardware_version() = 0;
   virtual std::string host_software_version() = 0;
+  virtual std::string host_url() = 0;
+  virtual std::string host_manufacturer() = 0;
 
   /////////////////////////////////////////////////////////////////////////
   //

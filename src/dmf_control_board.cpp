@@ -41,14 +41,14 @@ const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
                                                  68191, 90293, 105263 };
 const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
 const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
-const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
-const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control/board";
 #else
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
+const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
 const char DmfControlBoard::HARDWARE_VERSION_[] = "1.1";
 const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
+const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control_board";
 
 DmfControlBoard::DmfControlBoard()
   : RemoteObject(BAUD_RATE,true
