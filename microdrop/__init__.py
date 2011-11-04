@@ -309,7 +309,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     self.control_board.set_state_of_all_channels(state)
                     t = time.time()
                     while time.time()-t < \
-                        self.app.protocol.current_step().time/1000.0:
+                        self.app.protocol.current_step().duration/1000.0:
                         while gtk.events_pending():
                             gtk.main_iteration()
                 self.app.experiment_log.add_data(
