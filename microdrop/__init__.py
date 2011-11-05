@@ -232,7 +232,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.steps.insert(self.app.protocol.current_step_number,
                           deepcopy(self.current_step_options()))
 
-    def on_protocol_update(self):
+    def on_protocol_update(self, data):
         """
         Handler called whenever the current protocol step changes.
         """
@@ -279,8 +279,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
         if self.app.realtime_mode or self.app.running:
             if self.control_board.connected():
                 self.current_state.feedback_enabled = options.feedback_enabled
-                data = {"step":self.app.protocol.current_step_number, 
-                        "time":time.time()}
                 state = self.app.protocol.current_step().state_of_channels
                 max_channels = self.control_board.number_of_channels() 
                 if len(state) >  max_channels:
@@ -312,8 +310,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         self.app.protocol.current_step().duration/1000.0:
                         while gtk.events_pending():
                             gtk.main_iteration()
-                self.app.experiment_log.add_data(
-                    self.app.protocol.current_step_number, data)
         
     def on_app_exit(self):
         """
