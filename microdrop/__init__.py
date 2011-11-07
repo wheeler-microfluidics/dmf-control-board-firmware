@@ -158,7 +158,7 @@ class FeedbackResultsController():
         """
         self.axis.cla()
         self.axis.set_xlabel("time (ms)")
-        self.axis.set_ylabel("|Z(f) ($\Omega$)|")
+        self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
         self.axis.grid(True)
         self.axis.set_title("Impedance")
         legend = []
@@ -190,7 +190,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.window = self.builder.get_object("window")
         self.builder.connect_signals(self)
         self.steps = [] # list of steps in the protocol
-        self.current_state = FeedbackOptions
+        self.current_state = FeedbackOptions()
         self.window.set_title("Feedback Options")
         self.feedback_results_controller = None
 
@@ -552,7 +552,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called when the protocol changes (e.g., when a new protocol
         is loaded).
         """
-        pass
+        if len(protocol)==1:
+            self.steps = []
 
     def on_dmf_device_changed(self, dmf_device):
         """
