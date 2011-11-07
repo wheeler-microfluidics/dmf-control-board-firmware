@@ -19,16 +19,20 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import threading
 import time
+import math
+import os
 from cPickle import dumps, loads
 from copy import deepcopy
 
 import gtk
 import numpy as np
 import matplotlib
-matplotlib.use('GTK')
-import matplotlib.pyplot as plt
+matplotlib.use('GTKAgg')
+if os.name=='nt':
+    matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure   
-from matplotlib.backends.backend_gtk import FigureCanvasGTK   
+from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK   
+from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
 
 from utility import *
 from plugin_manager import IPlugin, SingletonPlugin, implements
@@ -102,37 +106,71 @@ class FeedbackResults():
         self.Z_fb = impedance[1::2]
         self.V_total = V_total
         self.Z_device = self.Z_fb*(self.V_total/self.V_fb-1)
-        
-    def plot(self):
+
+    def plot(self, axis):
         t = np.array(range(0,self.options.n_samples)) * \
                 (self.options.sampling_time_ms + \
                  self.options.delay_between_samples_ms)
-        plt.plot(t, self.Z_device)
+        axis.plot(t, self.Z_device)
 
 
 class FeedbackResultsController():
     def __init__(self, app):
         self.app = app
-
-        """
         self.builder = gtk.Builder()
         self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_results.glade")
-        self.builder.connect_signals(self)
         self.window = self.builder.get_object("window")
         self.window.set_title("Feedback Results")
-        self.figure = Figure(figsize=(6,4), dpi=72)   
-        self.axis = self.figure.add_subplot(111)   
-        self.axis.set_xlabel("time (ms)")   
-        self.axis.set_ylabel("|Z(f)|")   
-        self.axis.grid(True)
-        self.canvas = FigureCanvasGTK(self.figure)
-        self.canvas.show()
-        self.builder.get_object("hbox1").pack_start(self.canvas)
+        self.builder.connect_signals(self)
         menu_item = gtk.MenuItem("Feedback Results")
-        self.app.main_window_controller.menu_tools.append(menu_item)
+        self.app.main_window_controller.menu_view.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
+
+        self.figure = Figure()   
+        self.canvas = FigureCanvasGTK(self.figure)
+        self.axis = self.figure.add_subplot(111)
+        self.vbox = self.builder.get_object("vbox1")
+        toolbar = NavigationToolbar(self.canvas, self.window)
+        self.vbox.pack_start(self.canvas)
+        self.vbox.pack_start(toolbar, False, False)
+
+    def on_window_show(self, widget, data=None):
         """
+        Handler called when the user clicks on "Feedback Results" in the "View"
+        menu.
+        """
+        self.window.show_all()
+
+    def on_window_delete_event(self, widget, data=None):
+        """
+        Handler called when the user closes the "Feedback Results" window. 
+        """
+        self.window.hide()
+        return True
+
+    def on_experiment_log_selection_changed(self, data):
+        """
+        Handler called whenever the experiment log selection changes.
+
+        Parameters:
+            data : dictionary of experiment log data for the selected steps
+        """
+        self.axis.cla()
+        self.axis.set_xlabel("time (ms)")
+        self.axis.set_ylabel("|Z(f) ($\Omega$)|")
+        self.axis.grid(True)
+        self.axis.set_title("Impedance")
+        legend = []
+        for row in data:
+            if row.keys().count("FeedbackResults"):
+                results = loads(row["FeedbackResults"])
+                results.plot(self.axis)
+                legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+        if len(legend):
+            self.axis.legend(legend)
+        self.figure.subplots_adjust(left=0.17, bottom=0.15)
+        self.canvas.draw()
           
 class DmfControlBoardPlugin(SingletonPlugin):
     """
@@ -147,9 +185,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.version = self.control_board.host_software_version()
         self.url = self.control_board.host_url()
         self.app = None
-        self.builder = None
+        self.builder = gtk.Builder()
+        self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_options.glade")
+        self.window = self.builder.get_object("window")
+        self.builder.connect_signals(self)
         self.steps = [] # list of steps in the protocol
         self.current_state = FeedbackOptions
+        self.window.set_title("Feedback Options")
         self.feedback_results_controller = None
 
     def on_app_init(self, app):
@@ -157,15 +199,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called once when the Microdrop application starts.
         """
         self.app = app
-        self.builder = gtk.Builder()
-        self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_options.glade")
-        self.window = self.builder.get_object("window")
-        self.builder.connect_signals(self)
         menu_item = gtk.MenuItem("Feedback Options")
         self.app.main_window_controller.menu_tools.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
-        self.window.set_title("Feedback Options")
         self.feedback_results_controller = FeedbackResultsController(app)
         
         try:
@@ -276,40 +313,43 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.builder.get_object("textentry_max_retries").set_text(
             str(options.max_retries))
 
-        if self.app.realtime_mode or self.app.running:
-            if self.control_board.connected():
-                self.current_state.feedback_enabled = options.feedback_enabled
-                state = self.app.protocol.current_step().state_of_channels
-                max_channels = self.control_board.number_of_channels() 
-                if len(state) >  max_channels:
-                    state = state[0:max_channels]
-                elif len(state) < max_channels:
-                    state = np.concatenate([state,
-                                            np.zeros(max_channels-len(state),
-                                                     int)])
-                else:
-                    assert(len(state)==max_channels)
+        if self.control_board.connected() and \
+            (self.app.realtime_mode or self.app.running):
+            self.control_board.set_waveform_voltage(float(
+                self.app.protocol.current_step().voltage)*math.sqrt(2)/100)
+            self.control_board.set_waveform_frequency(float(
+                self.app.protocol.current_step().frequency))
+            self.current_state.feedback_enabled = options.feedback_enabled
+            state = self.app.protocol.current_step().state_of_channels
+            max_channels = self.control_board.number_of_channels() 
+            if len(state) >  max_channels:
+                state = state[0:max_channels]
+            elif len(state) < max_channels:
+                state = np.concatenate([state,
+                                        np.zeros(max_channels-len(state),
+                                                 int)])
+            else:
+                assert(len(state)==max_channels)
 
-                if options.feedback_enabled:
-                    thread = WaitForFeedbackMeasurement(self.control_board,
-                                                        state,
-                                                        options)
-                    thread.start()
-                    while thread.is_alive():
-                        while gtk.events_pending():
-                            gtk.main_iteration()
-                    results = FeedbackResults(options,
-                                              thread.results,
-                                              self.app.protocol.current_step().voltage)
-                    results.plot()
-                    data["FeedbackResults"] = dumps(results)
-                else:
-                    self.control_board.set_state_of_all_channels(state)
-                    t = time.time()
-                    while time.time()-t < \
-                        self.app.protocol.current_step().duration/1000.0:
-                        while gtk.events_pending():
-                            gtk.main_iteration()
+            if options.feedback_enabled:
+                thread = WaitForFeedbackMeasurement(self.control_board,
+                                                    state,
+                                                    options)
+                thread.start()
+                while thread.is_alive():
+                    while gtk.events_pending():
+                        gtk.main_iteration()
+                results = FeedbackResults(options,
+                                          thread.results,
+                                          self.app.protocol.current_step().voltage)
+                data["FeedbackResults"] = dumps(results)
+            else:
+                self.control_board.set_state_of_all_channels(state)
+                t = time.time()
+                while time.time()-t < \
+                    self.app.protocol.current_step().duration/1000.0:
+                    while gtk.events_pending():
+                        gtk.main_iteration()
         
     def on_app_exit(self):
         """
@@ -491,8 +531,15 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         Handler called when a protocol starts running.
         """
-        pass
-        #TODO
+        if self.control_board.connected()==False:
+            self.app.main_window_controller.warning("Warning: no control "
+                "board connected.")
+        elif self.control_board.number_of_channels() < \
+            self.app.protocol.n_channels:
+            self.app.main_window_controller.warning("Warning: currently "
+                "connected board does not have enough channels for this "
+                "protocol.")
+
     
     def on_protocol_pause(self):
         """
@@ -520,3 +567,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
         finishes running.
         """
         pass
+        
+    def on_experiment_log_selection_changed(self, data):
+        """
+        Handler called whenever the experiment log selection changes.
+
+        Parameters:
+            data : dictionary of experiment log data for the selected steps
+        """
+        self.feedback_results_controller.on_experiment_log_selection_changed(data)
