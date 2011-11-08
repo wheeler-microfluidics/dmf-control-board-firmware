@@ -26,7 +26,6 @@ from copy import deepcopy
 import gtk
 import numpy as np
 
-from utility import *
 from plugins.dmf_control_board import *
 from plugins.dmf_control_board.microdrop.feedback import *
 from plugin_manager import IPlugin, SingletonPlugin, implements
@@ -167,7 +166,28 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     self.app.protocol.current_step().duration/1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
-        
+                        
+            """
+            start_freq = self.textentry_start_freq.get_text()
+            end_freq = self.textentry_end_freq.get_text()
+            number_of_steps = self.textentry_n_steps.get_text()
+            if is_float(start_freq) == False:
+                self.app.main_window_controller.error("Invalid start frequency.")
+            elif is_float(end_freq) == False:
+                self.app.main_window_controller.error("Invalid end frequency.")
+            elif is_int(number_of_steps) == False or number_of_steps < 1:
+                self.app.main_window_controller.error("Invalid number of steps.")
+            elif end_freq < start_freq:
+                self.app.main_window_controller.error("End frequency must be greater than the start frequency.")
+            else:
+                frequencies = np.logspace(np.log10(float(start_freq)),
+                                          np.log10(float(end_freq)),
+                                          int(number_of_steps))
+                for frequency in frequencies:
+                    self.app.protocol.current_step().frequency = frequency*1e3
+                    self.app.protocol.copy_step()
+            """
+
     def on_app_exit(self):
         """
         Handler called just before the Microdrop application exists. 

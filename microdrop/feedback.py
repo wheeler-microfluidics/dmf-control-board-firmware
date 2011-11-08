@@ -29,6 +29,65 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
 from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
 
+from utility import *
+
+
+class RetryAction():
+    def __init__(self,
+                 capacitance_threshold=None,
+                 increase_voltage=None,
+                 max_repeats=None):
+        if capacitance_threshold:
+            self.capacitance_threshold = capacitance_threshold
+        else:
+            self.capacitance_threshold = 0
+        if increase_voltage:
+            self.increase_voltage = increase_voltage
+        else:
+            self.increase_voltage = 0
+        if max_repeats:
+            self.max_repeats = max_repeats
+        else:
+            self.max_repeats = 3
+
+
+class SweepFrequencyAction():
+    def __init__(self,
+                 start_frequency=None,
+                 end_frequency=None,
+                 n_frequency_steps=None):
+        if start_frequency:
+            self.start_frequency = start_frequency
+        else:
+            self.start_frequency = 1e2
+        if end_frequency:
+            self.end_frequency = end_frequency
+        else:
+            self.end_frequency = 30e3
+        if n_frequency_steps:
+            self.n_frequency_steps = n_frequency_steps
+        else:
+            self.n_frequency_steps = 30
+
+
+class SweepVoltageAction():
+    def __init__(self,
+                 start_voltage=None,
+                 end_voltage=None,
+                 n_voltage_steps=None):
+        if start_voltage:
+            self.start_voltage = start_voltage
+        else:
+            self.start_voltage = 5
+        if end_voltage:
+            self.end_voltage = end_voltage
+        else:
+            self.end_voltage = 100
+        if n_voltage_steps:
+            self.n_voltage_steps = n_voltage_steps
+        else:
+            self.n_voltage_steps = 20
+
 
 class FeedbackOptions():
     """
@@ -38,9 +97,7 @@ class FeedbackOptions():
                  sampling_time_ms=None,
                  n_samples=None,
                  delay_between_samples_ms=None,
-                 retry=None,
-                 capacitance_threshold=None,
-                 max_retries=None):
+                 action=None):
         if feedback_enabled:
             self.feedback_enabled = feedback_enabled
         else:
@@ -57,18 +114,10 @@ class FeedbackOptions():
             self.delay_between_samples_ms = delay_between_samples_ms
         else:
             self.delay_between_samples_ms = 0
-        if retry:
-            self.retry = retry
+        if action:
+            self.action = action
         else:
-            self.retry = False
-        if capacitance_threshold:
-            self.capacitance_threshold = capacitance_threshold
-        else:
-            self.capacitance_threshold = 0
-        if max_retries:
-            self.max_retries = max_retries
-        else:
-            self.max_retries = 3
+            self.action = RetryAction()
 
 
 class FeedbackOptionsController():
@@ -96,15 +145,6 @@ class FeedbackOptionsController():
             # call the handler explicitly
             self.on_button_feedback_enabled_toggled(button)
 
-        # update the state of the "Retry until capacitance..." check button        
-        button = self.builder.get_object("button_retry")
-        if options.retry!= button.get_active():
-            button.set_active(options.retry)
-        else:
-            # if the "Retry until capacitance..." check button state has not
-            # changed, we need to call the handler explicitly
-            self.on_button_retry_toggled(button)
-
         # update the sampling time value
         self.builder.get_object("textentry_sampling_time_ms").set_text(
             str(options.sampling_time_ms))
@@ -117,13 +157,32 @@ class FeedbackOptionsController():
         self.builder.get_object("textentry_delay_between_samples_ms").set_text(
             str(options.delay_between_samples_ms))
 
-        # update the capacitance threshold value
-        self.builder.get_object("textentry_capacitance_threshold").set_text(
-            str(options.capacitance_threshold))
+        # update the state of the "Retry until capacitance..." radio button
+        button = self.builder.get_object("radiobutton_retry")
+        if (options.action.__class__==RetryAction) != button.get_active():
+            button.set_active(options.action.__class__==RetryAction)
+        else:
+            # if the "Retry until capacitance..." radio button state has not
+            # changed, we need to call the handler explicitly
+            self.on_radiobutton_retry_toggled(button)
 
-        # update the max retries value
-        self.builder.get_object("textentry_max_retries").set_text(
-            str(options.max_retries))
+        # update the state of the "Sweep Frequency..." radio button
+        button = self.builder.get_object("radiobutton_sweep_frequency")
+        if (options.action.__class__==SweepFrequencyAction) != button.get_active():
+            button.set_active(options.action.__class__==SweepFrequencyAction)
+        else:
+            # if the "Sweep Frequency..." radio button state has not
+            # changed, we need to call the handler explicitly
+            self.on_radiobutton_sweep_frequency_toggled(button)
+
+        # update the state of the "Sweep Voltage..." radio button
+        button = self.builder.get_object("radiobutton_sweep_voltage")
+        if (options.action.__class__==SweepVoltageAction) != button.get_active():
+            button.set_active(options.action.__class__==SweepVoltageAction)
+        else:
+            # if the "Sweep Voltage..." radio button state has not
+            # changed, we need to call the handler explicitly
+            self.on_radiobutton_sweep_voltage_toggled(button)
 
     def on_window_show(self, widget, data=None):
         """
@@ -152,27 +211,130 @@ class FeedbackOptionsController():
             options.feedback_enabled)
         self.builder.get_object("textentry_delay_between_samples_ms"). \
             set_sensitive(options.feedback_enabled)
-        self.builder.get_object("button_retry"). \
+        self.builder.get_object("radiobutton_retry"). \
             set_sensitive(options.feedback_enabled)
-        self.builder.get_object("textentry_capacitance_threshold"). \
-            set_sensitive(options.feedback_enabled and options.retry)
-        self.builder.get_object("textentry_max_retries"). \
-            set_sensitive(options.feedback_enabled and options.retry)
+        self.builder.get_object("radiobutton_sweep_frequency"). \
+            set_sensitive(options.feedback_enabled)
+        self.builder.get_object("radiobutton_sweep_voltage"). \
+            set_sensitive(options.feedback_enabled)
 
-    def on_button_retry_toggled(self, widget, data=None):
+        retry = options.action.__class__==RetryAction
+        self.builder.get_object("textentry_capacitance_threshold"). \
+            set_sensitive(options.feedback_enabled and retry)
+        self.builder.get_object("textentry_increase_voltage"). \
+            set_sensitive(options.feedback_enabled and retry)
+        self.builder.get_object("textentry_max_repeats"). \
+            set_sensitive(options.feedback_enabled and retry)
+
+        sweep_frequency = options.action.__class__==SweepFrequencyAction
+        self.builder.get_object("textentry_start_frequency"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+        self.builder.get_object("textentry_end_frequency"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+        self.builder.get_object("textentry_n_frequency_steps"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+
+        sweep_voltage = options.action.__class__==SweepVoltageAction
+        self.builder.get_object("textentry_start_voltage"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
+        self.builder.get_object("textentry_end_voltage"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
+        self.builder.get_object("textentry_n_voltage_steps"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
+
+    def on_radiobutton_retry_toggled(self, widget, data=None):
         """
-        Handler called when the "Retry until capacitance..." check box is
+        Handler called when the "Retry until capacitance..." radio button is
         toggled. 
         """
         options = self.plugin.current_step_options()
-        options.retry = widget.get_active()
+        retry = widget.get_active()
+        if retry and options.action.__class__!=RetryAction:
+            options.action = RetryAction()
         
+        # update the retry action parameters
+        if retry:
+            self.builder.get_object("textentry_capacitance_threshold"). \
+                set_text(str(options.action.capacitance_threshold))
+            self.builder.get_object("textentry_increase_voltage"). \
+                set_text(str(options.action.increase_voltage))
+            self.builder.get_object("textentry_max_repeats").set_text(
+                str(options.action.max_repeats))
+        else:
+            self.builder.get_object("textentry_capacitance_threshold"). \
+                set_text("")
+            self.builder.get_object("textentry_increase_voltage").set_text("")
+            self.builder.get_object("textentry_max_repeats").set_text("")
+
+        # update sensitivity
         self.builder.get_object("textentry_capacitance_threshold"). \
-            set_sensitive(options.feedback_enabled and \
-                          options.retry)
-        self.builder.get_object("textentry_max_retries"). \
-            set_sensitive(options.feedback_enabled and \
-                          options.retry)
+            set_sensitive(options.feedback_enabled and retry)
+        self.builder.get_object("textentry_increase_voltage"). \
+            set_sensitive(options.feedback_enabled and retry)
+        self.builder.get_object("textentry_max_repeats"). \
+            set_sensitive(options.feedback_enabled and retry)
+
+    def on_radiobutton_sweep_frequency_toggled(self, widget, data=None):
+        """
+        Handler called when the "Sweep Frequency..." radio button is
+        toggled. 
+        """
+        options = self.plugin.current_step_options()
+        sweep_frequency = widget.get_active()
+        if sweep_frequency and options.action.__class__!=SweepFrequencyAction:
+            options.action = SweepFrequencyAction()
+        
+        # update the sweep frequency action parameters
+        if sweep_frequency:
+            self.builder.get_object("textentry_start_frequency"). \
+                set_text(str(options.action.start_frequency/1000.0))
+            self.builder.get_object("textentry_end_frequency").set_text(
+                str(options.action.end_frequency/1000.0))
+            self.builder.get_object("textentry_n_frequency_steps").set_text(
+                str(str(options.action.n_frequency_steps)))
+        else:
+            self.builder.get_object("textentry_start_frequency").set_text("")
+            self.builder.get_object("textentry_end_frequency").set_text("")
+            self.builder.get_object("textentry_n_frequency_steps").set_text("")
+
+        # update sensitivity 
+        self.builder.get_object("textentry_start_frequency"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+        self.builder.get_object("textentry_end_frequency"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+        self.builder.get_object("textentry_n_frequency_steps"). \
+            set_sensitive(options.feedback_enabled and sweep_frequency)
+
+    def on_radiobutton_sweep_voltage_toggled(self, widget, data=None):
+        """
+        Handler called when the "Sweep Voltage..." radio button is
+        toggled. 
+        """
+        options = self.plugin.current_step_options()
+        sweep_voltage = widget.get_active() 
+        if sweep_voltage and options.action.__class__!=SweepVoltageAction:
+            options.action = SweepVoltageAction()
+            
+        # update the sweep voltage action parameters
+        if sweep_voltage:
+            self.builder.get_object("textentry_start_voltage"). \
+                set_text(str(options.action.start_voltage))
+            self.builder.get_object("textentry_end_voltage").set_text(
+                str(options.action.end_voltage))
+            self.builder.get_object("textentry_n_voltage_steps").set_text(
+                str(str(options.action.n_voltage_steps)))
+        else:
+            self.builder.get_object("textentry_start_voltage").set_text("")
+            self.builder.get_object("textentry_end_voltage").set_text("")
+            self.builder.get_object("textentry_n_voltage_steps").set_text("")
+
+        # update sensitivity 
+        self.builder.get_object("textentry_start_voltage"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
+        self.builder.get_object("textentry_end_voltage"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
+        self.builder.get_object("textentry_n_voltage_steps"). \
+            set_sensitive(options.feedback_enabled and sweep_voltage)
 
     def on_textentry_sampling_time_ms_focus_out_event(self, widget, event):
         """
@@ -269,33 +431,206 @@ class FeedbackOptionsController():
         """
         Update the capacitance threshold value for the current step. 
         """
-        self.plugin.current_step_options().capacitance_threshold = \
+        self.plugin.current_step_options().action.capacitance_threshold = \
             check_textentry(widget,
-                            self.plugin.current_step_options().capacitance_threshold,
+                            self.plugin.current_step_options(). \
+                            action.capacitance_threshold,
+                            float)
+
+
+
+    def on_textentry_increase_voltage_focus_out_event(self, widget, event):
+        """
+        Handler called when the "increase voltage" text box loses focus. 
+        """
+        self.on_textentry_increase_voltage_changed(widget)
+    
+    def on_textentry_increase_voltage_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "increase
+        voltage" text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_increase_voltage_changed(widget)
+    
+    def on_textentry_increase_voltage_changed(self, widget):
+        """
+        Update the increase voltage value for the current step. 
+        """
+        self.plugin.current_step_options().action.increase_voltage = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            increase_voltage,
                             float)
     
-    def on_textentry_max_retries_focus_out_event(self, widget, event):
+    def on_textentry_max_repeats_focus_out_event(self, widget, event):
         """
-        Handler called when the "max retries" text box loses focus. 
+        Handler called when the "max repeats" text box loses focus. 
         """
-        self.on_textentry_max_retries_changed(widget)
+        self.on_textentry_max_repeats_changed(widget)
     
-    def on_textentry_max_retries_key_press_event(self, widget, event):
+    def on_textentry_max_repeats_key_press_event(self, widget, event):
         """
-        Handler called when the user presses a key within the "max retries"
+        Handler called when the user presses a key within the "max repeats"
         text box. 
         """
         if event.keyval == 65293: # user pressed enter
-            self.on_textentry_max_retries_changed(widget)
+            self.on_textentry_max_repeats_changed(widget)
     
-    def on_textentry_max_retries_changed(self, widget):
+    def on_textentry_max_repeats_changed(self, widget):
         """
-        Update the max retries value for the current step. 
+        Update the max repeats value for the current step. 
         """
-        self.plugin.current_step_options().max_retries = \
+        self.plugin.current_step_options().action.max_repeats = \
             check_textentry(widget,
-                            self.plugin.current_step_options().max_retries,
+                            self.plugin.current_step_options().action. \
+                            max_repeats,
                             int)
+            
+    def on_textentry_start_frequency_focus_out_event(self, widget, event):
+        """
+        Handler called when the "start frequency" text box loses focus. 
+        """
+        self.on_textentry_start_frequency_changed(widget)
+    
+    def on_textentry_start_frequency_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "start frequency"
+        text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_start_frequency_changed(widget)
+    
+    def on_textentry_start_frequency_changed(self, widget):
+        """
+        Update the start frequency value for the current step. 
+        """
+        self.plugin.current_step_options().action.start_frequency = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            start_frequency/1e3,
+                            float)*1e3
+
+    def on_textentry_end_frequency_focus_out_event(self, widget, event):
+        """
+        Handler called when the "end frequency" text box loses focus. 
+        """
+        self.on_textentry_end_frequency_changed(widget)
+    
+    def on_textentry_end_frequency_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "end frequency"
+        text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_end_frequency_changed(widget)
+    
+    def on_textentry_end_frequency_changed(self, widget):
+        """
+        Update the end frequency value for the current step. 
+        """
+        self.plugin.current_step_options().action.end_frequency = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            end_frequency/1e3,
+                            float)*1e3
+
+    def on_textentry_n_frequency_steps_focus_out_event(self, widget, event):
+        """
+        Handler called when the "number of frequency steps" text box loses focus. 
+        """
+        self.on_textentry_n_frequency_steps_changed(widget)
+    
+    def on_textentry_n_frequency_steps_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "number of
+        frequency steps" text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_n_frequency_steps_changed(widget)
+    
+    def on_textentry_n_frequency_steps_changed(self, widget):
+        """
+        Update the number of frequency steps value for the current step. 
+        """
+        self.plugin.current_step_options().action.n_frequency_steps = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            n_frequency_steps,
+                            float)
+
+    def on_textentry_start_voltage_focus_out_event(self, widget, event):
+        """
+        Handler called when the "start voltage" text box loses focus. 
+        """
+        self.on_textentry_start_voltage_changed(widget)
+    
+    def on_textentry_start_voltage_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "start voltage"
+        text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_start_voltage_changed(widget)
+    
+    def on_textentry_start_voltage_changed(self, widget):
+        """
+        Update the start voltage value for the current step. 
+        """
+        self.plugin.current_step_options().action.start_voltage = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            start_voltage/1e3,
+                            float)*1e3
+
+    def on_textentry_end_voltage_focus_out_event(self, widget, event):
+        """
+        Handler called when the "end voltage" text box loses focus. 
+        """
+        self.on_textentry_end_voltage_changed(widget)
+    
+    def on_textentry_end_voltage_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "end voltage"
+        text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_end_voltage_changed(widget)
+    
+    def on_textentry_end_voltage_changed(self, widget):
+        """
+        Update the end voltage value for the current step. 
+        """
+        self.plugin.current_step_options().action.end_voltage = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            end_voltage/1e3,
+                            float)*1e3
+
+    def on_textentry_n_voltage_steps_focus_out_event(self, widget, event):
+        """
+        Handler called when the "number of voltage steps" text box loses focus. 
+        """
+        self.on_textentry_n_voltage_steps_changed(widget)
+    
+    def on_textentry_n_voltage_steps_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "number of
+        voltage steps" text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_n_voltage_steps_changed(widget)
+    
+    def on_textentry_n_voltage_steps_changed(self, widget):
+        """
+        Update the number of voltage steps value for the current step. 
+        """
+        self.plugin.current_step_options().action.n_voltage_steps = \
+            check_textentry(widget,
+                            self.plugin.current_step_options().action. \
+                            n_voltage_steps,
+                            float)
+
 
 class FeedbackResults():
     """
