@@ -28,7 +28,8 @@ import numpy as np
 
 from plugins.dmf_control_board import *
 from plugins.dmf_control_board.microdrop.feedback import *
-from plugin_manager import IPlugin, SingletonPlugin, implements
+from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
+    implements, emit_signal
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -52,6 +53,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
+    implements(IWaveformGenerator)
 
     def __init__(self):
         self.control_board = DmfControlBoard()
@@ -131,10 +133,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
         options = self.current_step_options()
         if self.control_board.connected() and \
             (self.app.realtime_mode or self.app.running):
-            self.control_board.set_waveform_voltage(float(
-                self.app.protocol.current_step().voltage)*math.sqrt(2)/100)
-            self.control_board.set_waveform_frequency(float(
-                self.app.protocol.current_step().frequency))
+            emit_signal("set_voltage",
+                        float(self.app.protocol.current_step().voltage)* \
+                        math.sqrt(2)/100,
+                        interface=IWaveformGenerator)
+            emit_signal("set_frequency",
+                        float(self.app.protocol.current_step().frequency),
+                        interface=IWaveformGenerator)
             self.current_state.feedback_enabled = options.feedback_enabled
             state = self.app.protocol.current_step().state_of_channels
             max_channels = self.control_board.number_of_channels() 
@@ -256,3 +261,21 @@ class DmfControlBoardPlugin(SingletonPlugin):
             data : dictionary of experiment log data for the selected steps
         """
         self.feedback_results_controller.on_experiment_log_selection_changed(data)
+        
+    def set_voltage(self, voltage):
+        """
+        Set the waveform voltage.
+        
+        Parameters:
+            voltage : RMS voltage
+        """
+        self.control_board.set_waveform_voltage(voltage)
+    
+    def set_frequency(self, frequency):
+        """
+        Set the waveform frequency.
+        
+        Parameters:
+            frequency : frequency in Hz
+        """
+        self.control_board.set_waveform_frequency(frequency)
