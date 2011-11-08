@@ -19,6 +19,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 
+from utility.path import path
+
+
 class ConnectionError(Exception):
     pass
 
@@ -37,16 +40,17 @@ class SerialDevice(object):
                     self.port = test_port
                     break
         else:
+            port = None
             # Assume Linux (Ubuntu)...
-            for tty in path('/dev').walk('ttyUSB*'):
+            for port in path('/dev').walk('ttyUSB*'):
                 if self.test_connection(tty):
-                    self.port = tty
+                    self.port = port
                     break
             # or Ubuntu in a VirtualBox
             if port is None:
-                for tty in path('/dev').walk('ttyACM*'):
-                    if self.test_connection(tty):
-                        self.port = tty
+                for port in path('/dev').walk('ttyACM*'):
+                    if self.test_connection(port):
+                        self.port = port
                         break
         if self.port is None:
             raise ConnectionError('could not connect to serial device.')
