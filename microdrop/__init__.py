@@ -125,22 +125,28 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.steps.insert(self.app.protocol.current_step_number,
                           deepcopy(self.current_step_options()))
 
+    def get_actuated_area(self):
+        area = 0
+        state_of_all_channels = self.app.protocol.state_of_all_channels()        
+        for id, electrode in self.app.dmf_device.electrodes.iteritems():
+            channels = self.app.dmf_device.electrodes[id].channels
+            if channels:
+                # get the state(s) of the channel(s) connected to this electrode
+                states = state_of_all_channels[channels]
+                if len(np.nonzero(states>0)[0]):
+                    area += electrode.area()*self.app.dmf_device.scale
+        return area
+
     def on_protocol_update(self, data):
         """
         Handler called whenever the current protocol step changes.
         """
         self.feedback_options_controller.update()
         options = self.current_step_options()
+        self.current_state.feedback_enabled = options.feedback_enabled
+
         if self.control_board.connected() and \
             (self.app.realtime_mode or self.app.running):
-            emit_signal("set_voltage",
-                        float(self.app.protocol.current_step().voltage)* \
-                        math.sqrt(2)/100,
-                        interface=IWaveformGenerator)
-            emit_signal("set_frequency",
-                        float(self.app.protocol.current_step().frequency),
-                        interface=IWaveformGenerator)
-            self.current_state.feedback_enabled = options.feedback_enabled
             state = self.app.protocol.current_step().state_of_channels
             max_channels = self.control_board.number_of_channels() 
             if len(state) >  max_channels:
@@ -153,45 +159,93 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 assert(len(state)==max_channels)
 
             if options.feedback_enabled:
-                thread = WaitForFeedbackMeasurement(self.control_board,
-                                                    state,
-                                                    options)
-                thread.start()
-                while thread.is_alive():
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                results = FeedbackResults(options,
-                                          thread.results,
-                                          self.app.protocol.current_step().voltage)
-                data["FeedbackResults"] = dumps(results)
+                # calculate the total area of actuated electrodes
+                area =  self.get_actuated_area()
+                
+                if options.action.__class__==RetryAction:
+                    if data.keys().count("attempt")==0:
+                        attempt = 0
+                    else:
+                        attempt = data["attempt"]
+                    if attempt <= options.action.max_repeats:
+                        voltage = float(self.app.protocol.current_step().voltage +
+                            options.action.increase_voltage*attempt)* \
+                            math.sqrt(2)/100
+                        frequency = \
+                            float(self.app.protocol.current_step().frequency)
+                        emit_signal("set_voltage",
+                            voltage,
+                            interface=IWaveformGenerator)
+                        emit_signal("set_frequency",
+                            frequency,
+                            interface=IWaveformGenerator)
+                        impedance = self.measure_impedance(state, options)
+                        results = FeedbackResults(options,
+                            impedance,
+                            area,
+                            self.app.protocol.current_step().voltage)                    
+                        data["FeedbackResults"] = dumps(results)
+                        if results.max_capacitance()/area > \
+                            options.action.capacitance_threshold:
+                            # signal that the step should be repeated
+                            return True
+                elif options.action.__class__==SweepFrequencyAction:
+                    frequencies = np.logspace(
+                        np.log10(options.action.start_frequency),
+                        np.log10(options.action.end_frequency),
+                        int(options.action.n_frequency_steps))
+                    emit_signal("set_voltage",
+                        float(self.app.protocol.current_step(). \
+                        voltage)*math.sqrt(2)/100,
+                        interface=IWaveformGenerator)
+                    results = SweepFrequencyResults(options, area, frequencies)
+                    for frequency in frequencies:
+                        emit_signal("set_frequency",
+                                    float(frequency),
+                                    interface=IWaveformGenerator)
+                        impedance = self.measure_impedance(state, options)
+                        results.add_frequency_step(frequency, impedance)
+                    data["SweepFrequencyResults"] = dumps(results)
+                elif options.action.__class__==SweepVoltageAction:
+                    voltages = np.linspace(options.action.start_voltage,
+                                           options.action.end_voltage,
+                                           options.action.n_voltage_steps)
+                    emit_signal("set_frequency",
+                        float(self.app.protocol.current_step(). \
+                        frequency),
+                        interface=IWaveformGenerator)
+                    results = SweepVoltageResults(options, area, voltages)
+                    for voltage in voltages:
+                        emit_signal("set_voltage",
+                            voltage*math.sqrt(2)/100,
+                            interface=IWaveformGenerator)
+                        impedance = self.measure_impedance(state, options)
+                        results.add_voltage_step(voltage, impedance)
+                    data["SweepVoltageResults"] = dumps(results)
             else:
+                emit_signal("set_voltage",
+                            float(self.app.protocol.current_step().voltage)* \
+                            math.sqrt(2)/100,
+                            interface=IWaveformGenerator)
+                emit_signal("set_frequency",
+                            float(self.app.protocol.current_step().frequency),
+                            interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
                 t = time.time()
                 while time.time()-t < \
                     self.app.protocol.current_step().duration/1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
-                        
-            """
-            start_freq = self.textentry_start_freq.get_text()
-            end_freq = self.textentry_end_freq.get_text()
-            number_of_steps = self.textentry_n_steps.get_text()
-            if is_float(start_freq) == False:
-                self.app.main_window_controller.error("Invalid start frequency.")
-            elif is_float(end_freq) == False:
-                self.app.main_window_controller.error("Invalid end frequency.")
-            elif is_int(number_of_steps) == False or number_of_steps < 1:
-                self.app.main_window_controller.error("Invalid number of steps.")
-            elif end_freq < start_freq:
-                self.app.main_window_controller.error("End frequency must be greater than the start frequency.")
-            else:
-                frequencies = np.logspace(np.log10(float(start_freq)),
-                                          np.log10(float(end_freq)),
-                                          int(number_of_steps))
-                for frequency in frequencies:
-                    self.app.protocol.current_step().frequency = frequency*1e3
-                    self.app.protocol.copy_step()
-            """
+
+    def measure_impedance(self, state, options):
+        thread = WaitForFeedbackMeasurement(self.control_board,
+                                            state,
+                                            options)
+        thread.start()
+        while thread.is_alive():
+            while gtk.events_pending():
+                gtk.main_iteration()
+        return thread.results
 
     def on_app_exit(self):
         """

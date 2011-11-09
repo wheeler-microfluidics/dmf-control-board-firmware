@@ -18,6 +18,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
+import math
 from cPickle import dumps, loads
 
 import gtk
@@ -33,6 +34,7 @@ from utility import *
 
 
 class RetryAction():
+    capacitance_threshold = 0
     def __init__(self,
                  capacitance_threshold=None,
                  increase_voltage=None,
@@ -40,7 +42,7 @@ class RetryAction():
         if capacitance_threshold:
             self.capacitance_threshold = capacitance_threshold
         else:
-            self.capacitance_threshold = 0
+            self.capacitance_threshold = self.__class__.capacitance_threshold
         if increase_voltage:
             self.increase_voltage = increase_voltage
         else:
@@ -132,6 +134,11 @@ class FeedbackOptionsController():
         plugin.app.main_window_controller.menu_tools.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
+        
+        menu_item = gtk.MenuItem("Calibrate feedback")
+        plugin.app.dmf_device_controller.popup.append(menu_item)
+        menu_item.connect("activate", self.on_calibrate_feedback)
+        menu_item.show()
 
     def update(self):
         options = self.plugin.current_step_options()
@@ -197,6 +204,37 @@ class FeedbackOptionsController():
         """
         self.window.hide()
         return True
+
+    def on_calibrate_feedback(self, widget, data=None):
+        print "Calibrate feedback"
+        if self.plugin.control_board.connected():
+            electrode = \
+                self.plugin.app.dmf_device_controller.last_electrode_clicked
+            area = electrode.area()*self.plugin.app.dmf_device.scale
+            current_state = self.plugin.control_board.state_of_all_channels()
+            state = np.zeros(len(current_state))
+
+            if self.plugin.control_board.number_of_channels() < \
+                max(electrode.channels):
+                self.plugin.app.main_window_controller.warning("Error: "
+                    "currently connected board does not have enough channels "
+                    "to perform calibration on this electrode.")
+                return
+
+            state[electrode.channels]=1
+            options = FeedbackOptions(feedback_enabled=True,
+                                      sampling_time_ms=10,
+                                      n_samples=1,
+                                      delay_between_samples_ms=0,
+                                      action=RetryAction())
+            impedance = self.plugin.measure_impedance(state, options)
+            results = FeedbackResults(options,
+                                      impedance,
+                                      area,
+                                      self.app.protocol.current_step().voltage)
+            self.plugin.control_board.set_state_of_all_channels(current_state)
+            RetryAction.capacitance_threshold = results.max_capacitance/area*0.95
+            print "%.1e F/mm2" % results.max_capacitance/area
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """
@@ -636,18 +674,78 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    def __init__(self, options, impedance, V_total):
+    def __init__(self, options, impedance, area, V_total):
         self.options = options
+        self.area = area
+        self.time = np.array(range(0,self.options.n_samples)) * \
+            (self.options.sampling_time_ms + \
+            self.options.delay_between_samples_ms)
         self.V_fb = impedance[0::2]
         self.Z_fb = impedance[1::2]
         self.V_total = V_total
         self.Z_device = self.Z_fb*(self.V_total/self.V_fb-1)
 
+    def min_impedance(self):
+        return min(self.Z_device)
+    
+    def max_capacitance(self, frequency):
+        return 1.0/(2*math.pi*frequency*self.min_impedance())
+
     def plot(self, axis):
-        t = np.array(range(0,self.options.n_samples)) * \
-                (self.options.sampling_time_ms + \
-                 self.options.delay_between_samples_ms)
         axis.plot(t, self.Z_device)
+
+
+class SweepFrequencyResults():
+    """
+    This class stores the results for a frequency sweep.
+    """
+    def __init__(self, options, area, V_total):
+        self.options = options
+        self.area = area
+        self.V_total = V_total
+        self.frequency = []
+        self.V_fb = []
+        self.Z_fb = []
+        self.Z_device = []
+
+    def add_frequency_step(self, frequency, impedance):
+        V_fb = impedance[0::2]
+        Z_fb = impedance[1::2]
+        self.frequency.append(frequency)
+        self.V_fb.append(V_fb)
+        self.Z_fb.append(Z_fb)
+        self.Z_device.append(Z_fb*(self.V_total/V_fb-1))
+
+    def plot(self, axis):
+        """
+        axis.plot(t, self.Z_device)
+        """
+
+
+class SweepVoltageResults():
+    """
+    This class stores the results for a frequency sweep.
+    """
+    def __init__(self, options, area):
+        self.options = options
+        self.area = area
+        self.voltage = []
+        self.V_fb = []
+        self.Z_fb = []
+        self.Z_device = []
+
+    def add_voltage_step(self, voltage, impedance):
+        V_fb = impedance[0::2]
+        Z_fb = impedance[1::2]
+        self.voltage.append(voltage)        
+        self.V_fb.append(V_fb)
+        self.Z_fb.append(Z_fb)
+        self.Z_device.append(Z_fb*(voltage/V_fb-1))
+
+    def plot(self, axis):
+        """
+        axis.plot(t, self.Z_device)
+        """
 
 
 class FeedbackResultsController():
@@ -656,6 +754,7 @@ class FeedbackResultsController():
         self.builder = gtk.Builder()
         self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_results.glade")
         self.window = self.builder.get_object("window")
+        self.combobox_plot_type = self.builder.get_object("combobox_plot_type")
         self.window.set_title("Feedback Results")
         self.builder.connect_signals(self)
         menu_item = gtk.MenuItem("Feedback Results")
@@ -670,6 +769,11 @@ class FeedbackResultsController():
         toolbar = NavigationToolbar(self.canvas, self.window)
         self.vbox.pack_start(self.canvas)
         self.vbox.pack_start(toolbar, False, False)
+        plot_types = ["Impedance vs time",
+                      "Impedance vs frequency",
+                      "Impedance vs voltage"]
+        combobox_set_model_from_list(self.combobox_plot_type, plot_types)
+        self.combobox_plot_type.set_active(0)
 
     def on_window_show(self, widget, data=None):
         """
@@ -684,6 +788,9 @@ class FeedbackResultsController():
         """
         self.window.hide()
         return True
+
+    def on_combobox_plot_type_changed(self, widget, data=None):
+        pass
 
     def on_experiment_log_selection_changed(self, data):
         """
