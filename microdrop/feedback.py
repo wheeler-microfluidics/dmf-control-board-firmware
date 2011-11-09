@@ -31,6 +31,7 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanva
 from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
 
 from utility import *
+from plugin_manager import emit_signal, IWaveformGenerator
 
 
 class RetryAction():
@@ -227,14 +228,16 @@ class FeedbackOptionsController():
                                       n_samples=1,
                                       delay_between_samples_ms=0,
                                       action=RetryAction())
+            voltage = self.plugin.app.protocol.current_step().voltage
+            frequency = self.plugin.app.protocol.current_step().frequency
+            emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
+            emit_signal("set_frequency", frequency,
+                        interface=IWaveformGenerator)
             impedance = self.plugin.measure_impedance(state, options)
-            results = FeedbackResults(options,
-                                      impedance,
-                                      area,
-                                      self.app.protocol.current_step().voltage)
+            results = FeedbackResults(options, impedance, area, voltage)
             self.plugin.control_board.set_state_of_all_channels(current_state)
-            RetryAction.capacitance_threshold = results.max_capacitance/area*0.95
-            print "%.1e F/mm2" % results.max_capacitance/area
+            RetryAction.capacitance_threshold = results.max_capacitance(frequency)/area*0.95
+            print "%.1e F/mm2" % results.max_capacitance(frequency)/area
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """
@@ -692,7 +695,7 @@ class FeedbackResults():
         return 1.0/(2*math.pi*frequency*self.min_impedance())
 
     def plot(self, axis):
-        axis.plot(t, self.Z_device)
+        axis.plot(self.time, self.Z_device)
 
 
 class SweepFrequencyResults():
@@ -717,9 +720,7 @@ class SweepFrequencyResults():
         self.Z_device.append(Z_fb*(self.V_total/V_fb-1))
 
     def plot(self, axis):
-        """
-        axis.plot(t, self.Z_device)
-        """
+        axis.plot(self.frequency, self.Z_device)
 
 
 class SweepVoltageResults():
@@ -743,9 +744,7 @@ class SweepVoltageResults():
         self.Z_device.append(Z_fb*(voltage/V_fb-1))
 
     def plot(self, axis):
-        """
-        axis.plot(t, self.Z_device)
-        """
+        axis.plot(self.voltage, self.Z_device)
 
 
 class FeedbackResultsController():
@@ -757,6 +756,8 @@ class FeedbackResultsController():
         self.combobox_plot_type = self.builder.get_object("combobox_plot_type")
         self.window.set_title("Feedback Results")
         self.builder.connect_signals(self)
+        self.data = []
+
         menu_item = gtk.MenuItem("Feedback Results")
         plugin.app.main_window_controller.menu_view.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
@@ -790,26 +791,48 @@ class FeedbackResultsController():
         return True
 
     def on_combobox_plot_type_changed(self, widget, data=None):
-        pass
+        self.update_plot()
 
     def on_experiment_log_selection_changed(self, data):
         """
         Handler called whenever the experiment log selection changes.
 
         Parameters:
-            data : dictionary of experiment log data for the selected steps
+            data : experiment log data (list of dictionaries, one per step)
+                   for the selected steps
         """
+        self.data = data
+        self.update_plot()
+        
+    def update_plot(self):
+        plot_type = combobox_get_active_text(self.combobox_plot_type)
         self.axis.cla()
-        self.axis.set_xlabel("time (ms)")
+        self.axis.set_title("Impedance")
         self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
         self.axis.grid(True)
-        self.axis.set_title("Impedance")
         legend = []
-        for row in data:
-            if row.keys().count("FeedbackResults"):
-                results = loads(row["FeedbackResults"])
-                results.plot(self.axis)
-                legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+
+        if plot_type=="Impedance vs time":
+            self.axis.set_xlabel("time (ms)")
+            for row in self.data:
+                if row.keys().count("FeedbackResults"):
+                    results = loads(row["FeedbackResults"])
+                    results.plot(self.axis)
+                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+        elif plot_type=="Impedance vs frequency":
+            self.axis.set_xlabel("frequency (Hz)")
+            for row in self.data:
+                if row.keys().count("SweepFrequencyResults"):
+                    results = loads(row["SweepFrequencyResults"])
+                    results.plot(self.axis)
+                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+        elif plot_type=="Impedance vs voltage":
+            self.axis.set_xlabel("voltage (V$_{rms}$)")
+            for row in self.data:
+                if row.keys().count("SweepVoltageResults"):
+                    results = loads(row["SweepVoltageResults"])
+                    results.plot(self.axis)
+                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
         if len(legend):
             self.axis.legend(legend)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)

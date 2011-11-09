@@ -185,7 +185,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             area,
                             self.app.protocol.current_step().voltage)                    
                         data["FeedbackResults"] = dumps(results)
-                        if results.max_capacitance()/area > \
+                        if results.max_capacitance(frequency)/area > \
                             options.action.capacitance_threshold:
                             # signal that the step should be repeated
                             return True
@@ -194,11 +194,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         np.log10(options.action.start_frequency),
                         np.log10(options.action.end_frequency),
                         int(options.action.n_frequency_steps))
-                    emit_signal("set_voltage",
-                        float(self.app.protocol.current_step(). \
-                        voltage)*math.sqrt(2)/100,
-                        interface=IWaveformGenerator)
-                    results = SweepFrequencyResults(options, area, frequencies)
+                    voltage = float(self.app.protocol.current_step(). \
+                        voltage)*math.sqrt(2)/100
+                    emit_signal("set_voltage", voltage,
+                                interface=IWaveformGenerator)
+                    results = SweepFrequencyResults(options, area, voltage)
                     for frequency in frequencies:
                         emit_signal("set_frequency",
                                     float(frequency),
@@ -214,7 +214,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         float(self.app.protocol.current_step(). \
                         frequency),
                         interface=IWaveformGenerator)
-                    results = SweepVoltageResults(options, area, voltages)
+                    results = SweepVoltageResults(options, area)
                     for voltage in voltages:
                         emit_signal("set_voltage",
                             voltage*math.sqrt(2)/100,
