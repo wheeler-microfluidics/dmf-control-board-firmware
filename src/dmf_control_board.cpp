@@ -1117,9 +1117,9 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
   Serialize(&sampling_time_ms,sizeof(sampling_time_ms));
   Serialize(&n_samples,sizeof(n_samples));
   Serialize(&delay_between_samples_ms,sizeof(delay_between_samples_ms));
+  Serialize(&state[0],state.size()*sizeof(uint8_t));
   std::ostringstream msg;
   msg << "MeasureImpedance,";
-
   msg << endl << CSV_INDENT_ << "sampling_time_ms," << (int)sampling_time_ms
       << "n_samples," << (int)n_samples << endl << CSV_INDENT_
       << "delay_between_samples_ms," << (int)delay_between_samples_ms << endl;
