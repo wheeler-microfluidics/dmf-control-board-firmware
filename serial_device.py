@@ -19,7 +19,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 
-from utility.path import path
+from path import path
 
 
 class ConnectionError(Exception):

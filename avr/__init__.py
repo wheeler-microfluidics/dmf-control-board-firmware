@@ -25,7 +25,7 @@ import warnings
 from subprocess import Popen, PIPE, CalledProcessError
 
 from ..serial_device import SerialDevice, ConnectionError
-from ..path import path
+from path import path
 
     
 class FirmwareError(Exception):
