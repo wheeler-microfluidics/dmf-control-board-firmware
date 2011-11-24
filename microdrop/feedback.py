@@ -207,7 +207,6 @@ class FeedbackOptionsController():
         return True
 
     def on_calibrate_feedback(self, widget, data=None):
-        print "Calibrate feedback"
         if self.plugin.control_board.connected():
             electrode = \
                 self.plugin.app.dmf_device_controller.last_electrode_clicked
@@ -228,16 +227,21 @@ class FeedbackOptionsController():
                                       n_samples=1,
                                       delay_between_samples_ms=0,
                                       action=RetryAction())
-            voltage = self.plugin.app.protocol.current_step().voltage
+            voltage = self.plugin.app.protocol.current_step().voltage* \
+                math.sqrt(2)/100
             frequency = self.plugin.app.protocol.current_step().frequency
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             impedance = self.plugin.measure_impedance(state, options)
-            results = FeedbackResults(options, impedance, area, voltage)
+            results = FeedbackResults(options,
+                impedance,
+                area,
+                frequency,
+                self.plugin.app.protocol.current_step().voltage)
+            print "max(results.capacitance())/area=", max(results.capacitance())/area
             self.plugin.control_board.set_state_of_all_channels(current_state)
-            RetryAction.capacitance_threshold = results.max_capacitance(frequency)/area*0.95
-            print "%.1e F/mm2" % results.max_capacitance(frequency)/area
+            RetryAction.capacitance_threshold = max(results.capacitance())/area*.95
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """
@@ -382,6 +386,7 @@ class FeedbackOptionsController():
         Handler called when the "sampling time" text box loses focus. 
         """
         self.on_textentry_sampling_time_ms_changed(widget)
+        return False
     
     def on_textentry_sampling_time_ms_key_press_event(self, widget, event):
         """
@@ -404,6 +409,7 @@ class FeedbackOptionsController():
         Handler called when the "number of samples" text box loses focus. 
         """
         self.on_textentry_n_samples_changed(widget)
+        return False
     
     def on_textentry_n_samples_key_press_event(self, widget, event):
         """
@@ -430,6 +436,7 @@ class FeedbackOptionsController():
         Handler called when the "delay between samples" text box loses focus. 
         """
         self.on_textentry_delay_between_samples_ms_changed(widget)
+        return False
     
     def on_textentry_delay_between_samples_ms_key_press_event(self,
                                                               widget,
@@ -457,6 +464,7 @@ class FeedbackOptionsController():
         Handler called when the "capacitance threshold" text box loses focus. 
         """
         self.on_textentry_capacitance_threshold_changed(widget)
+        return False
     
     def on_textentry_capacitance_threshold_key_press_event(self,
                                                            widget,
@@ -485,6 +493,7 @@ class FeedbackOptionsController():
         Handler called when the "increase voltage" text box loses focus. 
         """
         self.on_textentry_increase_voltage_changed(widget)
+        return False
     
     def on_textentry_increase_voltage_key_press_event(self, widget, event):
         """
@@ -509,6 +518,7 @@ class FeedbackOptionsController():
         Handler called when the "max repeats" text box loses focus. 
         """
         self.on_textentry_max_repeats_changed(widget)
+        return False
     
     def on_textentry_max_repeats_key_press_event(self, widget, event):
         """
@@ -533,6 +543,7 @@ class FeedbackOptionsController():
         Handler called when the "start frequency" text box loses focus. 
         """
         self.on_textentry_start_frequency_changed(widget)
+        return False
     
     def on_textentry_start_frequency_key_press_event(self, widget, event):
         """
@@ -557,6 +568,7 @@ class FeedbackOptionsController():
         Handler called when the "end frequency" text box loses focus. 
         """
         self.on_textentry_end_frequency_changed(widget)
+        return False
     
     def on_textentry_end_frequency_key_press_event(self, widget, event):
         """
@@ -581,6 +593,7 @@ class FeedbackOptionsController():
         Handler called when the "number of frequency steps" text box loses focus. 
         """
         self.on_textentry_n_frequency_steps_changed(widget)
+        return False
     
     def on_textentry_n_frequency_steps_key_press_event(self, widget, event):
         """
@@ -605,6 +618,7 @@ class FeedbackOptionsController():
         Handler called when the "start voltage" text box loses focus. 
         """
         self.on_textentry_start_voltage_changed(widget)
+        return False
     
     def on_textentry_start_voltage_key_press_event(self, widget, event):
         """
@@ -621,14 +635,15 @@ class FeedbackOptionsController():
         self.plugin.current_step_options().action.start_voltage = \
             check_textentry(widget,
                             self.plugin.current_step_options().action. \
-                            start_voltage/1e3,
-                            float)*1e3
+                            start_voltage,
+                            float)
 
     def on_textentry_end_voltage_focus_out_event(self, widget, event):
         """
         Handler called when the "end voltage" text box loses focus. 
         """
         self.on_textentry_end_voltage_changed(widget)
+        return False
     
     def on_textentry_end_voltage_key_press_event(self, widget, event):
         """
@@ -645,14 +660,15 @@ class FeedbackOptionsController():
         self.plugin.current_step_options().action.end_voltage = \
             check_textentry(widget,
                             self.plugin.current_step_options().action. \
-                            end_voltage/1e3,
-                            float)*1e3
+                            end_voltage,
+                            float)
 
     def on_textentry_n_voltage_steps_focus_out_event(self, widget, event):
         """
         Handler called when the "number of voltage steps" text box loses focus. 
         """
         self.on_textentry_n_voltage_steps_changed(widget)
+        return False
     
     def on_textentry_n_voltage_steps_key_press_event(self, widget, event):
         """
@@ -677,25 +693,86 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    def __init__(self, options, impedance, area, V_total):
+    def __init__(self, options, impedance, area, frequency, V_total):
         self.options = options
         self.area = area
+        self.frequency = frequency
+        self.V_fb = impedance[0::2]
+        self.Z_fb = impedance[1::2]
         self.time = np.array(range(0,self.options.n_samples)) * \
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
-        self.V_fb = impedance[0::2]
-        self.Z_fb = impedance[1::2]
         self.V_total = V_total
         self.Z_device = self.Z_fb*(self.V_total/self.V_fb-1)
 
     def min_impedance(self):
         return min(self.Z_device)
     
-    def max_capacitance(self, frequency):
-        return 1.0/(2*math.pi*frequency*self.min_impedance())
+    def capacitance(self):
+        return 1.0/(2*math.pi*self.frequency*self.Z_device)
+    
+    def dxdt(self):
+        """
+        # remove outliers
+        ind = np.nonzero(abs(Z-smooth(Z))/Z>10)[0]
+        for j in range(len(ind)-1, -1, -1):
+            Z = np.concatenate([Z[:ind[j]],Z[ind[j]+1:]])
+            t = np.concatenate([t[:ind[j]],t[ind[j]+1:]])
+        """
+        window_len = 9
+        dt = np.diff(self.time)
+        dZdt = self.smooth(np.diff(self.Z_device),window_len)/dt
+        return -dZdt/self.Z_device[:-1]**2
 
-    def plot(self, axis):
-        axis.plot(self.time, self.Z_device)
+    def smooth(self, x,window_len=11,window='hanning'):
+        """smooth the data using a window with requested size.
+        
+        This method is based on the convolution of a scaled window with the signal.
+        
+        input:
+            x: the input signal 
+            window_len: the dimension of the smoothing window; should be an odd integer
+            window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+                flat window will produce a moving average smoothing.
+    
+        output:
+            the smoothed signal
+            
+        example:
+    
+        t=linspace(-2,2,0.1)
+        x=sin(t)+randn(len(t))*0.1
+        y=smooth(x)
+        
+        see also: 
+        
+        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+        scipy.signal.lfilter
+     
+        TODO: the window parameter could be the window itself if an array instead of a string   
+        """
+    
+        if x.ndim != 1:
+            raise ValueError, "smooth only accepts 1 dimension arrays."
+    
+        if x.size < window_len:
+            raise ValueError, "Input vector needs to be bigger than window size."
+    
+        if window_len<3:
+            return x
+    
+        if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+            raise ValueError, "Window is none of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+    
+        s=np.r_[x[0]*np.ones(window_len),x,x[-1]*np.ones(window_len)]
+        if window == 'flat': #moving average
+            w=np.ones(window_len,'d')
+        else:
+            w=eval('np.'+window+'(window_len)')
+    
+        y=np.convolve(w/w.sum(),s,mode='valid')
+        y = y[(window_len-1)/2+1:-(window_len-1)/2-1]
+        return y
 
 
 class SweepFrequencyResults():
@@ -719,17 +796,22 @@ class SweepFrequencyResults():
         self.Z_fb.append(Z_fb)
         self.Z_device.append(Z_fb*(self.V_total/V_fb-1))
 
-    def plot(self, axis):
-        axis.plot(self.frequency, self.Z_device)
+    def capacitance(self):
+        Z_device = np.array(self.Z_device)
+        frequency = np.reshape(np.array(self.frequency),
+                               (len(self.frequency),1))
+        frequency = np.repeat(frequency, np.size(Z_device, 1), axis=1)
+        return 1.0/(2*math.pi*frequency*Z_device)
 
 
 class SweepVoltageResults():
     """
     This class stores the results for a frequency sweep.
     """
-    def __init__(self, options, area):
+    def __init__(self, options, area, frequency):
         self.options = options
         self.area = area
+        self.frequency = frequency
         self.voltage = []
         self.V_fb = []
         self.Z_fb = []
@@ -743,8 +825,8 @@ class SweepVoltageResults():
         self.Z_fb.append(Z_fb)
         self.Z_device.append(Z_fb*(voltage/V_fb-1))
 
-    def plot(self, axis):
-        axis.plot(self.voltage, self.Z_device)
+    def capacitance(self):
+        return 1.0/(2*math.pi*self.frequency*np.array(self.Z_device))
 
 
 class FeedbackResultsController():
@@ -753,7 +835,8 @@ class FeedbackResultsController():
         self.builder = gtk.Builder()
         self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_results.glade")
         self.window = self.builder.get_object("window")
-        self.combobox_plot_type = self.builder.get_object("combobox_plot_type")
+        self.combobox_x_axis = self.builder.get_object("combobox_x_axis")
+        self.combobox_y_axis = self.builder.get_object("combobox_y_axis")
         self.window.set_title("Feedback Results")
         self.builder.connect_signals(self)
         self.data = []
@@ -770,11 +853,12 @@ class FeedbackResultsController():
         toolbar = NavigationToolbar(self.canvas, self.window)
         self.vbox.pack_start(self.canvas)
         self.vbox.pack_start(toolbar, False, False)
-        plot_types = ["Impedance vs time",
-                      "Impedance vs frequency",
-                      "Impedance vs voltage"]
-        combobox_set_model_from_list(self.combobox_plot_type, plot_types)
-        self.combobox_plot_type.set_active(0)
+        combobox_set_model_from_list(self.combobox_x_axis,
+                                     ["Time", "Frequency", "Voltage"])
+        combobox_set_model_from_list(self.combobox_y_axis,
+                                     ["Impedance", "Capacitance", "Velocity"])
+        self.combobox_x_axis.set_active(0)
+        self.combobox_y_axis.set_active(0)
 
     def on_window_show(self, widget, data=None):
         """
@@ -790,7 +874,20 @@ class FeedbackResultsController():
         self.window.hide()
         return True
 
-    def on_combobox_plot_type_changed(self, widget, data=None):
+    def on_combobox_x_axis_changed(self, widget, data=None):
+        x_axis = combobox_get_active_text(self.combobox_x_axis)
+        y_axis = combobox_get_active_text(self.combobox_y_axis)
+        if x_axis=="Time":
+            combobox_set_model_from_list(self.combobox_y_axis,
+                                         ["Impedance", "Capacitance",
+                                          "Velocity"])
+        else:
+            combobox_set_model_from_list(self.combobox_y_axis,
+                                         ["Impedance", "Capacitance"])
+        self.combobox_y_axis.set_active(0)
+        self.update_plot()
+
+    def on_combobox_y_axis_changed(self, widget, data=None):
         self.update_plot()
 
     def on_experiment_log_selection_changed(self, data):
@@ -805,35 +902,93 @@ class FeedbackResultsController():
         self.update_plot()
         
     def update_plot(self):
-        plot_type = combobox_get_active_text(self.combobox_plot_type)
+        x_axis = combobox_get_active_text(self.combobox_x_axis)
+        y_axis = combobox_get_active_text(self.combobox_y_axis)
         self.axis.cla()
-        self.axis.set_title("Impedance")
-        self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
         self.axis.grid(True)
         legend = []
-
-        if plot_type=="Impedance vs time":
-            self.axis.set_xlabel("time (ms)")
+        legend_loc = "upper right"
+        if x_axis=="Time":
+            self.axis.set_xlabel("Time (ms)")
             for row in self.data:
                 if row.keys().count("FeedbackResults"):
                     results = loads(row["FeedbackResults"])
-                    results.plot(self.axis)
+                    if y_axis=="Impedance":
+                        self.axis.set_title("Impedance")
+                        self.axis.set_ylabel(
+                            "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
+                            results.frequency)
+                        self.axis.plot(results.time,
+                                       results.Z_device)
+                        self.axis.set_yscale('log')
+                    elif y_axis=="Capacitance":
+                        self.axis.set_title("Capacitance")
+                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.plot(results.time,
+                                       results.capacitance())
+                        legend_loc = "lower right"
+                    elif y_axis=="Velocity":
+                        if results.options.action.capacitance_threshold:
+                            dxdt = results.dxdt()/ \
+                                (results.options.action.capacitance_threshold/ \
+                                 np.sqrt(results.area))/1000.0
+                            self.axis.set_title("Instantaneous velocity")
+                            self.axis.set_ylabel("Velocity$_{drop}$ (mm$^2$/s)")
+                        else:
+                            dxdt = results.dxdt()
+                            self.axis.set_title("Relative instantaneous velocity")
+                            self.axis.set_ylabel("Velocity$_{drop}$")
+                        self.axis.plot((results.time[:-1]+results.time[1:])/2,
+                                       dxdt)
                     legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
-        elif plot_type=="Impedance vs frequency":
-            self.axis.set_xlabel("frequency (Hz)")
+        elif x_axis=="Frequency":
+            self.axis.set_xlabel("Frequency (Hz)")
             for row in self.data:
                 if row.keys().count("SweepFrequencyResults"):
                     results = loads(row["SweepFrequencyResults"])
-                    results.plot(self.axis)
-                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
-        elif plot_type=="Impedance vs voltage":
-            self.axis.set_xlabel("voltage (V$_{rms}$)")
+                    if y_axis=="Impedance":
+                        self.axis.set_title("Impedance")
+                        self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
+                        self.axis.errorbar(results.frequency,
+                                           np.mean(results.Z_device, 1),
+                                           np.std(results.Z_device, 1),
+                                           fmt='.')
+                        self.axis.set_xscale('log')
+                        self.axis.set_yscale('log')
+                    elif y_axis=="Capacitance":
+                        self.axis.set_title("Capacitance")
+                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.errorbar(results.frequency,
+                                           np.mean(results.capacitance(), 1),
+                                           np.std(results.capacitance(), 1),
+                                           fmt='.')
+                        self.axis.set_xscale('log')
+                    legend.append("Step %d (%.3f s)" % \
+                                  (row["step"], row["time"]))
+        elif x_axis=="Voltage":
+            self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
                 if row.keys().count("SweepVoltageResults"):
                     results = loads(row["SweepVoltageResults"])
-                    results.plot(self.axis)
+                    if y_axis=="Impedance":
+                        self.axis.set_title("Impedance")
+                        self.axis.set_ylabel(
+                            "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
+                            results.frequency)
+                        self.axis.errorbar(results.voltage,
+                                           np.mean(results.Z_device, 1),
+                                           np.std(results.Z_device, 1),
+                                           fmt='.')
+                        self.axis.set_yscale('log')
+                    elif y_axis=="Capacitance":
+                        self.axis.set_title("Capacitance")
+                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.errorbar(results.voltage,
+                                           np.mean(results.capacitance(), 1),
+                                           np.std(results.capacitance(), 1),
+                                           fmt='.')
                     legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
         if len(legend):
-            self.axis.legend(legend)
+            self.axis.legend(legend, loc=legend_loc)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)
         self.canvas.draw()

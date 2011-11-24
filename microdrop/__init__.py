@@ -57,7 +57,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = "wheelerlab.arduino_dmf_control_board_" + \
+        self.name = "wheelerlab.dmf_control_board_" + \
             self.control_board.host_hardware_version()        
         self.version = self.control_board.host_software_version()
         self.url = self.control_board.host_url()
@@ -66,33 +66,36 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.current_state = FeedbackOptions()
         self.feedback_options_controller = None
         self.feedback_results_controller = None
+        self.initialized = False
 
     def on_app_init(self, app):
         """
         Handler called once when the Microdrop application starts.
         """
-        self.app = app
-        self.feedback_options_controller = FeedbackOptionsController(self)
-        self.feedback_results_controller = FeedbackResultsController(self)
-        
-        try:
-            self.app.control_board = self.control_board
-            self.control_board.connect()
-            name = self.control_board.name()
-            version = self.control_board.hardware_version()
-
-            # reflash the firmware if it is not the right version
-            if self.control_board.host_software_version() != \
-                self.control_board.software_version():
-                try:
-                    self.control_board.flash_firmware()
-                except:
-                    self.error("Problem flashing firmware")
-            firmware = self.control_board.software_version()
-            self.app.main_window_controller.label_connection_status.set_text(name + " v" + version + \
-                "\n\tFirmware: " + str(firmware))
-        except ConnectionError, why:
-            print why
+        if not self.initialized:
+            self.app = app
+            self.feedback_options_controller = FeedbackOptionsController(self)
+            self.feedback_results_controller = FeedbackResultsController(self)
+            
+            try:
+                self.app.control_board = self.control_board
+                self.control_board.connect()
+                name = self.control_board.name()
+                version = self.control_board.hardware_version()
+    
+                # reflash the firmware if it is not the right version
+                if self.control_board.host_software_version() != \
+                    self.control_board.software_version():
+                    try:
+                        self.control_board.flash_firmware()
+                    except:
+                        self.error("Problem flashing firmware")
+                firmware = self.control_board.software_version()
+                self.app.main_window_controller.label_connection_status.set_text(name + " v" + version + \
+                    "\n\tFirmware: " + str(firmware))
+            except ConnectionError, why:
+                print why
+            self.initialized = True
         
     def current_step_options(self):
         """
@@ -167,14 +170,14 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         attempt = 0
                     else:
                         attempt = data["attempt"]
+
                     if attempt <= options.action.max_repeats:
                         voltage = float(self.app.protocol.current_step().voltage +
-                            options.action.increase_voltage*attempt)* \
-                            math.sqrt(2)/100
+                            options.action.increase_voltage*attempt)
                         frequency = \
                             float(self.app.protocol.current_step().frequency)
                         emit_signal("set_voltage",
-                            voltage,
+                            voltage*math.sqrt(2)/100,
                             interface=IWaveformGenerator)
                         emit_signal("set_frequency",
                             frequency,
@@ -183,12 +186,19 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         results = FeedbackResults(options,
                             impedance,
                             area,
-                            self.app.protocol.current_step().voltage)                    
+                            frequency,
+                            voltage)
                         data["FeedbackResults"] = dumps(results)
-                        if results.max_capacitance(frequency)/area > \
+                        if max(results.capacitance())/area < \
                             options.action.capacitance_threshold:
                             # signal that the step should be repeated
-                            return True
+                            return "Repeat"
+                        else:
+                            print "attempt=%d, max(C)/A=%.1e F/mm^2" % \
+                                (attempt, max(results.capacitance())/area)
+                            return "Ok"
+                    else:
+                        return "Fail"
                 elif options.action.__class__==SweepFrequencyAction:
                     frequencies = np.logspace(
                         np.log10(options.action.start_frequency),
@@ -210,11 +220,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     voltages = np.linspace(options.action.start_voltage,
                                            options.action.end_voltage,
                                            options.action.n_voltage_steps)
-                    emit_signal("set_frequency",
-                        float(self.app.protocol.current_step(). \
-                        frequency),
-                        interface=IWaveformGenerator)
-                    results = SweepVoltageResults(options, area)
+                    frequency = float(self.app.protocol.current_step(). \
+                        frequency)
+                    emit_signal("set_frequency", frequency,
+                                interface=IWaveformGenerator)
+                    results = SweepVoltageResults(options, area, frequency)
                     for voltage in voltages:
                         emit_signal("set_voltage",
                             voltage*math.sqrt(2)/100,
@@ -223,12 +233,14 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         results.add_voltage_step(voltage, impedance)
                     data["SweepVoltageResults"] = dumps(results)
             else:
+                voltage = float(self.app.protocol.current_step().voltage)* \
+                    math.sqrt(2)/100
+                frequency = float(self.app.protocol.current_step().frequency)
                 emit_signal("set_voltage",
-                            float(self.app.protocol.current_step().voltage)* \
-                            math.sqrt(2)/100,
+                            voltage,
                             interface=IWaveformGenerator)
                 emit_signal("set_frequency",
-                            float(self.app.protocol.current_step().frequency),
+                            frequency,
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
                 t = time.time()
