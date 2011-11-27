@@ -17,4 +17,4 @@ if os.name == 'nt':
     # Otherwise, it will not be recognizes as a Python extension.
     pyext = Command('dmf_control_board_base.pyd', pyext, [Copy("$TARGET", "$SOURCE")])
 
-Export(pyext=pyext)
+Export('pyext')

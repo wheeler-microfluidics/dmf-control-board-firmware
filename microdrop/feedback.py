@@ -27,10 +27,19 @@ import matplotlib
 if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
-from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
 
 from utility import *
+
+try:
+    from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
+    from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
+
+except RuntimeError:
+    if PROGRAM_LAUNCHED:
+        raise
+    else:
+        print 'Skipping error!'
+
 from plugin_manager import emit_signal, IWaveformGenerator
 
 
@@ -413,7 +422,6 @@ class FeedbackOptionsController():
     
     def on_textentry_n_samples_key_press_event(self, widget, event):
         """
-        
         Handler called when the user presses a key within the "number of
         samples" text box. 
         """
@@ -712,6 +720,9 @@ class FeedbackResults():
         return 1.0/(2*math.pi*self.frequency*self.Z_device)
     
     def dxdt(self):
+        '''
+        '''
+
         """
         # remove outliers
         ind = np.nonzero(abs(Z-smooth(Z))/Z>10)[0]
@@ -721,35 +732,29 @@ class FeedbackResults():
         """
         window_len = 9
         dt = np.diff(self.time)
-        dZdt = self.smooth(np.diff(self.Z_device),window_len)/dt
-        return -dZdt/self.Z_device[:-1]**2
+        dZdt = self.smooth(np.diff(self.Z_device), window_len) / dt
+        return -dZdt / self.Z_device[:-1] ** 2
 
-    def smooth(self, x,window_len=11,window='hanning'):
+    def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
         
         This method is based on the convolution of a scaled window with the signal.
         
-        input:
-            x: the input signal 
-            window_len: the dimension of the smoothing window; should be an odd integer
-            window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
-                flat window will produce a moving average smoothing.
+        :param x: the input signal 
+        :param window_len: the dimension of the smoothing window; should be an odd integer
+        :param window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'.  'flat' will produce a moving average smoothing.
     
-        output:
-            the smoothed signal
+        :returns: the smoothed signal
             
-        example:
+        **Usage**::
     
-        t=linspace(-2,2,0.1)
-        x=sin(t)+randn(len(t))*0.1
-        y=smooth(x)
+        >>t=linspace(-2,2,0.1)
+        >>x=sin(t)+randn(len(t))*0.1
+        >>y=smooth(x)
         
-        see also: 
-        
-        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
-        scipy.signal.lfilter
+        .. seealso:: numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve, scipy.signal.lfilter
      
-        TODO: the window parameter could be the window itself if an array instead of a string   
+        .. todo:: the window parameter could be the window itself if an array instead of a string   
         """
     
         if x.ndim != 1:
@@ -894,9 +899,7 @@ class FeedbackResultsController():
         """
         Handler called whenever the experiment log selection changes.
 
-        Parameters:
-            data : experiment log data (list of dictionaries, one per step)
-                   for the selected steps
+        :param data: experiment log data (list of dictionaries, one per step) for the selected steps
         """
         self.data = data
         self.update_plot()

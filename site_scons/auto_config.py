@@ -30,11 +30,11 @@ if os.name == 'nt':
     Export(BOOST_LIB_PATH=boost_lib_path, BOOST_HOME=boost_home)
 else:
     PYTHON_LIB = 'python%(major)s.%(minor)s' % dict(major=v[0], minor=v[1])
-Export(PYTHON_LIB=PYTHON_LIB)
 
 PYTHON_PATH = get_python_path().parent
-Export(PYTHON_LIB_PATH=PYTHON_PATH / path('libs'))
-Export(PYTHON_INC_PATH=PYTHON_PATH / path('include'))
+PYTHON_LIB_PATH = PYTHON_PATH / path('libs')
+PYTHON_INC_PATH = PYTHON_PATH / path('include')
+Export('PYTHON_LIB', 'PYTHON_LIB_PATH', 'PYTHON_INC_PATH')
 
 if __name__ == '__main__':
     if os.name == 'nt':

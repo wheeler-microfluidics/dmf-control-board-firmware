@@ -26,8 +26,14 @@ from copy import deepcopy
 import gtk
 import numpy as np
 
-from plugins.dmf_control_board import *
-from plugins.dmf_control_board.microdrop.feedback import *
+import utility
+try:
+    from plugins.dmf_control_board import *
+    from plugins.dmf_control_board.microdrop.feedback import *
+except:
+    if utility.PROGRAM_LAUNCHED:
+        raise
+
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, emit_signal
 
