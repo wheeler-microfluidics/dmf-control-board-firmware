@@ -1,11 +1,15 @@
 import re
 import os
 import warnings
+import sys
+
 import auto_config
 from get_libs import get_lib
 from git_util import GitUtil
 from path import path
 
+PYTHON_VERSION = "%s.%s" % (sys.version_info[0],
+                            sys.version_info[1])
 
 env = Environment()
 
@@ -98,7 +102,8 @@ env = Environment(tools = ["default", "disttar"],
 
 version_target = Command('version.txt', None,
                         'echo %s > $TARGET' % SOFTWARE_VERSION)
-archive_name = 'dmf_control_board-%s.tar.gz' % SOFTWARE_VERSION
+archive_name = 'dmf_control_board-%s-py%s.tar.gz' % (SOFTWARE_VERSION,
+                                                     PYTHON_VERSION)
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
 tar = env.DistTar('%s' % archive_name, [package_hex, package_pyext,
