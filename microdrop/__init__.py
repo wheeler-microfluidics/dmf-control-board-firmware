@@ -31,6 +31,9 @@ try:
     from plugins.dmf_control_board import *
     from plugins.dmf_control_board.microdrop.feedback import *
 except:
+    # Raise the exception(s) if we're running the program (these exceptions
+    # are expected when generating documentation with doxygen, so in that case
+    # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
 

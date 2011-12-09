@@ -24,8 +24,10 @@ import re
 import warnings
 from subprocess import Popen, PIPE, CalledProcessError
 
-from ..serial_device import SerialDevice, ConnectionError
 from path import path
+
+from ..serial_device import SerialDevice, ConnectionError
+from utility import base_path
 
     
 class FirmwareError(Exception):
@@ -34,14 +36,15 @@ class FirmwareError(Exception):
 
 class AvrDude(SerialDevice):
     def __init__(self, port=None):
-        p = path(__file__)
+        p = base_path() / path("plugins") / path("dmf_control_board") / \
+            path("avr")
         if os.name == 'nt':
-            self.avrdude = (p.parent / path('avrdude.exe')).abspath()
+            self.avrdude = (p / path('avrdude.exe')).abspath()
         else:
-            self.avrdude = (p.parent / path('avrdude')).abspath()
+            self.avrdude = (p / path('avrdude')).abspath()
         if not self.avrdude.exists():
             raise FirmwareError('avrdude not installed')
-        self.avrconf = (p.parent / path('avrdude.conf')).abspath()
+        self.avrconf = (p / path('avrdude.conf')).abspath()
         if port:
             self.port = port
         else:

@@ -21,6 +21,7 @@ import time
 
 import numpy
 
+from utility import base_path
 from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
 from serial_device import SerialDevice, ConnectionError
@@ -130,7 +131,7 @@ class DmfControlBoard(Base, SerialDevice):
         if reconnect:
             self.disconnect()
         try:
-            hex_path = path(__file__).parent / path("dmf_driver.hex")
+            hex_path = base_path() / path("plugins") / path("dmf_control_board") / path("dmf_driver.hex")
             avrdude = AvrDude(self.port)
             stdout, stderr = avrdude.flash(hex_path.abspath())
             if stdout:
