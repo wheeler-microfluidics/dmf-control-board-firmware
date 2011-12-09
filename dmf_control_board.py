@@ -142,9 +142,7 @@ class DmfControlBoard(Base, SerialDevice):
                 # need to sleep here, otherwise reconnect fails
                 time.sleep(.1)
                 self.connect(self.port)
-            return True
-        except Exception, why:
-            print why
+        except:
             if reconnect:
                 self.connect(self.port)
-            return False
+            raise

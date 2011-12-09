@@ -59,7 +59,7 @@ class AvrDude(SerialDevice):
         
         if verbose:
             print ' '.join(cmd)
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE)
         stdout, stderr = p.communicate()
         if p.returncode:
             raise ConnectionError(stderr)
