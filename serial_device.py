@@ -53,7 +53,7 @@ class SerialDevice(object):
                         self.port = port
                         break
         if self.port is None:
-            raise ConnectionError('could not connect to serial device.')
+            raise ConnectionError('Could not connect to serial device.')
         return self.port
 
 

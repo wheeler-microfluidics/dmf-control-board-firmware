@@ -83,29 +83,75 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         if not self.initialized:
             self.app = app
+            menu_item = gtk.MenuItem("Flash DMF control board firmware")
+            self.app.main_window_controller.menu_tools.append(menu_item)
+            menu_item.connect("activate", self.on_flash_firmware)
+            menu_item.show()
+            
             self.feedback_options_controller = FeedbackOptionsController(self)
             self.feedback_results_controller = FeedbackResultsController(self)
+            self.initialized = True
+            self.check_device_name_and_version()
+
+    def check_device_name_and_version(self):
+        try:
+            self.app.control_board = self.control_board
+            self.control_board.connect()
+            name = self.control_board.name()
+            version = self.control_board.hardware_version()
+
+            if name != "Arduino DMF Controller":
+                raise Exception("Device is not an Arduino DMF Controller")
             
+            if version != "1.1":
+                raise Exception("The currently installed DMF control board "
+                                "plugin is designed for hardware version 1.1, "
+                                "however the connected device is version %s."
+                                % version)
+            
+            host_software_version = self.control_board.host_software_version()
+            remote_software_version = self.control_board.software_version()
+
+            # reflash the firmware if it is not the right version
+            if host_software_version !=  remote_software_version:
+                response = self.app.main_window_controller.question("The "
+                    "control board firmware version (%s) does not match the "
+                    "driver version (%s). Update firmware?" %
+                    (remote_software_version, host_software_version),
+                    "Update firmware?")
+                if response==gtk.RESPONSE_YES:
+                    self.on_flash_firmware()
+        except Exception, why:
+            self.app.main_window_controller.warning("%s" % why)
+        
+        self.update_connection_status()
+        
+    def on_flash_firmware(self, widget=None, data=None):
+        try:
+            self.control_board.flash_firmware()
+            self.app.main_window_controller.info("Firmware updated "
+                                                 "successfully.",
+                                                 "Firmware update")
+        except Exception, why:
+            self.app.main_window_controller.error("Problem flashing firmware. "
+                                                  "%s" % why,
+                                                  "Firmware update")
+        self.check_device_name_and_version()
+
+    def update_connection_status(self):
+        connection_status = "Not connected"
+        if self.control_board.connected():
             try:
-                self.app.control_board = self.control_board
-                self.control_board.connect()
                 name = self.control_board.name()
                 version = self.control_board.hardware_version()
-    
-                # reflash the firmware if it is not the right version
-                if self.control_board.host_software_version() != \
-                    self.control_board.software_version():
-                    try:
-                        self.control_board.flash_firmware()
-                    except:
-                        self.error("Problem flashing firmware")
                 firmware = self.control_board.software_version()
-                self.app.main_window_controller.label_connection_status.set_text(name + " v" + version + \
-                    "\n\tFirmware: " + str(firmware))
-            except ConnectionError, why:
-                print why
-            self.initialized = True
-        
+                connection_status = name + " v" + version + "\n\tFirmware: " + str(firmware)
+            except:
+                pass
+
+        self.app.main_window_controller.label_connection_status. \
+            set_text(connection_status)
+
     def current_step_options(self):
         """
         Return a FeedbackOptions object for the current step in the protocol.
