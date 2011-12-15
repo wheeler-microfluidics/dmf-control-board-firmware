@@ -17,7 +17,6 @@ You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
 import os
 import time
 import re
@@ -27,8 +26,7 @@ from subprocess import Popen, PIPE, CalledProcessError
 from path import path
 
 from ..serial_device import SerialDevice, ConnectionError
-from utility import base_path
-
+from ..__init__ import package_path
     
 class FirmwareError(Exception):
     pass
@@ -36,8 +34,7 @@ class FirmwareError(Exception):
 
 class AvrDude(SerialDevice):
     def __init__(self, port=None):
-        p = base_path() / path("plugins") / path("dmf_control_board") / \
-            path("avr")
+        p = package_path() / path("avr")
         if os.name == 'nt':
             self.avrdude = (p / path('avrdude.exe')).abspath()
         else:
@@ -50,7 +47,7 @@ class AvrDude(SerialDevice):
         else:
             self.port = self.get_port()
             print 'avrdude successfully connected on port: ', self.port
-
+        
     def _run_command(self, flags, verbose=False):
         config = dict(avrdude=self.avrdude, avrconf=self.avrconf)
 

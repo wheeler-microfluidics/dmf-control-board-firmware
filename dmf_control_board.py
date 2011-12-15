@@ -18,21 +18,23 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import time
+import sys
 
 import numpy
 
-from utility import base_path
+from .__init__ import package_path
 from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
 from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
 from path import path
 
+
 class DmfControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
         SerialDevice.__init__(self)
-
+        
     def connect(self, port=None):
         if port:
             Base.connect(self, port)
@@ -131,7 +133,7 @@ class DmfControlBoard(Base, SerialDevice):
         if reconnect:
             self.disconnect()
         try:
-            hex_path = base_path() / path("plugins") / path("dmf_control_board") / path("dmf_driver.hex")
+            hex_path = package_path() / path("dmf_driver.hex")
             avrdude = AvrDude(self.port)
             stdout, stderr = avrdude.flash(hex_path.abspath())
             if stdout:
