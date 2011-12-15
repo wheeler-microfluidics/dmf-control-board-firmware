@@ -231,25 +231,36 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_GET_WAVEFORM_VOLTAGE:
-      //TODO
+      if(payload_length()==0) {
+        return_code = RETURN_OK;
+        Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(uint8_t)) {
-        uint8_t voltage = ReadUint8();
-          SetPot(POT_INDEX_WAVEOUT_GAIN_2_,voltage);
-          return_code = RETURN_OK;
+        waveform_voltage_ = ReadUint8();
+        SetPot(POT_INDEX_WAVEOUT_GAIN_2_, waveform_voltage_);
+        return_code = RETURN_OK;
       } else {
         return_code = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_WAVEFORM_FREQUENCY:
-      //TODO
+      if(payload_length()==0) {
+        return_code = RETURN_OK;
+        Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
       break;
     case CMD_SET_WAVEFORM_FREQUENCY:
       if(payload_length()==sizeof(float)) {
         // the frequency of the LTC6904 oscillator needs to be set to 50x
         // the fundamental frequency
-        float freq = ReadFloat()*50;
+    	waveform_frequency_ = ReadFloat();
+        float freq = waveform_frequency_*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
           return_code = RETURN_BAD_VALUE;
@@ -930,6 +941,7 @@ std::string DmfControlBoard::waveform() {
         std::ostringstream msg;
         msg << "waveform=" << waveform_str;
         LogMessage(msg.str().c_str(), function_name);
+        return waveform_str;
       } else {
         return_code_ = RETURN_BAD_VALUE;
         LogMessage("CMD_GET_WAVEFORM, Bad value",
@@ -942,6 +954,48 @@ std::string DmfControlBoard::waveform() {
     }
   }
   return "";
+}
+
+float DmfControlBoard::waveform_voltage() {
+  const char* function_name = "waveform_voltage()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_WAVEFORM_VOLTAGE)==RETURN_OK) {
+    LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
+    if(payload_length()==sizeof(uint8_t)) {
+      float v_rms = (float)ReadUint8()/255.0*4.0;
+      std::ostringstream msg;
+      msg << "waveform_voltage=" << v_rms;
+      LogMessage(msg.str().c_str(), function_name);
+      return v_rms;
+    } else {
+      LogMessage("CMD_GET_WAVEFORM_VOLTAGE, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
+float DmfControlBoard::waveform_frequency() {
+  const char* function_name = "waveform_frequency()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_WAVEFORM_FREQUENCY)==RETURN_OK) {
+    LogMessage("CMD_GET_WAVEFORM_FREQUENCY", function_name);
+    if(payload_length()==sizeof(float)) {
+      float freq_hz = ReadFloat();
+      std::ostringstream msg;
+      msg << "waveform_frequency=" << freq_hz;
+      LogMessage(msg.str().c_str(), function_name);
+      return freq_hz;
+    } else {
+      LogMessage("CMD_GET_WAVEFORM_FREQUENCY, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
 }
 
 uint8_t DmfControlBoard::set_series_resistor(const uint8_t channel,

@@ -105,6 +105,8 @@ public:
   float sampling_rate();
   float series_resistor(const uint8_t channel);
   std::string waveform();
+  float waveform_frequency();
+  float waveform_voltage();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -225,6 +227,8 @@ private:
   uint8_t A0_series_resistor_index_;
   uint8_t A1_series_resistor_index_;
   uint8_t peak_;
+  uint8_t waveform_voltage_;
+  float waveform_frequency_;
 #else
   std::string experiment_log_file_name_;
   std::ofstream experiment_log_file_;
