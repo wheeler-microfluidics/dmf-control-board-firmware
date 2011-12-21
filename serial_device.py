@@ -43,7 +43,7 @@ class SerialDevice(object):
             port = None
             # Assume Linux (Ubuntu)...
             for port in path('/dev').walk('ttyUSB*'):
-                if self.test_connection(tty):
+                if self.test_connection(port):
                     self.port = port
                     break
             # or Ubuntu in a VirtualBox
