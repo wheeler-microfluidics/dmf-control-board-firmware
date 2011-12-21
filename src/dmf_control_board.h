@@ -49,7 +49,7 @@ public:
   static const uint16_t EEPROM_AREF =                        102;
 
   /**\brief The byte stored at this address sets the value of the virtual
-  ground referenc (between 0 and 5V).*/
+  ground reference (between 0 and 5V).*/
   static const uint16_t EEPROM_VGND =                        103;
 
   // TODO:
@@ -168,6 +168,7 @@ private:
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
 
+  static const uint8_t PWR_SUPPLY_ON_ = 8;
   static const uint8_t WAVEFORM_SELECT_ = 9;
 
   static const uint8_t A0_SERIES_RESISTOR_0_ = 13;

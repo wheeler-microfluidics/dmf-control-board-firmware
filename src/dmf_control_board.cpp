@@ -46,7 +46,7 @@ const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
-const char DmfControlBoard::HARDWARE_VERSION_[] = "1.1";
+const char DmfControlBoard::HARDWARE_VERSION_[] = "1.2";
 const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control_board";
 
@@ -531,6 +531,10 @@ void DmfControlBoard::begin() {
   pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
   pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
   pinMode(WAVEFORM_SELECT_, OUTPUT);
+
+  // versions > 1.1 need to pull a pin low to turn on the power supply
+  pinMode(PWR_SUPPLY_ON_, OUTPUT);
+  digitalWrite(PWR_SUPPLY_ON_, LOW);
 
   Serial.begin(DmfControlBoard::BAUD_RATE);
 
