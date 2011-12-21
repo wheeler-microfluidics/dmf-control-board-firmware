@@ -37,6 +37,7 @@ except:
     if utility.PROGRAM_LAUNCHED:
         raise
 
+from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, emit_signal
 
@@ -123,7 +124,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 if response==gtk.RESPONSE_YES:
                     self.on_flash_firmware()
         except Exception, why:
-            self.app.main_window_controller.warning("%s" % why)
+            logger.warning("%s" % why)
         
         self.update_connection_status()
         
@@ -134,7 +135,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                                  "successfully.",
                                                  "Firmware update")
         except Exception, why:
-            self.app.main_window_controller.error("Problem flashing firmware. "
+            logger.error("Problem flashing firmware. "
                                                   "%s" % why,
                                                   "Firmware update")
         self.check_device_name_and_version()
@@ -248,13 +249,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         if max(results.capacitance())/area < \
                             options.action.capacitance_threshold:
                             # signal that the step should be repeated
-                            return "Repeat"
+                            return 'Repeat'
                         else:
-                            print "attempt=%d, max(C)/A=%.1e F/mm^2" % \
-                                (attempt, max(results.capacitance())/area)
-                            return "Ok"
+                            logger.info('attempt=%d, max(C)/A=%.1e F/mm^2' % \
+                                (attempt, max(results.capacitance())/area))
+                            return 'Ok'
                     else:
-                        return "Fail"
+                        return 'Fail'
                 elif options.action.__class__==SweepFrequencyAction:
                     frequencies = np.logspace(
                         np.log10(options.action.start_frequency),
@@ -355,11 +356,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called when a protocol starts running.
         """
         if self.control_board.connected()==False:
-            self.app.main_window_controller.warning("Warning: no control "
+            logger.warning("Warning: no control "
                 "board connected.")
         elif self.control_board.number_of_channels() < \
             self.app.protocol.n_channels:
-            self.app.main_window_controller.warning("Warning: currently "
+            logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
 

@@ -29,17 +29,16 @@ if os.name=='nt':
 from matplotlib.figure import Figure
 
 from utility import *
+from logger import logger
 
 try:
     from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
     from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
-
 except RuntimeError:
     if PROGRAM_LAUNCHED:
         raise
     else:
-        print 'Skipping error!'
-
+        logger.info('Skipping error!')
 from plugin_manager import emit_signal, IWaveformGenerator
 
 
@@ -225,7 +224,7 @@ class FeedbackOptionsController():
 
             if self.plugin.control_board.number_of_channels() < \
                 max(electrode.channels):
-                self.plugin.app.main_window_controller.warning("Error: "
+                logger.warning("Error: "
                     "currently connected board does not have enough channels "
                     "to perform calibration on this electrode.")
                 return
@@ -248,7 +247,7 @@ class FeedbackOptionsController():
                 area,
                 frequency,
                 self.plugin.app.protocol.current_step().voltage)
-            print "max(results.capacitance())/area=", max(results.capacitance())/area
+            logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold = max(results.capacitance())/area*.95
 

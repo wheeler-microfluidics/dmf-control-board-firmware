@@ -27,6 +27,7 @@ from path import path
 
 from ..serial_device import SerialDevice, ConnectionError
 from ..__init__ import package_path
+from logger import logger
     
 class FirmwareError(Exception):
     pass
@@ -46,7 +47,7 @@ class AvrDude(SerialDevice):
             self.port = port
         else:
             self.port = self.get_port()
-            print 'avrdude successfully connected on port: ', self.port
+            logger.info('avrdude successfully connected on port: %s' % self.port)
         
     def _run_command(self, flags, verbose=False):
         config = dict(avrdude=self.avrdude, avrconf=self.avrconf)
@@ -55,7 +56,7 @@ class AvrDude(SerialDevice):
         cmd = [v % config for v in cmd]
         
         if verbose:
-            print ' '.join(cmd)
+            logger.info(' '.join(cmd))
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE)
         stdout, stderr = p.communicate()
         if p.returncode:

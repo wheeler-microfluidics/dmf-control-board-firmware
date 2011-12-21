@@ -21,13 +21,14 @@ import time
 import sys
 
 import numpy
+from path import path
 
 from .__init__ import package_path
 from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
 from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
-from path import path
+from logger import logger
 
 
 class DmfControlBoard(Base, SerialDevice):
@@ -137,9 +138,9 @@ class DmfControlBoard(Base, SerialDevice):
             avrdude = AvrDude(self.port)
             stdout, stderr = avrdude.flash(hex_path.abspath())
             if stdout:
-                print stdout
+                logger.info(str(stdout))
             if stderr:
-                print stderr
+                logger.info(str(stderr))
             if reconnect:
                 # need to sleep here, otherwise reconnect fails
                 time.sleep(.1)
