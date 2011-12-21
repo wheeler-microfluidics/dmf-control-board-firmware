@@ -98,16 +98,17 @@ class DmfControlBoardPlugin(SingletonPlugin):
             self.app.control_board = self.control_board
             self.control_board.connect()
             name = self.control_board.name()
-            version = self.control_board.hardware_version()
+            hardware_version = self.control_board.hardware_version()
+            host_hardware_version = self.control_board.host_hardware_version()
 
             if name != "Arduino DMF Controller":
                 raise Exception("Device is not an Arduino DMF Controller")
             
-            if version != "1.1":
+            if hardware_version != host_hardware_version:
                 raise Exception("The currently installed DMF control board "
-                                "plugin is designed for hardware version 1.1, "
+                                "plugin is designed for hardware version %s, "
                                 "however the connected device is version %s."
-                                % version)
+                                % (host_hardware_version, hardware_version))
             
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
