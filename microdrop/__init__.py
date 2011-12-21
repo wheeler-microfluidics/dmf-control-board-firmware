@@ -304,6 +304,23 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     self.app.protocol.current_step().duration/1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
+                    # Sleep for 0.1ms between protocol polling loop iterations.
+                    # Without sleeping between iterations, CPU usage spikes to
+                    # 100% while protocol is running.  With sleeping, CPU usage
+                    # is reduced to <20%.
+                    time.sleep(0.0001)
+        elif (self.app.realtime_mode or self.app.running):
+            # Board is not connected
+            # run through protocol (even though device is not connected)
+            if not self.app.control_board.connected():
+                t = time.time()
+                while time.time()-t < self.app.protocol.current_step().duration/1000.0:
+                    while gtk.events_pending():
+                        gtk.main_iteration()
+                    # Sleep for 0.1ms between protocol polling loop iterations.
+                    # (see above for reasoning)
+                    time.sleep(0.0001)
+
 
     def measure_impedance(self, state, options):
         thread = WaitForFeedbackMeasurement(self.control_board,
