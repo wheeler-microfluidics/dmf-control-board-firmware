@@ -236,12 +236,11 @@ class FeedbackOptionsController():
                                       n_samples=1,
                                       delay_between_samples_ms=0,
                                       action=RetryAction())
-            voltage = self.plugin.app.protocol.current_step().voltage* \
-                math.sqrt(2)/100
+            voltage = self.plugin.app.protocol.current_step().voltage
             frequency = self.plugin.app.protocol.current_step().frequency
-            emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
+            emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
             impedance = self.plugin.measure_impedance(state, options)
             results = FeedbackResults(options,
                 impedance,
@@ -706,7 +705,7 @@ class FeedbackResults():
         self.area = area
         self.frequency = frequency
         self.V_fb = impedance[0::2]
-        self.Z_fb = impedance[1::2]
+        self.Z_fb = impedance[1::2]        
         self.time = np.array(range(0,self.options.n_samples)) * \
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
@@ -925,10 +924,10 @@ class FeedbackResultsController():
                                        results.Z_device)
                         self.axis.set_yscale('log')
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.set_title("Capacitance/Area")
+                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.plot(results.time,
-                                       results.capacitance())
+                                       results.capacitance()/results.area)
                         legend_loc = "lower right"
                     elif y_axis=="Velocity":
                         if results.options.action.capacitance_threshold:
@@ -936,16 +935,17 @@ class FeedbackResultsController():
                                 (results.options.action.capacitance_threshold/ \
                                  np.sqrt(results.area))/1000.0
                             self.axis.set_title("Instantaneous velocity")
-                            self.axis.set_ylabel("Velocity$_{drop}$ (mm$^2$/s)")
+                            self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
                         else:
                             dxdt = results.dxdt()
                             self.axis.set_title("Relative instantaneous velocity")
                             self.axis.set_ylabel("Velocity$_{drop}$")
                         self.axis.plot((results.time[:-1]+results.time[1:])/2,
                                        dxdt)
-                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+                    legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
+            C = []
             for row in self.data:
                 if row.keys().count("SweepFrequencyResults"):
                     results = loads(row["SweepFrequencyResults"])
@@ -959,15 +959,18 @@ class FeedbackResultsController():
                         self.axis.set_xscale('log')
                         self.axis.set_yscale('log')
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.set_title("Capacitance/Area")
+                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.capacitance(), 1),
-                                           np.std(results.capacitance(), 1),
+                                           np.mean(results.capacitance(), 1)/results.area,
+                                           np.std(results.capacitance(), 1)/results.area,
                                            fmt='.')
                         self.axis.set_xscale('log')
+                        C.append((np.mean(results.capacitance(), 1)/results.area)[23])
+                        
                     legend.append("Step %d (%.3f s)" % \
-                                  (row["step"], row["time"]))
+                                  (row["step"]+1, row["time"]))
+            print "%.2e, %.2e" % (np.mean(C), np.std(C))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
@@ -984,13 +987,13 @@ class FeedbackResultsController():
                                            fmt='.')
                         self.axis.set_yscale('log')
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
+                        self.axis.set_title("Capacitance/Area")
+                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.errorbar(results.voltage,
-                                           np.mean(results.capacitance(), 1),
-                                           np.std(results.capacitance(), 1),
+                                           np.mean(results.capacitance()/results.area, 1),
+                                           np.std(results.capacitance()/results.area, 1),
                                            fmt='.')
-                    legend.append("Step %d (%.3f s)" % (row["step"], row["time"]))
+                    legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
         if len(legend):
             self.axis.legend(legend, loc=legend_loc)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)
