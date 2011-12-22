@@ -39,7 +39,7 @@ except:
 
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
-    implements, emit_signal
+    implements, emit_signal, PluginGlobals
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -57,6 +57,7 @@ class WaitForFeedbackMeasurement(threading.Thread):
                             self.feedback_options.delay_between_samples_ms,
                             self.state)
 
+PluginGlobals.push_env('microdrop')
 
 class DmfControlBoardPlugin(SingletonPlugin):
     """
@@ -419,3 +420,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
             frequency : frequency in Hz
         """
         self.control_board.set_waveform_frequency(frequency)
+
+
+PluginGlobals.pop_env()
