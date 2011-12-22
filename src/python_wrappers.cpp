@@ -106,6 +106,7 @@ object DmfControlBoard_class
     .def("set_experiment_log_file",&DmfControlBoard::SetExperimentLogFile)
     .def("log_experiment",&DmfControlBoard::LogExperiment)
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
+    .def("get_peak_voltage",&DmfControlBoard::GetPeakVoltage)
     .def("flush",&DmfControlBoard::flush)
     .def("host_name",&DmfControlBoard::host_name)
     .def("host_manufacturer",&DmfControlBoard::host_manufacturer)

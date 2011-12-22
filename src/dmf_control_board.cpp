@@ -349,7 +349,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             // update the number of bytes written
             bytes_written(n_samples*n_sets*n_channels*sizeof(uint16_t));
 
-            uint8_t channel[NUMBER_OF_AD_CHANNELS];
+            uint8_t channel[NUMBER_OF_ADC_CHANNELS];
             for(uint8_t i=0; i<n_channels; i++) {
               channel[i] = ReadUint8();
             }
@@ -500,6 +500,28 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         }
       }
       break;
+    case CMD_GET_PEAK_VOLTAGE:
+      if(payload_length()<sizeof(uint8_t)+sizeof(uint16_t)) {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      } else {
+        uint8_t adc_channel = ReadUint8();
+        uint16_t sampling_time_ms = ReadUint16();
+        if(adc_channel<2) {
+          float peak;
+          uint8_t interrupt;
+          if(adc_channel==0) {
+        	interrupt = HV_PEAK_INTERRUPT_;
+          } else {
+          	interrupt = FB_PEAK_INTERRUPT_;
+          }
+          peak = GetPeakVoltage(interrupt, sampling_time_ms);
+          Serialize(&peak,sizeof(peak));
+          return_code = RETURN_OK;
+        } else {
+          return_code = RETURN_GENERAL_ERROR;
+        }
+      }
+      break;
 #endif
     default:
       return_code = RemoteObject::ProcessCommand(cmd);
@@ -585,10 +607,19 @@ void DmfControlBoard::begin() {
   // if the EEPROM_INIT flag has been set, replace default values with those
   // stored in EEPROM
   if(EEPROM.read(EEPROM_INIT)==0) {
+	Serial.println("Using calibration info from EEPROM.");
     waveout_gain_1 = EEPROM.read(EEPROM_POT_WAVEOUT_GAIN_1);
     aref = EEPROM.read(EEPROM_AREF);
     vgnd = EEPROM.read(EEPROM_VGND);
+  } else {
+    Serial.println("Using default calibration info.");
   }
+  Serial.print("waveout_gain_1=");
+  Serial.println(waveout_gain_1, DEC);
+  Serial.print("aref=");
+  Serial.println(aref, DEC);
+  Serial.print("vgnd=");
+  Serial.println(vgnd, DEC);
 
   // set all digital pots
   SetPot(POT_INDEX_AREF_, aref);
@@ -728,15 +759,15 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
   return return_code;
 }
 
-uint8_t DmfControlBoard::GetPeak(const uint8_t channel,
-                               const uint16_t sample_time_ms) {
+float DmfControlBoard::GetPeakVoltage(const uint8_t interrupt,
+                               	   	  const uint16_t sample_time_ms) {
   peak_ = 128;
   SetPot(POT_INDEX_AREF_, peak_);
-  attachInterrupt(channel, PeakExceededWrapper, RISING);
+  attachInterrupt(interrupt, PeakExceededWrapper, RISING);
   delay(sample_time_ms);
-  detachInterrupt(channel);
+  detachInterrupt(interrupt);
   SetPot(POT_INDEX_AREF_, 255);
-  return peak_;
+  return (float)peak_/255*5.0;
 }
 
 // update the state of all channels
@@ -967,7 +998,7 @@ float DmfControlBoard::waveform_voltage() {
   if(SendCommand(CMD_GET_WAVEFORM_VOLTAGE)==RETURN_OK) {
     LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
     if(payload_length()==sizeof(uint8_t)) {
-      float v_rms = (float)ReadUint8()/255.0*4.0;
+      float v_rms = (float)ReadUint8()/255.0*4.0/2*sqrt(0.5);
       std::ostringstream msg;
       msg << "waveform_voltage=" << v_rms;
       LogMessage(msg.str().c_str(), function_name);
@@ -1064,8 +1095,9 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
   std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
-  if(v_rms>=0 && v_rms<=4) {
-    uint8_t data = v_rms/4*255;
+  // max voltage is 4 Vpk-pk (1.414 Vrms)
+  if(v_rms>=0 && v_rms<=2*sqrt(.5)) {
+    uint8_t data = v_rms*sqrt(2)/2*255;
     Serialize(&data,sizeof(data));
     msg << "data=" << (int)data;
     LogMessage(msg.str().c_str(), function_name);
@@ -1101,7 +1133,7 @@ uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
 }
 
 std::vector<uint16_t> DmfControlBoard::SampleVoltage(
-                                        std::vector<uint8_t> ad_channel,
+                                        std::vector<uint8_t> adc_channel,
                                         uint16_t n_samples,
                                         uint16_t n_sets,
                                         uint16_t delay_between_sets_ms,
@@ -1113,10 +1145,10 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
   Serialize(&n_samples,sizeof(n_samples));
   Serialize(&n_sets,sizeof(n_sets));
   Serialize(&delay_between_sets_ms,sizeof(delay_between_sets_ms));
-  uint8_t n_channels = ad_channel.size();
+  uint8_t n_channels = adc_channel.size();
   Serialize(&n_channels,sizeof(n_channels));
-  for(uint8_t i=0; i<ad_channel.size(); i++) {
-    Serialize(&ad_channel[i],sizeof(ad_channel[i]));
+  for(uint8_t i=0; i<adc_channel.size(); i++) {
+    Serialize(&adc_channel[i],sizeof(adc_channel[i]));
   }
   std::ostringstream msg;
   msg << "SampleVoltage,";
@@ -1134,22 +1166,22 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
     for(uint16_t i=0; i<n_samples; i++) {
       voltage_buffer[i] = ReadUint16();
     }
-    for(int i=0; i<ad_channel.size(); i++) {
+    for(int i=0; i<adc_channel.size(); i++) {
       for(int j=0; j<n_sets; j++) {
         msg << CSV_INDENT_ << "voltage_buffer_[" << i << "][" << j << "],";
         // calculate the DC bias
         double dc_bias = 0;
         for(int k=0; k<n_samples; k++) {
-          dc_bias += (float)voltage_buffer[j*ad_channel.size()*n_samples+
-                                           k*ad_channel.size()+i]
+          dc_bias += (float)voltage_buffer[j*adc_channel.size()*n_samples+
+                                           k*adc_channel.size()+i]
                                            /1024*5/n_samples;
-          msg << (float)voltage_buffer[j*ad_channel.size()*n_samples+
-                                       k*ad_channel.size()+i]/1024*5 << ",";
+          msg << (float)voltage_buffer[j*adc_channel.size()*n_samples+
+                                       k*adc_channel.size()+i]/1024*5 << ",";
         }
         double v_rms = 0;
         for(int k=0; k<n_samples; k++) {
-          v_rms += pow((float)voltage_buffer[j*ad_channel.size()*n_samples+
-                                             k*ad_channel.size()+i]
+          v_rms += pow((float)voltage_buffer[j*adc_channel.size()*n_samples+
+                                             k*adc_channel.size()+i]
                                              /1024*5-dc_bias,2)/n_samples;
         }
         v_rms = sqrt(v_rms);
@@ -1194,6 +1226,24 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
     return impedance_buffer;
   }
   return std::vector<float>(); // return an empty vector
+}
+
+float DmfControlBoard::GetPeakVoltage(uint8_t adc_channel,
+                                      uint16_t sampling_time_ms) {
+  const char* function_name = "GetPeakVoltage()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&adc_channel,sizeof(adc_channel));
+  Serialize(&sampling_time_ms,sizeof(sampling_time_ms));
+  if(SendCommand(CMD_GET_PEAK_VOLTAGE)==RETURN_OK) {
+    if(payload_length()==sizeof(float)) {
+      return ReadFloat();
+    } else {
+      LogError("Bad packet size", function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
 }
 
 uint8_t DmfControlBoard::SetExperimentLogFile(const char* file_name) {
