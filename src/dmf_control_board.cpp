@@ -71,62 +71,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
   uint8_t return_code = RETURN_UNKNOWN_COMMAND;
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
-    case CMD_GET_PROTOCOL_NAME:
-      if(payload_length()==0) {
-        Serialize(PROTOCOL_NAME_,sizeof(PROTOCOL_NAME_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_PROTOCOL_VERSION:
-      if(payload_length()==0) {
-        Serialize(PROTOCOL_VERSION_,sizeof(PROTOCOL_VERSION_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_DEVICE_NAME:
-      if(payload_length()==0) {
-        Serialize(NAME_,sizeof(NAME_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_MANUFACTURER:
-      if(payload_length()==0) {
-        Serialize(MANUFACTURER_,sizeof(MANUFACTURER_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_SOFTWARE_VERSION:
-      if(payload_length()==0) {
-        Serialize(SOFTWARE_VERSION_,sizeof(SOFTWARE_VERSION_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_HARDWARE_VERSION:
-      if(payload_length()==0) {
-        Serialize(HARDWARE_VERSION_,sizeof(HARDWARE_VERSION_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
-    case CMD_GET_URL:
-      if(payload_length()==0) {
-        Serialize(URL_,sizeof(URL_));
-        return_code = RETURN_OK;
-      } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
-      }
-      break;
     case CMD_GET_NUMBER_OF_CHANNELS:
       if(payload_length()==0) {
         Serialize(&number_of_channels_,sizeof(number_of_channels_));
@@ -532,7 +476,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #endif
       break;
   }
-  SendReply(return_code);
   return return_code;
 }
 

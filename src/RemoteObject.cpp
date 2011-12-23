@@ -321,6 +321,62 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
   uint8_t return_code = RETURN_UNKNOWN_COMMAND;
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
+    case CMD_GET_PROTOCOL_NAME:
+      if(payload_length()==0) {
+        Serialize(protocol_name(),strlen(protocol_name()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_PROTOCOL_VERSION:
+      if(payload_length()==0) {
+        Serialize(protocol_version(),strlen(protocol_version()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_DEVICE_NAME:
+      if(payload_length()==0) {
+        Serialize(name(),strlen(name()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_MANUFACTURER:
+      if(payload_length()==0) {
+        Serialize(manufacturer(),strlen(manufacturer()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_SOFTWARE_VERSION:
+      if(payload_length()==0) {
+        Serialize(software_version(),strlen(software_version()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_HARDWARE_VERSION:
+      if(payload_length()==0) {
+        Serialize(hardware_version(),strlen(hardware_version()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_URL:
+      if(payload_length()==0) {
+        Serialize(url(),strlen(url()));
+        return_code = RETURN_OK;
+      } else {
+        return_code = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
     case CMD_SET_PIN_MODE:
       if(payload_length()==2) {
         uint8_t pin = ReadUint8();
@@ -529,6 +585,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
 #endif
   }
+  SendReply(return_code);
   return return_code;
 }
 
