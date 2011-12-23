@@ -54,9 +54,9 @@ public:
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
-  //  The PC can interogate device using CMD_GET_NUMBER_OF_AD_CHANNELS,
+  //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS,
   //  CMD_GET_MAX_SAMPLES
-  static const uint8_t NUMBER_OF_AD_CHANNELS = 2;
+  static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
   static const uint16_t MAX_SAMPLES =
                           (RemoteObject::MAX_PAYLOAD_LENGTH-1)/sizeof(uint16_t);
 
@@ -83,6 +83,7 @@ public:
   static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
   static const uint8_t CMD_SAMPLE_VOLTAGE =                 0xF4;
   static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF5;
+  static const uint8_t CMD_GET_PEAK_VOLTAGE =               0xF6;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -130,6 +131,8 @@ public:
                           uint16_t n_samples,
                           uint16_t delay_between_samples_ms,
                           const std::vector<uint8_t> state);
+  float GetPeakVoltage(uint8_t adc_channel,
+		  	  	  	   uint16_t sampling_time_ms);
   uint8_t SetExperimentLogFile(const char* file_name);
   void LogExperiment(const char* message);
   std::string host_name() { return NAME_; }
@@ -167,6 +170,8 @@ private:
   static const uint8_t POT_INDEX_VGND_ = 1;
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
+  static const uint8_t HV_PEAK_ = 3;
+  static const uint8_t FB_PEAK_ = 2;
 
   static const uint8_t PWR_SUPPLY_ON_ = 8;
   static const uint8_t WAVEFORM_SELECT_ = 9;
@@ -175,6 +180,9 @@ private:
   static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
   static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
   static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
+
+  static const uint8_t HV_PEAK_INTERRUPT_ = 1;
+  static const uint8_t FB_PEAK_INTERRUPT_ = 0;
 
   static const float A0_SERIES_RESISTORS_[];
   static const float A1_SERIES_RESISTORS_[];
@@ -213,7 +221,7 @@ private:
   uint8_t SetSeriesResistor(const uint8_t channel,
                             const uint8_t index);
   uint8_t SetAdcPrescaler(const uint8_t index);
-  uint8_t GetPeak(const uint8_t channel, const uint16_t sample_time_ms);
+  float GetPeakVoltage(const uint8_t interrupt, const uint16_t sample_time_ms);
 #else
   uint8_t SendCommand(const uint8_t cmd);
   float MillisecondsSinceLastCheck();

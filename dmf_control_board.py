@@ -19,9 +19,10 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
 import sys
+import math
 
-import numpy
 from path import path
+import numpy as np
 
 from .__init__ import package_path
 from dmf_control_board_base import DmfControlBoard as Base
@@ -34,7 +35,7 @@ from logger import logger
 class DmfControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
-        SerialDevice.__init__(self)
+        SerialDevice.__init__(self)        
         
     def connect(self, port=None):
         if port:
@@ -45,7 +46,7 @@ class DmfControlBoard(Base, SerialDevice):
         return self.RETURN_OK
     
     def state_of_all_channels(self):
-        return numpy.array(Base.state_of_all_channels(self))
+        return np.array(Base.state_of_all_channels(self))
 
     def set_state_of_all_channels(self, state):
         state_ = uint8_tVector()
@@ -87,25 +88,25 @@ class DmfControlBoard(Base, SerialDevice):
                     state += pin_states[i*8+j]<<j
             self.eeprom_write(self.EEPROM_PIN_STATE_ADDRESS+i,~state&0xFF)
 
-    def sample_voltage(self, ad_channel, n_samples, n_sets,
+    def sample_voltage(self, adc_channel, n_samples, n_sets,
                        delay_between_sets_ms, state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        ad_channel_ = uint8_tVector()
-        for i in range(0, len(ad_channel)):
-            ad_channel_.append(int(ad_channel[i]))
-        return numpy.array(Base.sample_voltage(self,
-                                ad_channel_, n_samples, n_sets,
-                                delay_between_sets_ms,
-                                state_))
+        adc_channel_ = uint8_tVector()
+        for i in range(0, len(adc_channel)):
+            adc_channel_.append(int(adc_channel[i]))
+        return np.array(Base.sample_voltage(self,
+                        adc_channel_, n_samples, n_sets,
+                        delay_between_sets_ms,
+                        state_))
     
     def measure_impedance(self, sampling_time_ms, n_samples,
                           delay_between_samples_ms, state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        return numpy.array(Base.measure_impedance(self,
+        return np.array(Base.measure_impedance(self,
                                 sampling_time_ms, n_samples,
                                 delay_between_samples_ms, state_))
         
@@ -119,7 +120,7 @@ class DmfControlBoard(Base, SerialDevice):
         send_data_ = uint8_tVector()
         for i in range(0, len(send_data)):
             send_data_.append(int(send_data[i]))
-        return numpy.array(Base.i2c_read(self, address, send_data_, n_bytes_to_read))
+        return np.array(Base.i2c_read(self, address, send_data_, n_bytes_to_read))
 
     def test_connection(self, port):
         try:

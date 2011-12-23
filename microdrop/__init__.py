@@ -234,11 +234,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             options.action.increase_voltage*attempt)
                         frequency = \
                             float(self.app.protocol.current_step().frequency)
-                        emit_signal("set_voltage",
-                            voltage*math.sqrt(2)/100,
-                            interface=IWaveformGenerator)
                         emit_signal("set_frequency",
                             frequency,
+                            interface=IWaveformGenerator)
+                        emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         impedance = self.measure_impedance(state, options)
                         results = FeedbackResults(options,
@@ -263,7 +262,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         np.log10(options.action.end_frequency),
                         int(options.action.n_frequency_steps))
                     voltage = float(self.app.protocol.current_step(). \
-                        voltage)*math.sqrt(2)/100
+                        voltage)
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
                     results = SweepFrequencyResults(options, area, voltage)
@@ -284,18 +283,15 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                 interface=IWaveformGenerator)
                     results = SweepVoltageResults(options, area, frequency)
                     for voltage in voltages:
-                        emit_signal("set_voltage",
-                            voltage*math.sqrt(2)/100,
+                        emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         impedance = self.measure_impedance(state, options)
                         results.add_voltage_step(voltage, impedance)
                     data["SweepVoltageResults"] = dumps(results)
             else:
-                voltage = float(self.app.protocol.current_step().voltage)* \
-                    math.sqrt(2)/100
+                voltage = float(self.app.protocol.current_step().voltage)
                 frequency = float(self.app.protocol.current_step().frequency)
-                emit_signal("set_voltage",
-                            voltage,
+                emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                 emit_signal("set_frequency",
                             frequency,
@@ -411,7 +407,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             voltage : RMS voltage
         """
         self.control_board.set_waveform_voltage(voltage)
-    
+        
     def set_frequency(self, frequency):
         """
         Set the waveform frequency.
