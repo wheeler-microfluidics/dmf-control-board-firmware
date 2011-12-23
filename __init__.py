@@ -1,4 +1,5 @@
 import sys
+import logging
 
 from path import path
 
@@ -14,5 +15,7 @@ except ImportError:
         except NameError:
             script = path(sys.argv[0])
         return script.parent
+
+logger = logging.getLogger()
 
 from dmf_control_board import *

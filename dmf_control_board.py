@@ -25,11 +25,11 @@ from path import path
 import numpy as np
 
 from .__init__ import package_path
+from .__init__ import logger
 from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
 from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
-from logger import logger
 
 
 class DmfControlBoard(Base, SerialDevice):

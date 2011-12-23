@@ -27,8 +27,8 @@ from path import path
 
 from ..serial_device import SerialDevice, ConnectionError
 from ..__init__ import package_path
-from logger import logger
-    
+from ..__init__ import logger
+
 class FirmwareError(Exception):
     pass
 
