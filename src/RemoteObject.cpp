@@ -418,11 +418,30 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_ANALOG_READ:
-      if(payload_length()==1) {
-        uint8_t pin = ReadUint8();
-        uint16_t value = analogRead(pin);
-        Serialize(&value,sizeof(value));
-        return_code_ = RETURN_OK;
+      uint8_t pin;
+      uint16_t n_samples;
+      if(payload_length()==1 ||
+         payload_length()==sizeof(uint8_t)+sizeof(uint16_t)) {
+        pin = ReadUint8();
+        if(payload_length()==1) {
+          n_samples = 1;
+        } else {
+          n_samples = ReadUint16();
+        }
+        if(n_samples>(MAX_PAYLOAD_LENGTH-1)/sizeof(uint16_t)) {
+          return_code_ = RETURN_GENERAL_ERROR;
+        } else {
+          return_code_ = RETURN_OK;
+
+          // point the voltage_buffer_ to the payload_buffer_
+          uint16_t* buffer_ = (uint16_t*)payload();
+          // update the number of bytes written
+          bytes_written(n_samples*sizeof(uint16_t));
+          // perform analogReads
+          for(uint16_t i=0; i<n_samples; i++) {
+            buffer_[i] = analogRead(pin);
+          }
+        }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -952,6 +971,27 @@ uint16_t RemoteObject::analog_read(uint8_t pin) {
     return value;
   }
   return 0;
+}
+
+std::vector<uint16_t> RemoteObject::analog_reads(uint8_t pin,
+                                                 uint16_t n_samples) {
+  const char* function_name = "analog_reads()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&pin,sizeof(pin));
+  Serialize(&n_samples,sizeof(n_samples));
+  if(SendCommand(CMD_ANALOG_READ)==RETURN_OK) {
+    if(payload_length()==n_samples*sizeof(uint16_t)) {
+      std::vector<uint16_t> buffer(n_samples);
+      for(uint16_t i=0; i<n_samples; i++) {
+        buffer[i] = ReadUint16();
+      }
+      return buffer;
+    } else {
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+    }
+  }
+  return std::vector<uint16_t>();
 }
 
 void RemoteObject::analog_write(uint8_t pin, uint16_t value) {

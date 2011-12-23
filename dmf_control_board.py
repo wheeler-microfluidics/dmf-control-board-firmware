@@ -88,6 +88,9 @@ class DmfControlBoard(Base, SerialDevice):
                     state += pin_states[i*8+j]<<j
             self.eeprom_write(self.EEPROM_PIN_STATE_ADDRESS+i,~state&0xFF)
 
+    def analog_reads(self, pin, n_samples):
+        return np.array(Base.analog_reads(self, pin, n_samples))
+
     def sample_voltage(self, adc_channel, n_samples, n_sets,
                        delay_between_sets_ms, state):
         state_ = uint8_tVector()

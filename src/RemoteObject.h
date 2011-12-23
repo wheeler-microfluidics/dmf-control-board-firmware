@@ -179,6 +179,8 @@ public:
   uint8_t digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
   uint16_t analog_read(uint8_t pin);
+  std::vector<uint16_t> analog_reads(uint8_t pin,
+                                     uint16_t n_samples);
   void analog_write(uint8_t pin, uint16_t value);
   uint8_t eeprom_read(uint16_t address);
   void eeprom_write(uint16_t address, uint8_t value);

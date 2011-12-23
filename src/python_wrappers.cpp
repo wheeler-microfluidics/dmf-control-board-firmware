@@ -79,6 +79,7 @@ object DmfControlBoard_class
     .def("digital_read",&DmfControlBoard::digital_read)
     .def("digital_write",&DmfControlBoard::digital_write)
     .def("analog_read",&DmfControlBoard::analog_read)
+    .def("analog_reads",&DmfControlBoard::analog_reads)
     .def("analog_write",&DmfControlBoard::analog_write)
     .def("eeprom_read",&DmfControlBoard::eeprom_read)
     .def("eeprom_write",&DmfControlBoard::eeprom_write)
