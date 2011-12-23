@@ -289,6 +289,7 @@ uint8_t RemoteObject::WaitForReply() {
 void RemoteObject::ProcessPacket() {
   if(packet_cmd_&0x80) { // Commands have MSB==1
     packet_cmd_ = packet_cmd_^0x80; // Flip the MSB for reply
+    return_code_ = RETURN_UNKNOWN_COMMAND;
     ProcessCommand(packet_cmd_^0x80);
 #ifndef AVR
     LogSeparator();
@@ -318,63 +319,62 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           cmd,cmd);
   LogMessage(log_message_string_, function_name);
 #endif
-  uint8_t return_code = RETURN_UNKNOWN_COMMAND;
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
     case CMD_GET_PROTOCOL_NAME:
       if(payload_length()==0) {
         Serialize(protocol_name(),strlen(protocol_name()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_PROTOCOL_VERSION:
       if(payload_length()==0) {
         Serialize(protocol_version(),strlen(protocol_version()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_DEVICE_NAME:
       if(payload_length()==0) {
         Serialize(name(),strlen(name()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_MANUFACTURER:
       if(payload_length()==0) {
         Serialize(manufacturer(),strlen(manufacturer()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_SOFTWARE_VERSION:
       if(payload_length()==0) {
         Serialize(software_version(),strlen(software_version()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_HARDWARE_VERSION:
       if(payload_length()==0) {
         Serialize(hardware_version(),strlen(hardware_version()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_URL:
       if(payload_length()==0) {
         Serialize(url(),strlen(url()));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_PIN_MODE:
@@ -382,9 +382,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t pin = ReadUint8();
         uint8_t mode = ReadUint8();
         pinMode(pin, mode);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_DIGITAL_WRITE:
@@ -392,9 +392,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t pin = ReadUint8();
         uint8_t value = ReadUint8();
         digitalWrite(pin, value);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_DIGITAL_READ:
@@ -402,9 +402,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t pin = ReadUint8();
         uint8_t value = digitalRead(pin);
         Serialize(&value,sizeof(value));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_ANALOG_WRITE:
@@ -412,9 +412,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t pin = ReadUint8();
         uint16_t value = ReadUint16();
         analogWrite(pin, value);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_ANALOG_READ:
@@ -422,9 +422,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t pin = ReadUint8();
         uint16_t value = analogRead(pin);
         Serialize(&value,sizeof(value));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_EEPROM_WRITE:
@@ -432,9 +432,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint16_t address = ReadUint16();
         uint8_t value = ReadUint8();
         EEPROM.write(address, value);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_EEPROM_READ:
@@ -442,9 +442,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint16_t address = ReadUint16();
         uint8_t value = EEPROM.read(address);
         Serialize(&value,sizeof(value));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_ONEWIRE_GET_ADDRESS:
@@ -460,12 +460,12 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         }
         if(ret) {
           Serialize(addr, 8*sizeof(uint8_t));
-          return_code = RETURN_OK;
+          return_code_ = RETURN_OK;
         } else { // No more addresses
-          return_code = RETURN_BAD_INDEX;
+          return_code_ = RETURN_BAD_INDEX;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_ONEWIRE_READ:
@@ -485,9 +485,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           uint8_t data = ow.read();
           Serialize(&data, sizeof(uint8_t));
         }
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_ONEWIRE_WRITE:
@@ -503,9 +503,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         ow.reset();
         ow.select(addr);
         ow.write(value,power);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_I2C_READ:
@@ -525,12 +525,12 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           n_bytes_read++;
         }
         if(n_bytes_read==n_bytes_to_read) {
-          return_code = RETURN_OK;
+          return_code_ = RETURN_OK;
         } else {
-          return_code = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_GENERAL_ERROR;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_I2C_WRITE:
@@ -541,36 +541,36 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           Wire.send(ReadUint8());
         }
         Wire.endTransmission();
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SPI_SET_BIT_ORDER:
       if(payload_length()==1) {
         uint8_t order = ReadUint8();
         SPI.setBitOrder(order);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SPI_SET_CLOCK_DIVIDER:
       if(payload_length()==1) {
         uint8_t divider = ReadUint8();
         SPI.setClockDivider(divider);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SPI_SET_DATA_MODE:
       if(payload_length()==1) {
         uint8_t mode = ReadUint8();
         SPI.setDataMode(mode);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SPI_TRANSFER:
@@ -578,15 +578,15 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t value = ReadUint8();
         uint8_t data = SPI.transfer(value);
         Serialize(&data, sizeof(data));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
 #endif
   }
-  SendReply(return_code);
-  return return_code;
+  SendReply(return_code_);
+  return return_code_;
 }
 
 void RemoteObject::ProcessSerialInput(uint8_t b) {

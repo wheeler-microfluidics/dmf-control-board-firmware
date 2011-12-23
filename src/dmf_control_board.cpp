@@ -68,20 +68,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           cmd,cmd);
   LogMessage(log_message_string_, function_name);
 #endif
-  uint8_t return_code = RETURN_UNKNOWN_COMMAND;
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
     case CMD_GET_NUMBER_OF_CHANNELS:
       if(payload_length()==0) {
         Serialize(&number_of_channels_,sizeof(number_of_channels_));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_STATE_OF_ALL_CHANNELS:
       if(payload_length()==0) {
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
         for(uint8_t chip=0; chip<number_of_channels_/40; chip++) {
           for(uint8_t port=0; port<5; port++) {
             Wire.beginTransmission(PCA9505_ADDRESS_+chip);
@@ -96,28 +95,28 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 Serialize(&state, sizeof(state));
               }
             } else {
-              return_code = RETURN_GENERAL_ERROR;
+              return_code_ = RETURN_GENERAL_ERROR;
               break; break;
             }
           }
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_STATE_OF_ALL_CHANNELS:
       if(payload_length()==number_of_channels_*sizeof(uint8_t)) {
         UpdateAllChannels();
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_STATE_OF_CHANNEL:
       if(payload_length()==sizeof(uint16_t)) {
         uint16_t channel = ReadUint16();
         if(channel>=number_of_channels_||channel<0) {
-          return_code = RETURN_BAD_INDEX;
+          return_code_ = RETURN_BAD_INDEX;
         } else {
           uint8_t chip = channel/40;
           uint8_t port = (channel%40)/8;
@@ -130,13 +129,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             uint8_t data = Wire.receive();
             data = (data >> bit & 0x01)==0;
             Serialize(&data, sizeof(data));
-            return_code = RETURN_OK;
+            return_code_ = RETURN_OK;
           } else {
-            return_code = RETURN_GENERAL_ERROR;
+            return_code_ = RETURN_GENERAL_ERROR;
           }
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_STATE_OF_CHANNEL:
@@ -144,21 +143,21 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint16_t channel = ReadUint16();
         uint8_t state = ReadUint8();
         if(channel<number_of_channels_) {
-          return_code = UpdateChannel(channel, state);
+          return_code_ = UpdateChannel(channel, state);
         } else {
-          return_code = RETURN_BAD_INDEX;
+          return_code_ = RETURN_BAD_INDEX;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_WAVEFORM:
       if(payload_length()==0) {
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
         uint8_t waveform = digitalRead(WAVEFORM_SELECT_);
         Serialize(&waveform, sizeof(waveform));
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_WAVEFORM:
@@ -166,37 +165,37 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint8_t waveform = ReadUint8();
         if(waveform==SINE || waveform==SQUARE) {
           digitalWrite(WAVEFORM_SELECT_, waveform);
-          return_code = RETURN_OK;
+          return_code_ = RETURN_OK;
         } else {
-          return_code = RETURN_BAD_VALUE;
+          return_code_ = RETURN_BAD_VALUE;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_WAVEFORM_VOLTAGE:
       if(payload_length()==0) {
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
         Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(uint8_t)) {
         waveform_voltage_ = ReadUint8();
         SetPot(POT_INDEX_WAVEOUT_GAIN_2_, waveform_voltage_);
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_WAVEFORM_FREQUENCY:
       if(payload_length()==0) {
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
         Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_WAVEFORM_FREQUENCY:
@@ -207,7 +206,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         float freq = waveform_frequency_*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
-          return_code = RETURN_BAD_VALUE;
+          return_code_ = RETURN_BAD_VALUE;
         } else {
           uint8_t oct = 3.322*log(freq/1039)/log(10);
           uint16_t dac = round(2048-(2078*pow(2, 10+oct))/freq);
@@ -220,31 +219,31 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           Wire.send(msb);
           Wire.send(lsb);
           Wire.endTransmission();     // stop transmitting
-          return_code = RETURN_OK;
+          return_code_ = RETURN_OK;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_SAMPLING_RATE:
       if(payload_length()==0) {
         Serialize(&SAMPLING_RATES_[sampling_rate_index_],sizeof(float));
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_SAMPLING_RATE:
       if(payload_length()==sizeof(uint8_t)) {
-        return_code = SetAdcPrescaler(ReadUint8());
+        return_code_ = SetAdcPrescaler(ReadUint8());
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_SERIES_RESISTOR:
       if(payload_length()==sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
-        return_code = RETURN_OK;
+        return_code_ = RETURN_OK;
         switch(channel) {
           case 0:
             Serialize(&A0_SERIES_RESISTORS_[A0_series_resistor_index_],
@@ -255,38 +254,38 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                       sizeof(float));
             break;
           default:
-            return_code = RETURN_BAD_INDEX;
+            return_code_ = RETURN_BAD_INDEX;
             break;
         }
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_SERIES_RESISTOR:
       if(payload_length()==2*sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
-        return_code = SetSeriesResistor(channel, ReadUint8());
+        return_code_ = SetSeriesResistor(channel, ReadUint8());
       } else {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SAMPLE_VOLTAGE:
       if(payload_length()<2*sizeof(uint8_t)+3*sizeof(uint16_t)) {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       } else {
         uint16_t n_samples = ReadUint16();
         uint16_t n_sets = ReadUint16();
         uint16_t delay_between_sets_ms = ReadUint16();
         uint16_t n_channels = ReadUint8();
         if(n_samples*n_sets*n_channels>MAX_SAMPLES) {
-          return_code = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_GENERAL_ERROR;
         } else {
           if((payload_length()==sizeof(uint8_t)+3*sizeof(uint16_t)
              +n_channels*sizeof(uint8_t))
              || (payload_length()==sizeof(uint8_t)+3*sizeof(uint16_t)
              +n_channels*sizeof(uint8_t)
              +number_of_channels_*sizeof(uint8_t))) {
-            return_code = RETURN_OK;
+            return_code_ = RETURN_OK;
 
             // point the voltage_buffer_ to the payload_buffer_
             uint16_t* voltage_buffer_ = (uint16_t*)payload();
@@ -318,26 +317,26 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               }
             }
           } else {
-            return_code = RETURN_BAD_PACKET_SIZE;
+            return_code_ = RETURN_BAD_PACKET_SIZE;
           }
         }
       }
       break;
     case CMD_MEASURE_IMPEDANCE:
       if(payload_length()<3*sizeof(uint16_t)) {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       } else {
         uint16_t sampling_time_ms = ReadUint16();
         uint16_t n_samples = ReadUint16();
         uint16_t delay_between_samples_ms = ReadUint16();
 
         if(n_samples*2>MAX_SAMPLES) {
-          return_code = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_GENERAL_ERROR;
         } else {
           if(payload_length()==3*sizeof(uint16_t) ||
              (payload_length()==3*sizeof(uint16_t)
              +number_of_channels_*sizeof(uint8_t))) {
-            return_code = RETURN_OK;
+            return_code_ = RETURN_OK;
 
             // point the impedance_buffer_ to the payload_buffer_
             float* impedance_buffer = (float*)payload();
@@ -383,7 +382,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               }
             }
 
-            if(return_code==RETURN_OK) {
+            if(return_code_==RETURN_OK) {
               float V_hv = (float)(hv_max-hv_min)*5.0/1024.0*
                 10e6/A0_SERIES_RESISTORS_[A0_series_resistor_index_];
 
@@ -439,14 +438,14 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             SetSeriesResistor(0, original_A0_index);
             SetSeriesResistor(1, original_A1_index);
           } else {
-            return_code = RETURN_BAD_PACKET_SIZE;
+            return_code_ = RETURN_BAD_PACKET_SIZE;
           }
         }
       }
       break;
     case CMD_GET_PEAK_VOLTAGE:
       if(payload_length()<sizeof(uint8_t)+sizeof(uint16_t)) {
-        return_code = RETURN_BAD_PACKET_SIZE;
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       } else {
         uint8_t adc_channel = ReadUint8();
         uint16_t sampling_time_ms = ReadUint16();
@@ -460,23 +459,21 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           }
           peak = GetPeakVoltage(interrupt, sampling_time_ms);
           Serialize(&peak,sizeof(peak));
-          return_code = RETURN_OK;
+          return_code_ = RETURN_OK;
         } else {
-          return_code = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_GENERAL_ERROR;
         }
       }
       break;
 #endif
-    default:
-      return_code = RemoteObject::ProcessCommand(cmd);
-#ifndef AVR
-      if(return_code == RETURN_UNKNOWN_COMMAND) {
-        LogError("Unrecognized command", function_name);
-      }
-#endif
-      break;
   }
-  return return_code;
+  RemoteObject::ProcessCommand(cmd);
+#ifndef AVR
+  if(return_code_ == RETURN_UNKNOWN_COMMAND) {
+    LogError("Unrecognized command", function_name);
+  }
+#endif
+  return return_code_;
 }
 
 #ifdef AVR
