@@ -120,7 +120,7 @@ public:
                               const uint8_t series_resistor);
 
   // other functions
-  std::vector<uint16_t> SampleVoltage(
+  std::vector<float> SampleVoltage(
                           std::vector<uint8_t> ad_channel,
                           uint16_t n_samples,
                           uint16_t n_sets,

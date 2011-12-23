@@ -1072,7 +1072,7 @@ uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
   return return_code();
 }
 
-std::vector<uint16_t> DmfControlBoard::SampleVoltage(
+std::vector<float> DmfControlBoard::SampleVoltage(
                                         std::vector<uint8_t> adc_channel,
                                         uint16_t n_samples,
                                         uint16_t n_sets,
@@ -1102,9 +1102,9 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
     uint16_t n_samples = payload_length()/sizeof(uint16_t);
     sprintf(log_message_string_,"Read %d feedback samples",n_samples);
     LogMessage(log_message_string_,function_name);
-    std::vector<uint16_t> voltage_buffer(n_samples);
+    std::vector<float> voltage_buffer(n_samples);
     for(uint16_t i=0; i<n_samples; i++) {
-      voltage_buffer[i] = ReadUint16();
+      voltage_buffer[i] = (float)ReadUint16()/1024.0*5.0;
     }
     for(int i=0; i<adc_channel.size(); i++) {
       for(int j=0; j<n_sets; j++) {
@@ -1114,15 +1114,15 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
         for(int k=0; k<n_samples; k++) {
           dc_bias += (float)voltage_buffer[j*adc_channel.size()*n_samples+
                                            k*adc_channel.size()+i]
-                                           /1024*5/n_samples;
+                                           /n_samples;
           msg << (float)voltage_buffer[j*adc_channel.size()*n_samples+
-                                       k*adc_channel.size()+i]/1024*5 << ",";
+                                       k*adc_channel.size()+i] << ",";
         }
         double v_rms = 0;
         for(int k=0; k<n_samples; k++) {
           v_rms += pow((float)voltage_buffer[j*adc_channel.size()*n_samples+
                                              k*adc_channel.size()+i]
-                                             /1024*5-dc_bias,2)/n_samples;
+                                             -dc_bias,2)/n_samples;
         }
         v_rms = sqrt(v_rms);
         msg << endl << CSV_INDENT_ << "dc_bias," << dc_bias << endl
@@ -1132,7 +1132,7 @@ std::vector<uint16_t> DmfControlBoard::SampleVoltage(
     LogExperiment(msg.str().c_str());
     return voltage_buffer;
   }
-  return std::vector<uint16_t>(); // return an empty vector
+  return std::vector<float>(); // return an empty vector
 }
 
 std::vector<float> DmfControlBoard::MeasureImpedance(
