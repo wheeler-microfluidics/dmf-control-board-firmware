@@ -29,7 +29,7 @@ if os.name=='nt':
 from matplotlib.figure import Figure
 
 from utility import *
-from logger import logger
+import logging
 
 try:
     from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
@@ -38,8 +38,9 @@ except RuntimeError:
     if PROGRAM_LAUNCHED:
         raise
     else:
-        logger.info('Skipping error!')
+        logging.info('Skipping error!')
 from plugin_manager import emit_signal, IWaveformGenerator
+from app_context import get_app
 
 
 class RetryAction():
@@ -140,12 +141,13 @@ class FeedbackOptionsController():
         self.builder.connect_signals(self)
         self.window.set_title("Feedback Options")
         menu_item = gtk.MenuItem("Feedback Options")
-        plugin.app.main_window_controller.menu_tools.append(menu_item)
+        app = get_app()
+        app.main_window_controller.menu_tools.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
         
         menu_item = gtk.MenuItem("Calibrate feedback")
-        plugin.app.dmf_device_controller.popup.append(menu_item)
+        app.dmf_device_controller.popup.append(menu_item)
         menu_item.connect("activate", self.on_calibrate_feedback)
         menu_item.show()
 
@@ -215,16 +217,17 @@ class FeedbackOptionsController():
         return True
 
     def on_calibrate_feedback(self, widget, data=None):
+        app = get_app()
         if self.plugin.control_board.connected():
             electrode = \
-                self.plugin.app.dmf_device_controller.last_electrode_clicked
-            area = electrode.area()*self.plugin.app.dmf_device.scale
+                app.dmf_device_controller.last_electrode_clicked
+            area = electrode.area() * app.dmf_device.scale
             current_state = self.plugin.control_board.state_of_all_channels()
             state = np.zeros(len(current_state))
 
             if self.plugin.control_board.number_of_channels() < \
                 max(electrode.channels):
-                logger.warning("Error: "
+                logging.warning("Error: "
                     "currently connected board does not have enough channels "
                     "to perform calibration on this electrode.")
                 return
@@ -235,8 +238,8 @@ class FeedbackOptionsController():
                                       n_samples=1,
                                       delay_between_samples_ms=0,
                                       action=RetryAction())
-            voltage = self.plugin.app.protocol.current_step().voltage
-            frequency = self.plugin.app.protocol.current_step().frequency
+            voltage = app.protocol.current_step().voltage
+            frequency = app.protocol.current_step().frequency
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
@@ -245,8 +248,8 @@ class FeedbackOptionsController():
                 impedance,
                 area,
                 frequency,
-                self.plugin.app.protocol.current_step().voltage)
-            logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
+                app.protocol.current_step().voltage)
+            logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold = max(results.capacitance())/area*.95
 
@@ -845,7 +848,8 @@ class FeedbackResultsController():
         self.data = []
 
         menu_item = gtk.MenuItem("Feedback Results")
-        plugin.app.main_window_controller.menu_view.append(menu_item)
+        app = get_app()
+        app.main_window_controller.menu_view.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
 
@@ -969,7 +973,7 @@ class FeedbackResultsController():
                         
                     legend.append("Step %d (%.3f s)" % \
                                   (row["step"]+1, row["time"]))
-            print "%.2e, %.2e" % (np.mean(C), np.std(C))
+            logging.info('%.2e, %.2e' % (np.mean(C), np.std(C)))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:

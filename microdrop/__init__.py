@@ -40,6 +40,7 @@ except:
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, emit_signal, PluginGlobals
+from app_context import get_app
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -72,21 +73,20 @@ class DmfControlBoardPlugin(SingletonPlugin):
             self.control_board.host_hardware_version()        
         self.version = self.control_board.host_software_version()
         self.url = self.control_board.host_url()
-        self.app = None
         self.steps = [] # list of steps in the protocol
         self.current_state = FeedbackOptions()
         self.feedback_options_controller = None
         self.feedback_results_controller = None
         self.initialized = False
 
-    def on_app_init(self, app):
+    def on_app_init(self):
         """
         Handler called once when the Microdrop application starts.
         """
         if not self.initialized:
-            self.app = app
+            app = get_app()
             menu_item = gtk.MenuItem("Flash DMF control board firmware")
-            self.app.main_window_controller.menu_tools.append(menu_item)
+            app.main_window_controller.menu_tools.append(menu_item)
             menu_item.connect("activate", self.on_flash_firmware)
             menu_item.show()
             
@@ -96,8 +96,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
             self.check_device_name_and_version()
 
     def check_device_name_and_version(self):
+        app = get_app()
         try:
-            self.app.control_board = self.control_board
+            app.control_board = self.control_board
             self.control_board.connect()
             name = self.control_board.name()
             hardware_version = self.control_board.hardware_version()
@@ -117,12 +118,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
             # reflash the firmware if it is not the right version
             if host_software_version !=  remote_software_version:
-                response = self.app.main_window_controller.question("The "
+                response = app.main_window_controller.question("The "
                     "control board firmware version (%s) does not match the "
                     "driver version (%s). Update firmware?" %
                     (remote_software_version, host_software_version),
                     "Update firmware?")
-                if response==gtk.RESPONSE_YES:
+                if response == gtk.RESPONSE_YES:
                     self.on_flash_firmware()
         except Exception, why:
             logger.warning("%s" % why)
@@ -130,9 +131,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.update_connection_status()
         
     def on_flash_firmware(self, widget=None, data=None):
+        app = get_app()
         try:
             self.control_board.flash_firmware()
-            self.app.main_window_controller.info("Firmware updated "
+            app.main_window_controller.info("Firmware updated "
                                                  "successfully.",
                                                  "Firmware update")
         except Exception, why:
@@ -142,6 +144,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.check_device_name_and_version()
 
     def update_connection_status(self):
+        app = get_app()
         connection_status = "Not connected"
         if self.control_board.connected():
             try:
@@ -152,7 +155,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             except:
                 pass
 
-        self.app.main_window_controller.label_connection_status. \
+        app.main_window_controller.label_connection_status. \
             set_text(connection_status)
 
     def current_step_options(self):
@@ -160,10 +163,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Return a FeedbackOptions object for the current step in the protocol.
         If none exists yet, create a new one.
         """
-        step = self.app.protocol.current_step_number
+        app = get_app()
+        step = app.protocol.current_step_number
         if len(self.steps)<=step:
             # initialize the list if it is empty
-            if len(self.steps)==0:
+            if len(self.steps) == 0:
                 self.steps = [FeedbackOptions()]
             # pad the state list with copies of the last known state
             for i in range(0,step-len(self.steps)+1):
@@ -174,8 +178,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         Handler called whenever a protocol step is deleted.
         """
+        app = get_app()
         if len(self.steps) > 1:
-            del self.steps[self.app.protocol.current_step_number]
+            del self.steps[app.protocol.current_step_number]
         else: # reset first step
             self.steps = [FeedbackOptions()]
 
@@ -183,32 +188,35 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         Handler called whenever a protocol step is inserted.
         """
-        self.steps.insert(self.app.protocol.current_step_number,
+        app = get_app()
+        self.steps.insert(app.protocol.current_step_number,
                           deepcopy(self.current_step_options()))
 
     def get_actuated_area(self):
         area = 0
-        state_of_all_channels = self.app.protocol.state_of_all_channels()        
-        for id, electrode in self.app.dmf_device.electrodes.iteritems():
-            channels = self.app.dmf_device.electrodes[id].channels
+        app = get_app()
+        state_of_all_channels = app.protocol.state_of_all_channels()        
+        for id, electrode in app.dmf_device.electrodes.iteritems():
+            channels = app.dmf_device.electrodes[id].channels
             if channels:
                 # get the state(s) of the channel(s) connected to this electrode
                 states = state_of_all_channels[channels]
                 if len(np.nonzero(states>0)[0]):
-                    area += electrode.area()*self.app.dmf_device.scale
+                    area += electrode.area()*app.dmf_device.scale
         return area
 
     def on_protocol_update(self, data):
         """
         Handler called whenever the current protocol step changes.
         """
+        app = get_app()
         self.feedback_options_controller.update()
         options = self.current_step_options()
         self.current_state.feedback_enabled = options.feedback_enabled
 
         if self.control_board.connected() and \
-            (self.app.realtime_mode or self.app.running):
-            state = self.app.protocol.current_step().state_of_channels
+            (app.realtime_mode or app.running):
+            state = app.protocol.current_step().state_of_channels
             max_channels = self.control_board.number_of_channels() 
             if len(state) >  max_channels:
                 state = state[0:max_channels]
@@ -217,23 +225,23 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                         np.zeros(max_channels-len(state),
                                                  int)])
             else:
-                assert(len(state)==max_channels)
+                assert(len(state) == max_channels)
 
             if options.feedback_enabled:
                 # calculate the total area of actuated electrodes
                 area =  self.get_actuated_area()
                 
-                if options.action.__class__==RetryAction:
-                    if data.keys().count("attempt")==0:
+                if options.action.__class__ == RetryAction:
+                    if data.keys().count("attempt") == 0:
                         attempt = 0
                     else:
                         attempt = data["attempt"]
 
                     if attempt <= options.action.max_repeats:
-                        voltage = float(self.app.protocol.current_step().voltage +
+                        voltage = float(app.protocol.current_step().voltage +
                             options.action.increase_voltage*attempt)
                         frequency = \
-                            float(self.app.protocol.current_step().frequency)
+                            float(app.protocol.current_step().frequency)
                         emit_signal("set_frequency",
                             frequency,
                             interface=IWaveformGenerator)
@@ -256,12 +264,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             return 'Ok'
                     else:
                         return 'Fail'
-                elif options.action.__class__==SweepFrequencyAction:
+                elif options.action.__class__ == SweepFrequencyAction:
                     frequencies = np.logspace(
                         np.log10(options.action.start_frequency),
                         np.log10(options.action.end_frequency),
                         int(options.action.n_frequency_steps))
-                    voltage = float(self.app.protocol.current_step(). \
+                    voltage = float(app.protocol.current_step(). \
                         voltage)
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
@@ -273,11 +281,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         impedance = self.measure_impedance(state, options)
                         results.add_frequency_step(frequency, impedance)
                     data["SweepFrequencyResults"] = dumps(results)
-                elif options.action.__class__==SweepVoltageAction:
+                elif options.action.__class__ == SweepVoltageAction:
                     voltages = np.linspace(options.action.start_voltage,
                                            options.action.end_voltage,
                                            options.action.n_voltage_steps)
-                    frequency = float(self.app.protocol.current_step(). \
+                    frequency = float(app.protocol.current_step(). \
                         frequency)
                     emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
@@ -289,8 +297,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         results.add_voltage_step(voltage, impedance)
                     data["SweepVoltageResults"] = dumps(results)
             else:
-                voltage = float(self.app.protocol.current_step().voltage)
-                frequency = float(self.app.protocol.current_step().frequency)
+                voltage = float(app.protocol.current_step().voltage)
+                frequency = float(app.protocol.current_step().frequency)
                 emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                 emit_signal("set_frequency",
@@ -299,7 +307,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 self.control_board.set_state_of_all_channels(state)
                 t = time.time()
                 while time.time()-t < \
-                    self.app.protocol.current_step().duration/1000.0:
+                    app.protocol.current_step().duration/1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
@@ -307,12 +315,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     # 100% while protocol is running.  With sleeping, CPU usage
                     # is reduced to <20%.
                     time.sleep(0.0001)
-        elif (self.app.realtime_mode or self.app.running):
+        elif (app.realtime_mode or app.running):
             # Board is not connected
             # run through protocol (even though device is not connected)
-            if not self.app.control_board.connected():
+            if not app.control_board.connected():
                 t = time.time()
-                while time.time()-t < self.app.protocol.current_step().duration/1000.0:
+                while time.time()-t < app.protocol.current_step().duration/1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
@@ -340,7 +348,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         Handler called when a protocol is saved.
         """
-        self.app.protocol.plugin_data[self.name] = (self.version, dumps(self.steps))
+        app = get_app()
+        app.protocol.plugin_data[self.name] = (self.version, dumps(self.steps))
     
     def on_protocol_load(self, version, data):
         """
@@ -352,11 +361,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         Handler called when a protocol starts running.
         """
-        if self.control_board.connected()==False:
-            logger.warning("Warning: no control "
-                "board connected.")
-        elif self.control_board.number_of_channels() < \
-            self.app.protocol.n_channels:
+        app = get_app()
+        if self.control_board.connected() == False:
+            logger.warning("Warning: no control board connected.")
+        elif self.control_board.number_of_channels() < app.protocol.n_channels:
             logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
@@ -373,7 +381,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called when the protocol changes (e.g., when a new protocol
         is loaded).
         """
-        if len(protocol)==1:
+        if len(protocol) == 1:
             self.steps = []
 
     def on_dmf_device_changed(self, dmf_device):
