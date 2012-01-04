@@ -137,8 +137,9 @@ class FeedbackOptionsController():
         self.plugin = plugin
         self.builder = gtk.Builder()
         app = get_app()
-        self.builder.add_from_file(app.plugins_dir.joinpath('dmf_control_board',
-                                'microdrop', 'glade', 'feedback_options.glade'))
+        self.builder.add_from_file(
+            app.config.plugins_directory.joinpath('dmf_control_board',
+                        'microdrop', 'glade', 'feedback_options.glade'))
         self.window = self.builder.get_object("window")
         self.builder.connect_signals(self)
         self.window.set_title("Feedback Options")
@@ -841,7 +842,8 @@ class FeedbackResultsController():
         self.plugin = plugin
         self.builder = gtk.Builder()
         app = get_app()
-        self.builder.add_from_file(app.plugins_dir.joinpath('dmf_control_board',
+        self.builder.add_from_file(
+            app.config.plugins_directory.joinpath('dmf_control_board',
                                 'microdrop', 'glade', 'feedback_results.glade'))
         self.window = self.builder.get_object("window")
         self.combobox_x_axis = self.builder.get_object("combobox_x_axis")
