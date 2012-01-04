@@ -136,12 +136,13 @@ class FeedbackOptionsController():
     def __init__(self, plugin):
         self.plugin = plugin
         self.builder = gtk.Builder()
-        self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_options.glade")
+        app = get_app()
+        self.builder.add_from_file(app.plugins_dir.joinpath('dmf_control_board',
+                                'microdrop', 'glade', 'feedback_options.glade'))
         self.window = self.builder.get_object("window")
         self.builder.connect_signals(self)
         self.window.set_title("Feedback Options")
         menu_item = gtk.MenuItem("Feedback Options")
-        app = get_app()
         app.main_window_controller.menu_tools.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
@@ -839,7 +840,9 @@ class FeedbackResultsController():
     def __init__(self, plugin):
         self.plugin = plugin
         self.builder = gtk.Builder()
-        self.builder.add_from_file("plugins/dmf_control_board/microdrop/glade/feedback_results.glade")
+        app = get_app()
+        self.builder.add_from_file(app.plugins_dir.joinpath('dmf_control_board',
+                                'microdrop', 'glade', 'feedback_results.glade'))
         self.window = self.builder.get_object("window")
         self.combobox_x_axis = self.builder.get_object("combobox_x_axis")
         self.combobox_y_axis = self.builder.get_object("combobox_y_axis")
@@ -848,7 +851,6 @@ class FeedbackResultsController():
         self.data = []
 
         menu_item = gtk.MenuItem("Feedback Results")
-        app = get_app()
         app.main_window_controller.menu_view.append(menu_item)
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
