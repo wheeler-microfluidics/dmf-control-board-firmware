@@ -414,7 +414,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Parameters:
             voltage : RMS voltage
         """
-        self.control_board.set_waveform_voltage(voltage)
+        self.control_board.set_waveform_voltage(voltage / 200.)
         
     def set_frequency(self, frequency):
         """
