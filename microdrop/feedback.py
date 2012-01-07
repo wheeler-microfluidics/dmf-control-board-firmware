@@ -19,7 +19,10 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import math
-from cPickle import dumps, loads
+try:
+    from cPickle import dumps, loads
+except ImportError:
+    from pickle import dumps, loads
 
 import gtk
 import numpy as np

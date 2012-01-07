@@ -20,8 +20,11 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import threading
 import time
 import math
-from cPickle import dumps, loads
 from copy import deepcopy
+try:
+    from cPickle import dumps, loads
+except ImportError:
+    from pickle import dumps, loads
 
 import gtk
 import numpy as np
