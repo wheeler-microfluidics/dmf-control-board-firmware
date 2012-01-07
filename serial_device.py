@@ -18,6 +18,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
+import itertools
+from time import sleep
 
 from path import path
 
@@ -30,32 +32,52 @@ class SerialDevice(object):
     def __init__(self):
         self.port = None
     
+    @classmethod
+    def get_serial_ports(cls):
+        if os.name == 'nt':
+            ports = cls._get_serial_ports_windows()
+        else:
+            ports = itertools.chain(path('/dev').walk('ttyUSB*'),
+                            path('/dev').walk('ttyACM*'))
+        for port in ports:
+            yield port
+            
+
+    @classmethod
+    def _get_serial_ports_windows(cls):
+        """ Uses the Win32 registry to return a iterator of serial 
+            (COM) ports existing on this computer.
+
+            See http://stackoverflow.com/questions/1205383/listing-serial-com-ports-on-windows
+        """
+        import _winreg as winreg
+
+        reg_path = 'HARDWARE\\DEVICEMAP\\SERIALCOMM'
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+        except WindowsError:
+            raise IterationError
+
+        for i in itertools.count():
+            try:
+                val = winreg.EnumValue(key, i)
+                yield str(val[1])
+            except EnvironmentError:
+                break
+
     def get_port(self):
         self.port = None
-        if os.name == 'nt':
-            # Windows
-            for i in range(0,31):
-                test_port = "COM%d" % i
-                if self.test_connection(test_port):
-                    self.port = test_port
-                    break
-        else:
-            port = None
-            # Assume Linux (Ubuntu)...
-            for port in path('/dev').walk('ttyUSB*'):
-                if self.test_connection(port):
-                    self.port = port
-                    break
-            # or Ubuntu in a VirtualBox
-            if port is None:
-                for port in path('/dev').walk('ttyACM*'):
-                    if self.test_connection(port):
-                        self.port = port
-                        break
+
+        for test_port in self.get_serial_ports():
+            if self.test_connection(test_port):
+                self.port = test_port
+                break
+            sleep(0.1)
+
         if self.port is None:
             raise ConnectionError('Could not connect to serial device.')
-        return self.port
 
+        return self.port
 
     def test_connection(self, port):
         raise NotImplementedError

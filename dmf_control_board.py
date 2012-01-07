@@ -20,6 +20,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import time
 import sys
 import math
+import re
 
 from path import path
 import numpy as np
@@ -127,10 +128,12 @@ class DmfControlBoard(Base, SerialDevice):
 
     def test_connection(self, port):
         try:
-            if self.connect(port)==self.RETURN_OK:
+            if self.connect(port) == self.RETURN_OK:
                 return True
-        except:
-            pass
+        except Exception, why:
+            if re.search(r'Remote device is not a Arduino DMF ' \
+                        'Controller version .*', str(why)):
+                logger.warning('On port %s, %s' % (port, why))
         return False
     
     def flash_firmware(self):
