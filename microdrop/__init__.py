@@ -85,8 +85,16 @@ class DmfControlBoardPlugin(SingletonPlugin):
     implements(IWaveformGenerator)
 
     _fields = [Field('voltage', type=float, default=100),
-                Field('frequency', type=float, default=1e3)]
+                Field('frequency', type=float, default=1e3),
+                # Feedback options fields
+                Field('feedback_enabled', type=bool, default=False),
+                Field('sampling_time_ms', type=int, default=10),
+                Field('n_samples', type=int, default=10),
+                Field('delay_between_samples_ms', type=int, default=0),
+                ]
     _fields_dict = dict([(f.name, f) for f in _fields])
+    _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
+                            'delay_between_samples_ms'])
 
     def __init__(self):
         self.control_board = DmfControlBoard()
@@ -413,7 +421,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
             raise ValueError('Invalid field names: %s' % n1.difference(n2))
         for name, value in values_dict.iteritems():
             options = self.get_step_options()
-            setattr(options, name, value)
+            f = self._fields_dict[name]
+            if name in self._feedback_fields:
+                setattr(options.feedback_options, name, f.type(value))
+            else:
+                setattr(options, name, f.type(value))
 
     def get_step_value(self, name):
         app = get_app()
@@ -422,7 +434,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
         options = app.protocol.current_step().get_data(self.name)
         if options is None:
             return self._fields_dict[name].default
-        return getattr(options, name)
+        try:
+            return getattr(options, name)
+        except AttributeError:
+            return getattr(options.feedback_options, name)
 
 
 PluginGlobals.pop_env()
