@@ -44,6 +44,7 @@ from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, emit_signal, PluginGlobals
 from app_context import get_app
+from fields import Field
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -82,6 +83,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
+
+    _fields = [Field('voltage', type=float, default=100),
+                Field('frequency', type=float, default=1e3)]
 
     def __init__(self):
         self.control_board = DmfControlBoard()
@@ -393,6 +397,19 @@ class DmfControlBoardPlugin(SingletonPlugin):
             frequency : frequency in Hz
         """
         self.control_board.set_waveform_frequency(frequency)
+
+    def get_step_fields(self):
+        return self._fields
+
+    def get_step_value(self, name):
+        app = get_app()
+        if not name in [f.name for f in self._fields]:
+            raise KeyError('No field with name %s for plugin %s' % (name, self.name))
+        options = app.protocol.current_step().get_data(self.name)
+        if options is None:
+            field_dict = dict([(f.name, f) for f in self._fields])
+            return field_dict[name].default
+        return getattr(options, name)
 
 
 PluginGlobals.pop_env()
