@@ -63,6 +63,19 @@ class WaitForFeedbackMeasurement(threading.Thread):
 
 PluginGlobals.push_env('microdrop')
 
+
+class DmfControlBoardOptions(object):
+    def __init__(self, voltage=100,
+                 frequency=1e3,
+                 feedback_options=None):
+        if feedback_options is None:
+            self.feedback_options = FeedbackOptions()
+        else:
+            self.feedback_options = feedback_options
+        self.voltage = voltage
+        self.frequency = frequency
+
+
 class DmfControlBoardPlugin(SingletonPlugin):
     """
     This class is automatically registered with the PluginManager.
@@ -161,39 +174,21 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app.main_window_controller.label_connection_status. \
             set_text(connection_status)
 
-    def current_step_options(self):
+    def get_step_options(self, step=None):
         """
         Return a FeedbackOptions object for the current step in the protocol.
         If none exists yet, create a new one.
         """
         app = get_app()
-        step = app.protocol.current_step_number
-        if len(self.steps)<=step:
-            # initialize the list if it is empty
-            if len(self.steps) == 0:
-                self.steps = [FeedbackOptions()]
-            # pad the state list with copies of the last known state
-            for i in range(0,step-len(self.steps)+1):
-                self.steps.append(deepcopy(self.steps[-1]))
-        return self.steps[step]
-
-    def on_delete_protocol_step(self):
-        """
-        Handler called whenever a protocol step is deleted.
-        """
-        app = get_app()
-        if len(self.steps) > 1:
-            del self.steps[app.protocol.current_step_number]
-        else: # reset first step
-            self.steps = [FeedbackOptions()]
-
-    def on_insert_protocol_step(self):
-        """
-        Handler called whenever a protocol step is inserted.
-        """
-        app = get_app()
-        self.steps.insert(app.protocol.current_step_number,
-                          deepcopy(self.current_step_options()))
+        if step is None:
+            step = app.protocol.current_step_number
+        
+        options = app.protocol.current_step().get_data(self.name)
+        if options is None:
+            # No data is registered for this plugin (for this step).
+            options = DmfControlBoardOptions()
+            app.protocol.current_step().set_data(self.name, options)
+        return options
 
     def get_actuated_area(self):
         area = 0
@@ -214,8 +209,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         app = get_app()
         self.feedback_options_controller.update()
-        options = self.current_step_options()
-        self.current_state.feedback_enabled = options.feedback_enabled
+        options = self.get_step_options()
+        logger.debug('[DmfControlBoardPlugin] options=%s' % options)
+        feedback_options = options.feedback_options
+        self.current_state.feedback_enabled = feedback_options.feedback_enabled
 
         if self.control_board.connected() and \
             (app.realtime_mode or app.running):
@@ -230,23 +227,22 @@ class DmfControlBoardPlugin(SingletonPlugin):
             else:
                 assert(len(state) == max_channels)
 
-            if options.feedback_enabled:
+            if feedback_options.feedback_enabled:
                 # calculate the total area of actuated electrodes
                 area =  self.get_actuated_area()
                 
-                if options.action.__class__ == RetryAction:
+                if feedback_options.action.__class__ == RetryAction:
                     if data.keys().count("attempt") == 0:
                         attempt = 0
                     else:
                         attempt = data["attempt"]
 
-                    if attempt <= options.action.max_repeats:
-                        voltage = float(app.protocol.current_step().voltage +
-                            options.action.increase_voltage*attempt)
+                    if attempt <= feedback_options.action.max_repeats:
+                        voltage = float(options.voltage +\
+                            feedback_options.action.increase_voltage * attempt)
                         frequency = \
-                            float(app.protocol.current_step().frequency)
-                        emit_signal("set_frequency",
-                            frequency,
+                            float(options.frequency)
+                        emit_signal("set_frequency", frequency,
                             interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
@@ -275,16 +271,15 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             return 'Ok'
                     else:
                         return 'Fail'
-                elif options.action.__class__ == SweepFrequencyAction:
+                elif feedback_options.action.__class__ == SweepFrequencyAction:
                     frequencies = np.logspace(
-                        np.log10(options.action.start_frequency),
-                        np.log10(options.action.end_frequency),
-                        int(options.action.n_frequency_steps))
-                    voltage = float(app.protocol.current_step(). \
-                        voltage)
+                        np.log10(feedback_options.action.start_frequency),
+                        np.log10(feedback_options.action.end_frequency),
+                        int(feedback_options.action.n_frequency_steps))
+                    voltage = float(options.voltage)
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
-                    results = SweepFrequencyResults(options, area, voltage)
+                    results = SweepFrequencyResults(feedback_options, area, voltage)
                     for frequency in frequencies:
                         emit_signal("set_frequency",
                                     float(frequency),
@@ -304,7 +299,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         frequency)
                     emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
-                    results = SweepVoltageResults(options, area, frequency)
+                    results = SweepVoltageResults(feedback_options, area, frequency)
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
@@ -316,8 +311,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
             else:
-                voltage = float(app.protocol.current_step().voltage)
-                frequency = float(app.protocol.current_step().frequency)
+                voltage = float(options.voltage)
+                frequency = float(options.frequency)
                 emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                 emit_signal("set_frequency",
@@ -326,7 +321,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 self.control_board.set_state_of_all_channels(state)
                 t = time.time()
                 while time.time()-t < \
-                    app.protocol.current_step().duration/1000.0:
+                    app.protocol.current_step().duration / 1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
@@ -339,18 +334,15 @@ class DmfControlBoardPlugin(SingletonPlugin):
             # run through protocol (even though device is not connected)
             if not app.control_board.connected():
                 t = time.time()
-                while time.time()-t < app.protocol.current_step().duration/1000.0:
+                while time.time()-t < app.protocol.current_step().duration / 1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
                     # (see above for reasoning)
                     time.sleep(0.0001)
 
-
     def measure_impedance(self, state, options):
-        thread = WaitForFeedbackMeasurement(self.control_board,
-                                            state,
-                                            options)
+        thread = WaitForFeedbackMeasurement(self.control_board, state, options)
         thread.start()
         while thread.is_alive():
             while gtk.events_pending():

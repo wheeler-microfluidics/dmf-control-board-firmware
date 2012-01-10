@@ -170,7 +170,9 @@ class FeedbackOptionsController():
         menu_item.show()
 
     def update(self):
-        options = self.plugin.current_step_options()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        logging.debug('[FeedbackOptionsController] options=%s' % options)
 
         # update the state of the "Feedback enabled" check button        
         button = self.builder.get_object("button_feedback_enabled")
@@ -195,7 +197,7 @@ class FeedbackOptionsController():
 
         # update the state of the "Retry until capacitance..." radio button
         button = self.builder.get_object("radiobutton_retry")
-        if (options.action.__class__==RetryAction) != button.get_active():
+        if (options.action.__class__ == RetryAction) != button.get_active():
             button.set_active(options.action.__class__==RetryAction)
         else:
             # if the "Retry until capacitance..." radio button state has not
@@ -204,7 +206,7 @@ class FeedbackOptionsController():
 
         # update the state of the "Sweep Frequency..." radio button
         button = self.builder.get_object("radiobutton_sweep_frequency")
-        if (options.action.__class__==SweepFrequencyAction) != button.get_active():
+        if (options.action.__class__ == SweepFrequencyAction) != button.get_active():
             button.set_active(options.action.__class__==SweepFrequencyAction)
         else:
             # if the "Sweep Frequency..." radio button state has not
@@ -213,7 +215,7 @@ class FeedbackOptionsController():
 
         # update the state of the "Sweep Voltage..." radio button
         button = self.builder.get_object("radiobutton_sweep_voltage")
-        if (options.action.__class__==SweepVoltageAction) != button.get_active():
+        if (options.action.__class__ == SweepVoltageAction) != button.get_active():
             button.set_active(options.action.__class__==SweepVoltageAction)
         else:
             # if the "Sweep Voltage..." radio button state has not
@@ -256,8 +258,10 @@ class FeedbackOptionsController():
                                       n_samples=1,
                                       delay_between_samples_ms=0,
                                       action=RetryAction())
-            voltage = app.protocol.current_step().voltage
-            frequency = app.protocol.current_step().frequency
+            step = app.protocol.current_step()
+            dmf_options = step.get_data(self.plugin.name)
+            voltage = dmf_options.voltage
+            frequency = dmf_options.frequency
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
@@ -270,13 +274,15 @@ class FeedbackOptionsController():
                 self.plugin.app.protocol.current_step().voltage)
             logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
-            RetryAction.capacitance_threshold = max(results.capacitance())/area*.95
+            RetryAction.capacitance_threshold =\
+                max(results.capacitance()) / area * .95
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """
         Handler called when the "Feedback enabled" check box is toggled. 
         """
-        options = self.plugin.current_step_options()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
         options.feedback_enabled = widget.get_active()
         
         self.builder.get_object("textentry_sampling_time_ms").set_sensitive(
@@ -321,7 +327,8 @@ class FeedbackOptionsController():
         Handler called when the "Retry until capacitance..." radio button is
         toggled. 
         """
-        options = self.plugin.current_step_options()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
         retry = widget.get_active()
         if retry and options.action.__class__!=RetryAction:
             options.action = RetryAction()
@@ -353,7 +360,8 @@ class FeedbackOptionsController():
         Handler called when the "Sweep Frequency..." radio button is
         toggled. 
         """
-        options = self.plugin.current_step_options()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
         sweep_frequency = widget.get_active()
         if sweep_frequency and options.action.__class__!=SweepFrequencyAction:
             options.action = SweepFrequencyAction()
@@ -384,7 +392,8 @@ class FeedbackOptionsController():
         Handler called when the "Sweep Voltage..." radio button is
         toggled. 
         """
-        options = self.plugin.current_step_options()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
         sweep_voltage = widget.get_active() 
         if sweep_voltage and options.action.__class__!=SweepVoltageAction:
             options.action = SweepVoltageAction()
@@ -428,10 +437,10 @@ class FeedbackOptionsController():
         """
         Update the sampling time value for the current step. 
         """
-        self.plugin.current_step_options().sampling_time_ms = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().sampling_time_ms,
-                            int)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.sampling_time_ms = check_textentry(widget,
+                            options.sampling_time_ms, int)
 
     def on_textentry_n_samples_focus_out_event(self, widget, event):
         """
@@ -452,10 +461,9 @@ class FeedbackOptionsController():
         """
         Update the number of samples value for the current step. 
         """
-        self.plugin.current_step_options().n_samples = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().n_samples,
-                            int)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.n_samples = check_textentry(widget, options.n_samples, int)
 
     def on_textentry_delay_between_samples_ms_focus_out_event(self,
                                                               widget,
@@ -480,10 +488,10 @@ class FeedbackOptionsController():
         """
         Update the delay between samples value for the current step. 
         """
-        self.plugin.current_step_options().delay_between_samples_ms = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().delay_between_samples_ms,
-                            int)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.delay_between_samples_ms = check_textentry(widget,
+                            options.delay_between_samples_ms, int)
     
     def on_textentry_capacitance_threshold_focus_out_event(self,
                                                            widget,
@@ -508,11 +516,10 @@ class FeedbackOptionsController():
         """
         Update the capacitance threshold value for the current step. 
         """
-        self.plugin.current_step_options().action.capacitance_threshold = \
-            check_textentry(widget,
-                            self.plugin.current_step_options(). \
-                            action.capacitance_threshold,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.capacitance_threshold = check_textentry(widget,
+                            options.action.capacitance_threshold, float)
 
 
 
@@ -535,11 +542,10 @@ class FeedbackOptionsController():
         """
         Update the increase voltage value for the current step. 
         """
-        self.plugin.current_step_options().action.increase_voltage = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            increase_voltage,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.increase_voltage = check_textentry(widget,
+                            options.action.increase_voltage, float)
     
     def on_textentry_max_repeats_focus_out_event(self, widget, event):
         """
@@ -560,11 +566,10 @@ class FeedbackOptionsController():
         """
         Update the max repeats value for the current step. 
         """
-        self.plugin.current_step_options().action.max_repeats = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            max_repeats,
-                            int)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.max_repeats = check_textentry(widget,
+                            options.action.max_repeats, int)
             
     def on_textentry_start_frequency_focus_out_event(self, widget, event):
         """
@@ -585,11 +590,10 @@ class FeedbackOptionsController():
         """
         Update the start frequency value for the current step. 
         """
-        self.plugin.current_step_options().action.start_frequency = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            start_frequency/1e3,
-                            float)*1e3
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.start_frequency = check_textentry(widget,
+                            options.action.start_frequency / 1e3, float) * 1e3
 
     def on_textentry_end_frequency_focus_out_event(self, widget, event):
         """
@@ -610,11 +614,10 @@ class FeedbackOptionsController():
         """
         Update the end frequency value for the current step. 
         """
-        self.plugin.current_step_options().action.end_frequency = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            end_frequency/1e3,
-                            float)*1e3
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.end_frequency = check_textentry(widget,
+                            options.action.end_frequency / 1e3, float) * 1e3
 
     def on_textentry_n_frequency_steps_focus_out_event(self, widget, event):
         """
@@ -635,11 +638,10 @@ class FeedbackOptionsController():
         """
         Update the number of frequency steps value for the current step. 
         """
-        self.plugin.current_step_options().action.n_frequency_steps = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            n_frequency_steps,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.n_frequency_steps = check_textentry(widget,
+                            options.action.n_frequency_steps, float)
 
     def on_textentry_start_voltage_focus_out_event(self, widget, event):
         """
@@ -660,11 +662,10 @@ class FeedbackOptionsController():
         """
         Update the start voltage value for the current step. 
         """
-        self.plugin.current_step_options().action.start_voltage = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            start_voltage,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.start_voltage = check_textentry(widget,
+                            options.action.start_voltage, float)
 
     def on_textentry_end_voltage_focus_out_event(self, widget, event):
         """
@@ -685,11 +686,10 @@ class FeedbackOptionsController():
         """
         Update the end voltage value for the current step. 
         """
-        self.plugin.current_step_options().action.end_voltage = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            end_voltage,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.end_voltage = check_textentry(widget,
+                            options.action.end_voltage, float)
 
     def on_textentry_n_voltage_steps_focus_out_event(self, widget, event):
         """
@@ -710,11 +710,10 @@ class FeedbackOptionsController():
         """
         Update the number of voltage steps value for the current step. 
         """
-        self.plugin.current_step_options().action.n_voltage_steps = \
-            check_textentry(widget,
-                            self.plugin.current_step_options().action. \
-                            n_voltage_steps,
-                            float)
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        options.action.n_voltage_steps = check_textentry(widget,
+                            options.action.n_voltage_steps, float)
 
 
 class FeedbackResults():
