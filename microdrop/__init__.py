@@ -174,6 +174,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app.main_window_controller.label_connection_status. \
             set_text(connection_status)
 
+    def get_default_options(self):
+        return DmfControlBoardOptions()
+
     def get_step_options(self, step=None):
         """
         Return a FeedbackOptions object for the current step in the protocol.
@@ -186,7 +189,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         options = app.protocol.current_step().get_data(self.name)
         if options is None:
             # No data is registered for this plugin (for this step).
-            options = DmfControlBoardOptions()
+            options = self.get_default_options()
             app.protocol.current_step().set_data(self.name, options)
         return options
 
@@ -210,20 +213,21 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         self.feedback_options_controller.update()
         options = self.get_step_options()
-        logger.debug('[DmfControlBoardPlugin] options=%s' % options)
+        step = app.protocol.current_step()
+        dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
+        logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' % (options, dmf_options))
         feedback_options = options.feedback_options
         self.current_state.feedback_enabled = feedback_options.feedback_enabled
 
         if self.control_board.connected() and \
             (app.realtime_mode or app.running):
-            state = app.protocol.current_step().state_of_channels
+            state = dmf_options.state_of_channels
             max_channels = self.control_board.number_of_channels() 
             if len(state) >  max_channels:
                 state = state[0:max_channels]
             elif len(state) < max_channels:
                 state = np.concatenate([state,
-                                        np.zeros(max_channels-len(state),
-                                                 int)])
+                        np.zeros(max_channels - len(state), int)])
             else:
                 assert(len(state) == max_channels)
 
@@ -349,25 +353,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 gtk.main_iteration()
         return thread.results
 
-    def on_app_exit(self):
-        """
-        Handler called just before the Microdrop application exists. 
-        """
-        pass
-    
-    def on_protocol_save(self):
-        """
-        Handler called when a protocol is saved.
-        """
-        app = get_app()
-        app.protocol.plugin_data[self.name] = (self.version, dumps(self.steps))
-    
-    def on_protocol_load(self, version, data):
-        """
-        Handler called when a protocol is loaded.
-        """
-        self.steps = loads(data)
-    
     def on_protocol_run(self):
         """
         Handler called when a protocol starts running.
@@ -379,36 +364,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
-
     
-    def on_protocol_pause(self):
-        """
-        Handler called when a protocol is paused.
-        """
-        pass
-        
-    def on_protocol_changed(self, protocol):
-        """
-        Handler called when the protocol changes (e.g., when a new protocol
-        is loaded).
-        """
-        if len(protocol) == 1:
-            self.steps = []
-
-    def on_dmf_device_changed(self, dmf_device):
-        """
-        Handler called when the DMF device changes (e.g., when a new device
-        is loaded).
-        """
-        pass
-
-    def on_experiment_log_changed(self, id):
-        """
-        Handler called when the experiment log changes (e.g., when a protocol
-        finishes running.
-        """
-        pass
-        
     def on_experiment_log_selection_changed(self, data):
         """
         Handler called whenever the experiment log selection changes.
