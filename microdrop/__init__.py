@@ -86,6 +86,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     _fields = [Field('voltage', type=float, default=100),
                 Field('frequency', type=float, default=1e3)]
+    _fields_dict = dict([(f.name, f) for f in _fields])
 
     def __init__(self):
         self.control_board = DmfControlBoard()
@@ -401,14 +402,26 @@ class DmfControlBoardPlugin(SingletonPlugin):
     def get_step_fields(self):
         return self._fields
 
+    def get_step_fields(self):
+        return self._fields
+
+    def set_step_values(self, values_dict):
+        logger.info('[DmfControlBoardPlugin] set_step_values(): values_dict=%s' % values_dict)
+        n1 = set(values_dict.keys())
+        n2 = set(self._fields_dict.keys())
+        if not n1.issubset(n2):
+            raise ValueError('Invalid field names: %s' % n1.difference(n2))
+        for name, value in values_dict.iteritems():
+            options = self.get_step_options()
+            setattr(options, name, value)
+
     def get_step_value(self, name):
         app = get_app()
-        if not name in [f.name for f in self._fields]:
+        if not name in self._fields_dict:
             raise KeyError('No field with name %s for plugin %s' % (name, self.name))
         options = app.protocol.current_step().get_data(self.name)
         if options is None:
-            field_dict = dict([(f.name, f) for f in self._fields])
-            return field_dict[name].default
+            return self._fields_dict[name].default
         return getattr(options, name)
 
 
