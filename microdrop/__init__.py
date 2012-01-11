@@ -39,12 +39,14 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
+from flatland import Element, Dict, String, Integer, Boolean, Float, Form
+from flatland.validation import ValueAtLeast, ValueAtMost
+
 
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, emit_signal, PluginGlobals
 from app_context import get_app
-from fields import Field
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -84,15 +86,19 @@ class DmfControlBoardPlugin(SingletonPlugin):
     implements(IPlugin)
     implements(IWaveformGenerator)
 
-    _fields = [Field('voltage', type=float, default=100),
-                Field('frequency', type=float, default=1e3),
-                # Feedback options fields
-                Field('feedback_enabled', type=bool, default=False),
-                Field('sampling_time_ms', type=int, default=10),
-                Field('n_samples', type=int, default=10),
-                Field('delay_between_samples_ms', type=int, default=0),
-                ]
-    _fields_dict = dict([(f.name, f) for f in _fields])
+    Fields = Form.of(
+        Integer.named('voltage').using(default=100, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('frequency').using(default=1e3, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Boolean.named('feedback_enabled').using(default=False),
+        Integer.named('sampling_time_ms').using(default=10, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('n_samples').using(default=10, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('delay_between_samples_ms').using(default=0, optional=True,
+            validators=[ValueAtLeast(minimum=0), ])
+    )
     _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
                             'delay_between_samples_ms'])
 
@@ -209,14 +215,17 @@ class DmfControlBoardPlugin(SingletonPlugin):
     def get_actuated_area(self):
         area = 0
         app = get_app()
-        state_of_all_channels = app.protocol.state_of_all_channels()        
+        step = app.protocol.current_step()
+        dmf_device_name = step.plugin_name_lookup('microdrop.gui.dmf_device_controller')
+        options = step.get_data(dmf_device_name)
+        state_of_all_channels = options.state_of_channels
         for id, electrode in app.dmf_device.electrodes.iteritems():
             channels = app.dmf_device.electrodes[id].channels
             if channels:
                 # get the state(s) of the channel(s) connected to this electrode
                 states = state_of_all_channels[channels]
-                if len(np.nonzero(states>0)[0]):
-                    area += electrode.area()*app.dmf_device.scale
+                if len(np.nonzero(states > 0)[0]):
+                    area += electrode.area() * app.dmf_device.scale
         return area
 
     def on_protocol_update(self, data):
@@ -407,33 +416,33 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         self.control_board.set_waveform_frequency(frequency)
 
-    def get_step_fields(self):
-        return self._fields
+    def get_step_form_class(self):
+        return self.Fields
 
     def get_step_fields(self):
-        return self._fields
+        return self.Fields.field_schema_mapping.keys()
 
     def set_step_values(self, values_dict):
         logger.info('[DmfControlBoardPlugin] set_step_values(): values_dict=%s' % values_dict)
-        n1 = set(values_dict.keys())
-        n2 = set(self._fields_dict.keys())
-        if not n1.issubset(n2):
-            raise ValueError('Invalid field names: %s' % n1.difference(n2))
-        for name, value in values_dict.iteritems():
-            options = self.get_step_options()
-            f = self._fields_dict[name]
+        el = self.Fields(value=values_dict)
+        if not el.validate():
+            raise ValueError('Invalid values: %s' % el.errors)
+        options = self.get_step_options()
+        for name, field in el.iteritems():
+            if field.value is None:
+                continue
             if name in self._feedback_fields:
-                setattr(options.feedback_options, name, f.type(value))
+                setattr(options.feedback_options, name, field.value)
             else:
-                setattr(options, name, f.type(value))
+                setattr(options, name, field.value)
 
     def get_step_value(self, name):
         app = get_app()
-        if not name in self._fields_dict:
+        if not name in self.Fields.field_schema_mapping:
             raise KeyError('No field with name %s for plugin %s' % (name, self.name))
         options = app.protocol.current_step().get_data(self.name)
         if options is None:
-            return self._fields_dict[name].default
+            return None
         try:
             return getattr(options, name)
         except AttributeError:
