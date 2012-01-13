@@ -702,12 +702,12 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
     }
     if(return_code==RETURN_OK) {
       A1_series_resistor_index_ = index;
-      // wait for pot to settle
-      delayMicroseconds(200);
     }
   } else { // bad channel
     return_code = RETURN_BAD_INDEX;
   }
+  // wait for signal to settle
+  delayMicroseconds(200);
   return return_code;
 }
 
