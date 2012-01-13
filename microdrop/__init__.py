@@ -406,7 +406,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Parameters:
             voltage : RMS voltage
         """
-        self.control_board.set_waveform_voltage(voltage)
+        # TODO: get gain from amplifier object
+        gain = 200.0
+        self.control_board.set_waveform_voltage(voltage/gain)
         
     def set_frequency(self, frequency):
         """
