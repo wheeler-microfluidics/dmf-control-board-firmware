@@ -35,8 +35,12 @@ extern "C" {
   void PeakExceededWrapper();
 }
 
-const float DmfControlBoard::A0_SERIES_RESISTORS_[] = {1e5, 1e6};
-const float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1e3, 1e4}; // 1e5, 1e6};
+float DmfControlBoard::A0_SERIES_RESISTORS_[] = {8.7e4, 6.4e5};
+float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1.14e3, 1e4, 9.27e5, 6.17e6};
+float DmfControlBoard::A0_SERIES_CAPACITANCE_[] = {1.4e-10, 1.69e-10};
+float DmfControlBoard::A1_SERIES_CAPACITANCE_[] = {3e-14, 3.2e-10,
+                                                   3.3e-10, 3.2e-10};
+
 const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
                                                  68191, 90293, 105263 };
 const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
@@ -265,6 +269,27 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if(payload_length()==2*sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
         return_code_ = SetSeriesResistor(channel, ReadUint8());
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_SERIES_CAPACITANCE:
+      if(payload_length()==sizeof(uint8_t)) {
+        uint8_t channel = ReadUint8();
+        return_code_ = RETURN_OK;
+        switch(channel) {
+          case 0:
+            Serialize(&A0_SERIES_CAPACITANCE_[A0_series_resistor_index_],
+                      sizeof(float));
+            break;
+          case 1:
+            Serialize(&A1_SERIES_CAPACITANCE_[A1_series_resistor_index_],
+                      sizeof(float));
+            break;
+          default:
+            return_code_ = RETURN_BAD_INDEX;
+            break;
+        }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -886,11 +911,33 @@ float DmfControlBoard::series_resistor(const uint8_t channel) {
     if(payload_length()==sizeof(float)) {
       float series_resistor = ReadFloat();
       sprintf(log_message_string_,
-              "series_resistor_=%.1e",series_resistor);
+              "series_resistor=%.1e",series_resistor);
       LogMessage(log_message_string_, function_name);
       return series_resistor;
     } else {
       LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
+float DmfControlBoard::series_capacitance(const uint8_t channel) {
+  const char* function_name = "series_capacitance()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&channel,sizeof(channel));
+  if(SendCommand(CMD_GET_SERIES_CAPACITANCE)==RETURN_OK) {
+    LogMessage("CMD_GET_SERIES_CAPACITANCE", function_name);
+    if(payload_length()==sizeof(float)) {
+      float series_capacitance = ReadFloat();
+      sprintf(log_message_string_,
+              "series_capacitance=%.1e",series_capacitance);
+      LogMessage(log_message_string_, function_name);
+      return series_capacitance;
+    } else {
+      LogMessage("CMD_GET_SERIES_CAPACITANCE, Bad packet size",
                  function_name);
       throw runtime_error("Bad packet size.");
     }

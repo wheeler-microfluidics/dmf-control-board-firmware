@@ -97,6 +97,7 @@ object DmfControlBoard_class
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
     .def("sampling_rate",&DmfControlBoard::sampling_rate)
     .def("series_resistor",&DmfControlBoard::series_resistor)
+    .def("series_capacitance",&DmfControlBoard::series_capacitance)
     .def("waveform",&DmfControlBoard::waveform)
     .def("waveform_voltage",&DmfControlBoard::waveform_voltage)
     .def("waveform_frequency",&DmfControlBoard::waveform_frequency)
