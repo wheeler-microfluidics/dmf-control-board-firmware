@@ -36,7 +36,7 @@ extern "C" {
 }
 
 float DmfControlBoard::A0_SERIES_RESISTORS_[] = {8.7e4, 6.4e5};
-float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1.14e3, 1e4, 9.27e5, 6.17e6};
+float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1.14e3, 1e4, 9.27e4, 6.17e5};
 float DmfControlBoard::A0_SERIES_CAPACITANCE_[] = {1.4e-10, 1.69e-10};
 float DmfControlBoard::A1_SERIES_CAPACITANCE_[] = {3e-14, 3.2e-10,
                                                    3.3e-10, 3.2e-10};
