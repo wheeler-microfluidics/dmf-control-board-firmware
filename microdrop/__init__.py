@@ -239,20 +239,28 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                        impedance = self.measure_impedance(state, options)
+                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                            self.measure_impedance(state, options)
                         results = FeedbackResults(options,
-                            impedance,
+                            V_hv, R_hv, C_hv,
+                            V_fb, R_fb, C_fb,
                             area,
                             frequency,
                             voltage)
+                        logger.info("V_total=%s" % results.V_total())
+                        logger.info("Z_device=%s" % results.Z_device())                        
                         data["FeedbackResults"] = dumps(results)
                         if max(results.capacitance())/area < \
                             options.action.capacitance_threshold:
+                            logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
+                                (self.app.protocol.current_step_number,
+                                 attempt, max(results.capacitance())/area))
                             # signal that the step should be repeated
                             return 'Repeat'
                         else:
-                            logger.info('attempt=%d, max(C)/A=%.1e F/mm^2' % \
-                                (attempt, max(results.capacitance())/area))
+                            logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. OK' % \
+                                (self.app.protocol.current_step_number,
+                                 attempt, max(results.capacitance())/area))
                             return 'Ok'
                     else:
                         return 'Fail'
@@ -270,9 +278,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         emit_signal("set_frequency",
                                     float(frequency),
                                     interface=IWaveformGenerator)
-                        impedance = self.measure_impedance(state, options)
-                        results.add_frequency_step(frequency, impedance)
+                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                            self.measure_impedance(state, options)
+                        results.add_frequency_step(frequency,
+                            V_hv, R_hv, C_hv, V_fb, R_fb, C_fb)
                     data["SweepFrequencyResults"] = dumps(results)
+                    logger.info("V_total=%s" % results.V_total())
+                    logger.info("Z_device=%s" % results.Z_device())                        
                 elif options.action.__class__==SweepVoltageAction:
                     voltages = np.linspace(options.action.start_voltage,
                                            options.action.end_voltage,
@@ -285,9 +297,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                        impedance = self.measure_impedance(state, options)
-                        results.add_voltage_step(voltage, impedance)
+                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                            self.measure_impedance(state, options)
+                        results.add_voltage_step(voltage,
+                            V_hv, R_hv, C_hv, V_fb, R_fb, C_fb)
                     data["SweepVoltageResults"] = dumps(results)
+                    logger.info("V_total=%s" % results.V_total())
+                    logger.info("Z_device=%s" % results.Z_device())                        
             else:
                 voltage = float(self.app.protocol.current_step().voltage)
                 frequency = float(self.app.protocol.current_step().frequency)
