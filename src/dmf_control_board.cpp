@@ -512,6 +512,9 @@ void DmfControlBoard::begin() {
   pinMode(PWR_SUPPLY_ON_, OUTPUT);
   digitalWrite(PWR_SUPPLY_ON_, LOW);
 
+  // wait for the power supply to turn on
+  delay(500);
+
   Serial.begin(DmfControlBoard::BAUD_RATE);
 
   Serial.print(name());
