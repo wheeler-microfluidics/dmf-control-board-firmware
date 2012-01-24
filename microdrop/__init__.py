@@ -239,11 +239,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                        (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, options)
                         results = FeedbackResults(options,
-                            V_hv, R_hv, C_hv,
-                            V_fb, R_fb, C_fb,
+                            V_hv, hv_resistor,
+                            V_fb, fb_resistor,
                             area,
                             frequency,
                             voltage)
@@ -278,10 +278,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         emit_signal("set_frequency",
                                     float(frequency),
                                     interface=IWaveformGenerator)
-                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                        (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, options)
                         results.add_frequency_step(frequency,
-                            V_hv, R_hv, C_hv, V_fb, R_fb, C_fb)
+                            V_hv, hv_resistor, V_fb, fb_resistor)
                     data["SweepFrequencyResults"] = dumps(results)
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
@@ -297,10 +297,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                        (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+                        (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, options)
                         results.add_voltage_step(voltage,
-                            V_hv, R_hv, C_hv, V_fb, R_fb, C_fb)
+                            V_hv, hv_resistor, V_fb, fb_resistor)
                     data["SweepVoltageResults"] = dumps(results)
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        

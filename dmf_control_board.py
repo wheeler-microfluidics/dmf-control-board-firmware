@@ -151,12 +151,10 @@ class DmfControlBoard(Base, SerialDevice):
                                 delay_between_samples_ms, state_))
         
         V_hv = impedance[0::4]*5.0/1024/np.sqrt(2)/2
-        R_hv = np.array(self.R_hv)[impedance[1::4]]
-        C_hv = np.array(self.C_hv)[impedance[1::4]]
+        hv_resistor = impedance[1::4]
         V_fb = impedance[2::4]*5.0/1024/np.sqrt(2)/2
-        R_fb = np.array(self.R_fb)[impedance[3::4]]
-        C_fb = np.array(self.C_fb)[impedance[3::4]]
-        return (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb)
+        fb_resistor = impedance[3::4]
+        return (V_hv, hv_resistor, V_fb, fb_resistor)
         
     def i2c_write(self, address, data):
         data_ = uint8_tVector()

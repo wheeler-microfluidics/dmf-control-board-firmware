@@ -24,6 +24,7 @@ from cPickle import dumps, loads
 import gtk
 import numpy as np
 import matplotlib
+import matplotlib.mlab as mlab
 if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
@@ -40,6 +41,13 @@ except RuntimeError:
     else:
         logger.info('Skipping error!')
 from plugin_manager import emit_signal, IWaveformGenerator
+
+
+# calibration settings
+_R_hv = np.array([8.7e4, 6.4e5])
+_C_hv = np.array([1.4e-10, 1.69e-10])
+_R_fb = np.array([1.14e3, 1e4, 9.3e4, 6.5e5])
+_C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
 
 
 def feedback_signal(p, frequency, Z):
@@ -245,13 +253,12 @@ class FeedbackOptionsController():
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
-            (V_hv, R_hv, C_hv, V_fb, R_fb, C_fb) = \
+            (V_hv, hv_resistor, V_fb, fb_resistor) = \
                 self.plugin.measure_impedance(state, options)
             results = FeedbackResults(options,
-                V_hv, R_hv, C_hv,
-                V_fb, R_fb, C_fb,
-                area,
-                frequency,
+                V_hv, hv_resistor,
+                V_fb, fb_resistor,
+                area, frequency,
                 self.plugin.app.protocol.current_step().voltage)
             logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
@@ -707,32 +714,31 @@ class FeedbackResults():
     This class stores the impedance results for a single step in the protocol.
     """
     def __init__(self, options,
-                 V_hv, R_hv, C_hv,
-                 V_fb, R_fb, C_fb,
+                 V_hv, hv_resistor,
+                 V_fb, fb_resistor,
                  area, frequency, V_total):
         self.options = options
         self.area = area
         self.frequency = frequency
         self.V_hv = V_hv
-        self.R_hv = R_hv
-        self.C_hv = C_hv
+        self.hv_resistor = hv_resistor
         self.V_fb = V_fb
-        self.R_fb = R_fb
-        self.C_fb = C_fb
-
+        self.fb_resistor = fb_resistor
         self.time = np.array(range(0,self.options.n_samples)) * \
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
         self._V_total = V_total
-        
+
     def V_total(self):
-        T = feedback_signal([self.C_hv, self.R_hv], self.frequency, 10e6)
+        T = feedback_signal([_C_hv[self.hv_resistor],
+                             _R_hv[self.hv_resistor]],
+                            self.frequency, 10e6)
         return self.V_hv/T
 
     def Z_device(self):
-        if self.R_fb[0]==9.27e5 or self.R_fb[0]==6.17e6:
-            self.R_fb/=10
-        return self.R_fb/np.sqrt(1+np.square(self.R_fb*self.C_fb*self.frequency*2*math.pi))* \
+        R_fb = _R_fb[self.fb_resistor]
+        C_fb = _C_fb[self.fb_resistor]
+        return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
             (self.V_total()/self.V_fb - 1)
         
     def min_impedance(self):
@@ -753,9 +759,10 @@ class FeedbackResults():
             t = np.concatenate([t[:ind[j]],t[ind[j]+1:]])
         """
         window_len = 9
-        dt = np.diff(self.time)
+        dt = np.diff(self.time)*1./1000
         dZdt = self.smooth(np.diff(self.Z_device()), window_len) / dt
-        return -dZdt / self.Z_device()[:-1] ** 2
+        return -dZdt / self.Z_device()[:-1]**2/(2*np.pi*self.frequency* \
+               self.capacitance()[-1]/np.sqrt(self.area))
 
     def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
@@ -812,27 +819,23 @@ class SweepFrequencyResults():
         self._V_total = V_total
         self.frequency = []
         self.V_hv = []
-        self.R_hv = []
-        self.C_hv = []
+        self.hv_resistor = []
         self.V_fb = []
-        self.R_fb = []
-        self.C_fb = []
+        self.fb_resistor = []
 
     def add_frequency_step(self, frequency,
-                           V_hv, R_hv, C_hv,
-                           V_fb, R_fb, C_fb):
+                           V_hv, hv_resistor,
+                           V_fb, fb_resistor):
         self.frequency.append(frequency)
         self.V_hv.append(V_hv)
-        self.R_hv.append(R_hv)
-        self.C_hv.append(C_hv)
+        self.hv_resistor.append(hv_resistor)
         self.V_fb.append(V_fb)
-        self.R_fb.append(R_fb)
-        self.C_fb.append(C_fb)
+        self.fb_resistor.append(fb_resistor)
 
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([self.C_hv[i], self.R_hv[i]], self.frequency[i], 10e6)
+            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency[i], 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -840,11 +843,9 @@ class SweepFrequencyResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            if self.R_fb[i][0]==9.27e5 or self.R_fb[i][0]==6.17e6:
-                self.R_fb[i]/=10
-            Z.append(self.R_fb[i]/np.sqrt(1+np.square(self.R_fb[i]*self.C_fb[i]* \
+            R_fb = _R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
                      self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
-            #Z.append(self.R_fb[i]*(V_total[i]/self.V_fb[i]-1))
         return Z
     
     def capacitance(self):
@@ -864,27 +865,23 @@ class SweepVoltageResults():
         self.frequency = frequency
         self.voltage = []
         self.V_hv = []
-        self.R_hv = []
-        self.C_hv = []
+        self.hv_resistor = []
         self.V_fb = []
-        self.R_fb = []
-        self.C_fb = []
+        self.fb_resistor = []
 
     def add_voltage_step(self, voltage,
-                         V_hv, R_hv, C_hv,
-                         V_fb, R_fb, C_fb):
+                         V_hv, hv_resistor,
+                         V_fb, fb_resistor):
         self.voltage.append(voltage)
         self.V_hv.append(V_hv)
-        self.R_hv.append(R_hv)
-        self.C_hv.append(C_hv)
+        self.hv_resistor.append(hv_resistor)
         self.V_fb.append(V_fb)
-        self.R_fb.append(R_fb)
-        self.C_fb.append(C_fb)
+        self.fb_resistor.append(fb_resistor)        
 
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([self.C_hv[i], self.R_hv[i]], self.frequency, 10e6)
+            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency, 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -892,7 +889,8 @@ class SweepVoltageResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            Z.append(self.R_fb[i]/np.sqrt(1+np.square(self.R_fb[i]*self.C_fb[i]* \
+            R_fb = _R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
                      self.frequency*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
         return Z
 
@@ -997,16 +995,9 @@ class FeedbackResultsController():
                                        results.capacitance()/results.area)
                         legend_loc = "lower right"
                     elif y_axis=="Velocity":
-                        if results.options.action.capacitance_threshold:
-                            dxdt = results.dxdt()/ \
-                                (results.options.action.capacitance_threshold/ \
-                                 np.sqrt(results.area))/1000.0
-                            self.axis.set_title("Instantaneous velocity")
-                            self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        else:
-                            dxdt = results.dxdt()
-                            self.axis.set_title("Relative instantaneous velocity")
-                            self.axis.set_ylabel("Velocity$_{drop}$")
+                        dxdt = results.dxdt()
+                        self.axis.set_title("Instantaneous velocity")
+                        self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
                         self.axis.plot((results.time[:-1]+results.time[1:])/2,
                                        dxdt)
                     legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
