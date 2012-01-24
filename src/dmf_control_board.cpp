@@ -35,8 +35,12 @@ extern "C" {
   void PeakExceededWrapper();
 }
 
-const float DmfControlBoard::A0_SERIES_RESISTORS_[] = {1e5, 1e6};
-const float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1e3, 1e4}; // 1e5, 1e6};
+float DmfControlBoard::A0_SERIES_RESISTORS_[] = {8.7e4, 6.4e5};
+float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1.14e3, 1e4, 9.27e4, 6.17e5};
+float DmfControlBoard::A0_SERIES_CAPACITANCE_[] = {1.4e-10, 1.69e-10};
+float DmfControlBoard::A1_SERIES_CAPACITANCE_[] = {3e-14, 3.2e-10,
+                                                   3.3e-10, 3.2e-10};
+
 const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
                                                  68191, 90293, 105263 };
 const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
@@ -269,6 +273,27 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_GET_SERIES_CAPACITANCE:
+      if(payload_length()==sizeof(uint8_t)) {
+        uint8_t channel = ReadUint8();
+        return_code_ = RETURN_OK;
+        switch(channel) {
+          case 0:
+            Serialize(&A0_SERIES_CAPACITANCE_[A0_series_resistor_index_],
+                      sizeof(float));
+            break;
+          case 1:
+            Serialize(&A1_SERIES_CAPACITANCE_[A1_series_resistor_index_],
+                      sizeof(float));
+            break;
+          default:
+            return_code_ = RETURN_BAD_INDEX;
+            break;
+        }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
     case CMD_SAMPLE_VOLTAGE:
       if(payload_length()<2*sizeof(uint8_t)+3*sizeof(uint16_t)) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -330,7 +355,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint16_t n_samples = ReadUint16();
         uint16_t delay_between_samples_ms = ReadUint16();
 
-        if(n_samples*2>MAX_SAMPLES) {
+        if(n_samples*4>MAX_SAMPLES) {
           return_code_ = RETURN_GENERAL_ERROR;
         } else {
           if(payload_length()==3*sizeof(uint16_t) ||
@@ -339,10 +364,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             return_code_ = RETURN_OK;
 
             // point the impedance_buffer_ to the payload_buffer_
-            float* impedance_buffer = (float*)payload();
+            uint16_t* impedance_buffer = (uint16_t*)payload();
 
             // update the number of bytes written
-            bytes_written(n_samples*2*sizeof(float));
+            bytes_written(n_samples*4*sizeof(uint16_t));
 
             uint8_t original_A0_index = A0_series_resistor_index_;
             uint8_t original_A1_index = A1_series_resistor_index_;
@@ -353,87 +378,76 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             SetSeriesResistor(1,
                sizeof(A1_SERIES_RESISTORS_)/sizeof(float)-1);
 
-            // sample the actuation voltage
-            uint32_t t_sample = millis();
-            uint32_t t_delay;
-            uint16_t hv_max = 0;
-            uint16_t hv_min = 1024;
-            uint16_t hv = 0;
+            // update the channels (if they were included in the packet)
+            if(payload_length()==3*sizeof(uint16_t)
+                +number_of_channels_*sizeof(uint8_t)){
+              UpdateAllChannels();
+            }
 
-            while(millis()-t_sample<sampling_time_ms) {
-              hv = analogRead(0);
 
-              // if the ADC is saturated, use a smaller resistor
-              // and reset the peak
-              if(hv==900) {
-                if(A0_series_resistor_index_>0) {
-                  SetSeriesResistor(0, \
-                    A0_series_resistor_index_-1);
+            // sample the feedback voltage
+            for(uint16_t i=0; i<n_samples; i++) {
+              uint16_t hv_max = 0;
+              uint16_t hv_min = 1024;
+              uint16_t hv = 0;
+              uint16_t fb_max = 0;
+              uint16_t fb_min = 1024;
+              uint16_t fb = 0;
+
+              uint32_t t_sample = millis();
+
+              while(millis()-t_sample<sampling_time_ms) {
+                hv = analogRead(0);
+
+                // if the ADC is saturated, use a smaller resistor
+                // and reset the peak
+                if(hv>900) {
+                  if(A0_series_resistor_index_>0) {
+                    SetSeriesResistor(0, \
+                      A0_series_resistor_index_-1);
+                  }
                   hv_max = 0;
                   hv_min = 1024;
                   continue;
                 }
+                if(hv>hv_max) {
+                  hv_max = hv;
+                }
+                if(hv<hv_min) {
+                  hv_min = hv;
+                }
+
+                fb = analogRead(1);
+
+                // if the ADC is saturated, use a smaller resistor
+                // and reset the peak
+                if(fb>900) {
+                  if(A1_series_resistor_index_>0) {
+                    SetSeriesResistor(1,
+                      A1_series_resistor_index_-1);
+                  }
+                  fb_max = 0;
+                  fb_min = 1024;
+                  continue;
+                }
+                if(fb>fb_max) {
+                  fb_max = fb;
+                }
+                if(fb<fb_min) {
+                  fb_min = fb;
+                }
               }
-              if(hv>hv_max) {
-                hv_max = hv;
-              }
-              if(hv<hv_min) {
-                hv_min = hv;
+
+              impedance_buffer[4*i] = hv_max-hv_min;
+              impedance_buffer[4*i+1] = A0_series_resistor_index_;
+              impedance_buffer[4*i+2] = fb_max-fb_min;
+              impedance_buffer[4*i+3] = A1_series_resistor_index_;
+
+              uint32_t t_delay = millis();
+              while(millis()-t_delay<delay_between_samples_ms) {
               }
             }
 
-            if(return_code_==RETURN_OK) {
-              float V_hv = (float)(hv_max-hv_min)*5.0/1024.0*
-                10e6/A0_SERIES_RESISTORS_[A0_series_resistor_index_];
-
-              // update the channels (if they were included in the packet)
-              if(payload_length()==3*sizeof(uint16_t)
-                  +number_of_channels_*sizeof(uint8_t)){
-                UpdateAllChannels();
-              }
-
-              // sample the feedback voltage
-              for(uint16_t i=0; i<n_samples; i++) {
-                uint16_t fb_max = 0;
-                uint16_t fb_min = 1024;
-                uint16_t fb = 0;
-                t_sample = millis();
-
-                while(millis()-t_sample<sampling_time_ms) {
-                  fb = analogRead(1);
-
-                  // if the ADC is saturated, use a smaller resistor
-                  // and reset the peak
-                  if(fb>900) {
-                    if(A1_series_resistor_index_>0) {
-                      SetSeriesResistor(1,
-                        A1_series_resistor_index_-1);
-                      fb_max = 0;
-                      fb_min = 1024;
-                      continue;
-                    }
-                  }
-                  if(fb>fb_max) {
-                    fb_max = fb;
-                  }
-                  if(fb<fb_min) {
-                    fb_min = fb;
-                  }
-                }
-
-                float Z_fb = A1_SERIES_RESISTORS_[
-                                A1_series_resistor_index_];
-                float V_fb = (float)(fb_max-fb_min)*5.0/1024.0/2*sqrt(0.5);
-
-                impedance_buffer[2*i] = V_fb;
-                impedance_buffer[2*i+1] = Z_fb;
-
-                t_delay = millis();
-                while(millis()-t_delay<delay_between_samples_ms) {
-                }
-              }
-            }
-            
             // set the resistors back to their original states            
             SetSeriesResistor(0, original_A0_index);
             SetSeriesResistor(1, original_A1_index);
@@ -497,6 +511,9 @@ void DmfControlBoard::begin() {
   // versions > 1.1 need to pull a pin low to turn on the power supply
   pinMode(PWR_SUPPLY_ON_, OUTPUT);
   digitalWrite(PWR_SUPPLY_ON_, LOW);
+
+  // wait for the power supply to turn on
+  delay(500);
 
   Serial.begin(DmfControlBoard::BAUD_RATE);
 
@@ -672,7 +689,6 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
         digitalWrite(A1_SERIES_RESISTOR_1_, HIGH);
         digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
         break;
-      /* these 2 resistors are unreliable
       case 2:
         digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
@@ -683,19 +699,18 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
         digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
         break;
-      */
       default:
         return_code = RETURN_BAD_INDEX;
         break;
     }
     if(return_code==RETURN_OK) {
       A1_series_resistor_index_ = index;
-      // wait for pot to settle
-      delayMicroseconds(200);
     }
   } else { // bad channel
     return_code = RETURN_BAD_INDEX;
   }
+  // wait for signal to settle
+  delayMicroseconds(200);
   return return_code;
 }
 
@@ -886,11 +901,33 @@ float DmfControlBoard::series_resistor(const uint8_t channel) {
     if(payload_length()==sizeof(float)) {
       float series_resistor = ReadFloat();
       sprintf(log_message_string_,
-              "series_resistor_=%.1e",series_resistor);
+              "series_resistor=%.1e",series_resistor);
       LogMessage(log_message_string_, function_name);
       return series_resistor;
     } else {
       LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
+float DmfControlBoard::series_capacitance(const uint8_t channel) {
+  const char* function_name = "series_capacitance()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&channel,sizeof(channel));
+  if(SendCommand(CMD_GET_SERIES_CAPACITANCE)==RETURN_OK) {
+    LogMessage("CMD_GET_SERIES_CAPACITANCE", function_name);
+    if(payload_length()==sizeof(float)) {
+      float series_capacitance = ReadFloat();
+      sprintf(log_message_string_,
+              "series_capacitance=%.1e",series_capacitance);
+      LogMessage(log_message_string_, function_name);
+      return series_capacitance;
+    } else {
+      LogMessage("CMD_GET_SERIES_CAPACITANCE, Bad packet size",
                  function_name);
       throw runtime_error("Bad packet size.");
     }
@@ -1135,7 +1172,7 @@ std::vector<float> DmfControlBoard::SampleVoltage(
   return std::vector<float>(); // return an empty vector
 }
 
-std::vector<float> DmfControlBoard::MeasureImpedance(
+std::vector<uint16_t> DmfControlBoard::MeasureImpedance(
                                           uint16_t sampling_time_ms,
                                           uint16_t n_samples,
                                           uint16_t delay_between_samples_ms,
@@ -1155,17 +1192,17 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
       << "delay_between_samples_ms," << (int)delay_between_samples_ms << endl;
   if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
     LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
-    uint16_t n_samples = payload_length()/2/sizeof(float);
+    uint16_t n_samples = payload_length()/4/sizeof(uint16_t);
     sprintf(log_message_string_,"Read %d impedance samples",n_samples);
     LogMessage(log_message_string_,function_name);
-    std::vector<float> impedance_buffer(2*n_samples);
-    for(uint16_t i=0; i<2*n_samples; i++) {
-      impedance_buffer[i] = ReadFloat();
+    std::vector<uint16_t> impedance_buffer(4*n_samples);
+    for(uint16_t i=0; i<4*n_samples; i++) {
+      impedance_buffer[i] = ReadUint16();
     }
     LogExperiment(msg.str().c_str());
     return impedance_buffer;
   }
-  return std::vector<float>(); // return an empty vector
+  return std::vector<uint16_t>(); // return an empty vector
 }
 
 float DmfControlBoard::GetPeakVoltage(uint8_t adc_channel,

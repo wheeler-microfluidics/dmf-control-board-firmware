@@ -78,7 +78,7 @@ __________________________________________________________________________
 class RemoteObject {
 public:
 #ifndef AVR
-  static const uint32_t TIMEOUT_MICROSECONDS =   2000000; // TODO: this should be configurable
+  static const uint32_t TIMEOUT_MICROSECONDS =   4000000; // TODO: this should be configurable
 #endif
   // EEPROM addresses
   static const uint16_t EEPROM_PIN_MODE_ADDRESS =      0;

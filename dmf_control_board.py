@@ -36,14 +36,51 @@ from avr import AvrDude
 class DmfControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
-        SerialDevice.__init__(self)        
-        
+        SerialDevice.__init__(self)
+        self.R_hv = []
+        self.C_hv = []
+        self.R_fb = []
+        self.C_fb = []
+                
     def connect(self, port=None):
         if port:
             Base.connect(self, port)
             self.port = port
         else:
             self.get_port()
+        logger.info("Poll control board for series resistors and "
+                    "capacitance values.")            
+        
+        self.R_hv = []
+        self.C_hv = []
+        self.R_fb = []
+        self.C_fb = []
+        try:
+            i=0
+            while True:
+                self.set_series_resistor(0, i)
+                self.R_hv.append(
+                    self.series_resistor(0))
+                self.C_hv.append(
+                    self.series_capacitance(0))
+                i+=1
+        except:
+            logger.info("HV series resistors=%s" % self.R_hv)
+            logger.info("HV series capacitance=%s" % self.C_hv)
+        try:
+            i=0
+            while True:
+                self.set_series_resistor(1, i)
+                self.R_fb.append(
+                    self.series_resistor(1))
+                self.C_fb.append(
+                    self.series_capacitance(1))
+                i+=1
+        except:
+            logger.info("Feedback series resistors=%s" % self.R_fb)
+            logger.info("Feedback series capacitance=%s" % self.C_fb)
+        self.set_series_resistor(0,0)
+        self.set_series_resistor(1,0)
         return self.RETURN_OK
     
     def state_of_all_channels(self):
@@ -110,9 +147,15 @@ class DmfControlBoard(Base, SerialDevice):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        return np.array(Base.measure_impedance(self,
+        impedance = np.array(Base.measure_impedance(self,
                                 sampling_time_ms, n_samples,
                                 delay_between_samples_ms, state_))
+        
+        V_hv = impedance[0::4]*5.0/1024/np.sqrt(2)/2
+        hv_resistor = impedance[1::4]
+        V_fb = impedance[2::4]*5.0/1024/np.sqrt(2)/2
+        fb_resistor = impedance[3::4]
+        return (V_hv, hv_resistor, V_fb, fb_resistor)
         
     def i2c_write(self, address, data):
         data_ = uint8_tVector()

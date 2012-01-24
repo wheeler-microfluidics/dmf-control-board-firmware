@@ -76,6 +76,7 @@ public:
   static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
   static const uint8_t CMD_GET_SERIES_RESISTOR =            0xAD;
   static const uint8_t CMD_SET_SERIES_RESISTOR =            0xAE;
+  static const uint8_t CMD_GET_SERIES_CAPACITANCE =         0xAF;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -105,6 +106,7 @@ public:
   uint8_t state_of_channel(const uint16_t channel);
   float sampling_rate();
   float series_resistor(const uint8_t channel);
+  float series_capacitance(const uint8_t channel);
   std::string waveform();
   float waveform_frequency();
   float waveform_voltage();
@@ -126,7 +128,7 @@ public:
                           uint16_t n_sets,
                           uint16_t delay_between_sets_ms,
                           const std::vector<uint8_t> state);
-  std::vector<float> MeasureImpedance(
+  std::vector<uint16_t> MeasureImpedance(
                           uint16_t sampling_time_ms,
                           uint16_t n_samples,
                           uint16_t delay_between_samples_ms,
@@ -184,8 +186,11 @@ private:
   static const uint8_t HV_PEAK_INTERRUPT_ = 1;
   static const uint8_t FB_PEAK_INTERRUPT_ = 0;
 
-  static const float A0_SERIES_RESISTORS_[];
-  static const float A1_SERIES_RESISTORS_[];
+  static float A0_SERIES_RESISTORS_[];
+  static float A0_SERIES_CAPACITANCE_[];
+  static float A1_SERIES_RESISTORS_[];
+  static float A1_SERIES_CAPACITANCE_[];
+
   static const float SAMPLING_RATES_[];
 
   // I2C bus

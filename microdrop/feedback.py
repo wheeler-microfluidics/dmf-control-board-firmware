@@ -27,6 +27,7 @@ except ImportError:
 import gtk
 import numpy as np
 import matplotlib
+import matplotlib.mlab as mlab
 if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
@@ -44,6 +45,18 @@ except RuntimeError:
         logging.info('Skipping error!')
 from plugin_manager import emit_signal, IWaveformGenerator
 from app_context import get_app
+
+
+# calibration settings
+_R_hv = np.array([8.7e4, 6.4e5])
+_C_hv = np.array([1.4e-10, 1.69e-10])
+_R_fb = np.array([1.14e3, 1e4, 9.3e4, 6.5e5])
+_C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
+
+
+def feedback_signal(p, frequency, Z):
+    """p[0]=C, p[1]=R"""
+    return np.abs(p[1]/(Z+p[1]+Z*p[1]*2*np.pi*p[0]*complex(0,1)*frequency))
 
 
 class RetryAction():
@@ -248,13 +261,14 @@ class FeedbackOptionsController():
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
-            impedance = self.plugin.measure_impedance(state, options)
+            (V_hv, hv_resistor, V_fb, fb_resistor) = \
+                self.plugin.measure_impedance(state, options)
             results = FeedbackResults(options,
-                impedance,
-                area,
-                frequency,
-                app.protocol.current_step().voltage)
-            logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
+                V_hv, hv_resistor,
+                V_fb, fb_resistor,
+                area, frequency,
+                self.plugin.app.protocol.current_step().voltage)
+            logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold = max(results.capacitance())/area*.95
 
@@ -707,23 +721,39 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    def __init__(self, options, impedance, area, frequency, V_total):
+    def __init__(self, options,
+                 V_hv, hv_resistor,
+                 V_fb, fb_resistor,
+                 area, frequency, V_total):
         self.options = options
         self.area = area
         self.frequency = frequency
-        self.V_fb = impedance[0::2]
-        self.Z_fb = impedance[1::2]        
+        self.V_hv = V_hv
+        self.hv_resistor = hv_resistor
+        self.V_fb = V_fb
+        self.fb_resistor = fb_resistor
         self.time = np.array(range(0,self.options.n_samples)) * \
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
-        self.V_total = V_total
-        self.Z_device = self.Z_fb*(self.V_total/self.V_fb-1)
+        self._V_total = V_total
 
+    def V_total(self):
+        T = feedback_signal([_C_hv[self.hv_resistor],
+                             _R_hv[self.hv_resistor]],
+                            self.frequency, 10e6)
+        return self.V_hv/T
+
+    def Z_device(self):
+        R_fb = _R_fb[self.fb_resistor]
+        C_fb = _C_fb[self.fb_resistor]
+        return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
+            (self.V_total()/self.V_fb - 1)
+        
     def min_impedance(self):
-        return min(self.Z_device)
+        return min(self.Z_device())
     
     def capacitance(self):
-        return 1.0/(2*math.pi*self.frequency*self.Z_device)
+        return 1.0/(2*math.pi*self.frequency*self.Z_device())
     
     def dxdt(self):
         '''
@@ -737,9 +767,10 @@ class FeedbackResults():
             t = np.concatenate([t[:ind[j]],t[ind[j]+1:]])
         """
         window_len = 9
-        dt = np.diff(self.time)
-        dZdt = self.smooth(np.diff(self.Z_device), window_len) / dt
-        return -dZdt / self.Z_device[:-1] ** 2
+        dt = np.diff(self.time)*1./1000
+        dZdt = self.smooth(np.diff(self.Z_device()), window_len) / dt
+        return -dZdt / self.Z_device()[:-1]**2/(2*np.pi*self.frequency* \
+               self.capacitance()[-1]/np.sqrt(self.area))
 
     def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
@@ -793,26 +824,43 @@ class SweepFrequencyResults():
     def __init__(self, options, area, V_total):
         self.options = options
         self.area = area
-        self.V_total = V_total
+        self._V_total = V_total
         self.frequency = []
+        self.V_hv = []
+        self.hv_resistor = []
         self.V_fb = []
-        self.Z_fb = []
-        self.Z_device = []
+        self.fb_resistor = []
 
-    def add_frequency_step(self, frequency, impedance):
-        V_fb = impedance[0::2]
-        Z_fb = impedance[1::2]
+    def add_frequency_step(self, frequency,
+                           V_hv, hv_resistor,
+                           V_fb, fb_resistor):
         self.frequency.append(frequency)
+        self.V_hv.append(V_hv)
+        self.hv_resistor.append(hv_resistor)
         self.V_fb.append(V_fb)
-        self.Z_fb.append(Z_fb)
-        self.Z_device.append(Z_fb*(self.V_total/V_fb-1))
+        self.fb_resistor.append(fb_resistor)
 
+    def V_total(self):
+        V = []
+        for i in range(0, np.size(self.V_hv, 0)):
+            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency[i], 10e6)
+            V.append(np.array(self.V_hv[i])/T)
+        return V
+
+    def Z_device(self):
+        Z = []
+        V_total = self.V_total()
+        for i in range(0, np.size(self.V_hv, 0)):
+            R_fb = _R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
+                     self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
+        return Z
+    
     def capacitance(self):
-        Z_device = np.array(self.Z_device)
         frequency = np.reshape(np.array(self.frequency),
                                (len(self.frequency),1))
-        frequency = np.repeat(frequency, np.size(Z_device, 1), axis=1)
-        return 1.0/(2*math.pi*frequency*Z_device)
+        frequency = np.repeat(frequency, np.size(self.Z_device(), 1), axis=1)
+        return 1.0/(2*math.pi*frequency*self.Z_device())
 
 
 class SweepVoltageResults():
@@ -824,20 +872,38 @@ class SweepVoltageResults():
         self.area = area
         self.frequency = frequency
         self.voltage = []
+        self.V_hv = []
+        self.hv_resistor = []
         self.V_fb = []
-        self.Z_fb = []
-        self.Z_device = []
+        self.fb_resistor = []
 
-    def add_voltage_step(self, voltage, impedance):
-        V_fb = impedance[0::2]
-        Z_fb = impedance[1::2]
-        self.voltage.append(voltage)        
+    def add_voltage_step(self, voltage,
+                         V_hv, hv_resistor,
+                         V_fb, fb_resistor):
+        self.voltage.append(voltage)
+        self.V_hv.append(V_hv)
+        self.hv_resistor.append(hv_resistor)
         self.V_fb.append(V_fb)
-        self.Z_fb.append(Z_fb)
-        self.Z_device.append(Z_fb*(voltage/V_fb-1))
+        self.fb_resistor.append(fb_resistor)        
+
+    def V_total(self):
+        V = []
+        for i in range(0, np.size(self.V_hv, 0)):
+            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency, 10e6)
+            V.append(np.array(self.V_hv[i])/T)
+        return V
+
+    def Z_device(self):
+        Z = []
+        V_total = self.V_total()
+        for i in range(0, np.size(self.V_hv, 0)):
+            R_fb = _R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
+                     self.frequency*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
+        return Z
 
     def capacitance(self):
-        return 1.0/(2*math.pi*self.frequency*np.array(self.Z_device))
+        return 1.0/(2*math.pi*self.frequency*np.array(self.Z_device()))
 
 
 class FeedbackResultsController():
@@ -931,7 +997,7 @@ class FeedbackResultsController():
                             "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
                             results.frequency)
                         self.axis.plot(results.time,
-                                       results.Z_device)
+                                       results.Z_device())
                         self.axis.set_yscale('log')
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
@@ -940,22 +1006,14 @@ class FeedbackResultsController():
                                        results.capacitance()/results.area)
                         legend_loc = "lower right"
                     elif y_axis=="Velocity":
-                        if results.options.action.capacitance_threshold:
-                            dxdt = results.dxdt()/ \
-                                (results.options.action.capacitance_threshold/ \
-                                 np.sqrt(results.area))/1000.0
-                            self.axis.set_title("Instantaneous velocity")
-                            self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        else:
-                            dxdt = results.dxdt()
-                            self.axis.set_title("Relative instantaneous velocity")
-                            self.axis.set_ylabel("Velocity$_{drop}$")
+                        dxdt = results.dxdt()
+                        self.axis.set_title("Instantaneous velocity")
+                        self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
                         self.axis.plot((results.time[:-1]+results.time[1:])/2,
                                        dxdt)
                     legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
-            C = []
             for row in self.data:
                 if row.keys().count("SweepFrequencyResults"):
                     results = loads(row["SweepFrequencyResults"])
@@ -963,8 +1021,8 @@ class FeedbackResultsController():
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.Z_device, 1),
-                                           np.std(results.Z_device, 1),
+                                           np.mean(results.Z_device(), 1),
+                                           np.std(results.Z_device(), 1),
                                            fmt='.')
                         self.axis.set_xscale('log')
                         self.axis.set_yscale('log')
@@ -976,11 +1034,9 @@ class FeedbackResultsController():
                                            np.std(results.capacitance(), 1)/results.area,
                                            fmt='.')
                         self.axis.set_xscale('log')
-                        C.append((np.mean(results.capacitance(), 1)/results.area)[23])
                         
                     legend.append("Step %d (%.3f s)" % \
                                   (row["step"]+1, row["time"]))
-            logging.info('%.2e, %.2e' % (np.mean(C), np.std(C)))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
@@ -992,8 +1048,8 @@ class FeedbackResultsController():
                             "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
                             results.frequency)
                         self.axis.errorbar(results.voltage,
-                                           np.mean(results.Z_device, 1),
-                                           np.std(results.Z_device, 1),
+                                           np.mean(results.Z_device(), 1),
+                                           np.std(results.Z_device(), 1),
                                            fmt='.')
                         self.axis.set_yscale('log')
                     elif y_axis=="Capacitance":
