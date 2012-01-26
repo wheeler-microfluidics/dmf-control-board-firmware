@@ -237,7 +237,7 @@ public:
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }  
   uint8_t Connect(const char* port);
-  uint8_t Disconnect() { Serial.end(); }
+  uint8_t Disconnect() { Serial.end(); return RETURN_OK; }
   void flush() { Serial.flush(); }
 #endif
 
