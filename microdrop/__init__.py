@@ -91,7 +91,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             validators=[ValueAtLeast(minimum=0), ]),
         Integer.named('frequency').using(default=1e3, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
-        Boolean.named('feedback_enabled').using(default=False),
+        Boolean.named('feedback_enabled').using(default=False, optional=True),
         Integer.named('sampling_time_ms').using(default=10, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
         Integer.named('n_samples').using(default=10, optional=True,
@@ -192,25 +192,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
         app.main_window_controller.label_connection_status. \
             set_text(connection_status)
-
-    def get_default_options(self):
-        return DmfControlBoardOptions()
-
-    def get_step_options(self, step=None):
-        """
-        Return a FeedbackOptions object for the current step in the protocol.
-        If none exists yet, create a new one.
-        """
-        app = get_app()
-        if step is None:
-            step = app.protocol.current_step_number
-        
-        options = app.protocol.current_step().get_data(self.name)
-        if options is None:
-            # No data is registered for this plugin (for this step).
-            options = self.get_default_options()
-            app.protocol.current_step().set_data(self.name, options)
-        return options
 
     def get_actuated_area(self):
         area = 0
@@ -416,18 +397,40 @@ class DmfControlBoardPlugin(SingletonPlugin):
         """
         self.control_board.set_waveform_frequency(frequency)
 
+    def get_default_options(self):
+        return DmfControlBoardOptions()
+
+    def get_step_options(self, step_number=None):
+        """
+        Return a FeedbackOptions object for the current step in the protocol.
+        If none exists yet, create a new one.
+        """
+        app = get_app()
+        if step_number is None:
+            step_number = app.protocol.current_step_number
+        
+        step = app.protocol.steps[step_number]
+        options = step.get_data(self.name)
+        if options is None:
+            # No data is registered for this plugin (for this step).
+            options = self.get_default_options()
+            step.set_data(self.name, options)
+        return options
+
     def get_step_form_class(self):
         return self.Fields
 
     def get_step_fields(self):
         return self.Fields.field_schema_mapping.keys()
 
-    def set_step_values(self, values_dict):
+    def set_step_values(self, values_dict, step_number=None):
         logger.info('[DmfControlBoardPlugin] set_step_values(): values_dict=%s' % values_dict)
         el = self.Fields(value=values_dict)
         if not el.validate():
             raise ValueError('Invalid values: %s' % el.errors)
-        options = self.get_step_options()
+        options = self.get_step_options(step_number=step_number)
+        #import pdb; pdb.set_trace()
+        print '[DmfControlBoardPlugin] step_number=%s' % step_number
         for name, field in el.iteritems():
             if field.value is None:
                 continue
@@ -436,11 +439,34 @@ class DmfControlBoardPlugin(SingletonPlugin):
             else:
                 setattr(options, name, field.value)
 
-    def get_step_value(self, name):
+    def get_step_values(self, step_number=None):
+        app = get_app()
+        if step_number is None:
+            step_number = app.protocol.current_step_number
+        step = app.protocol.steps[step_number]
+
+        options = step.get_data(self.name)
+        if options is None:
+            return None
+
+        values = {}
+        for name in self.Fields.field_schema_mapping:
+            try:
+                value = getattr(options, name)
+            except AttributeError:
+                value = getattr(options.feedback_options, name)
+            values[name] = value
+        return values
+
+    def get_step_value(self, name, step_number=None):
         app = get_app()
         if not name in self.Fields.field_schema_mapping:
             raise KeyError('No field with name %s for plugin %s' % (name, self.name))
-        options = app.protocol.current_step().get_data(self.name)
+        if step_number is None:
+            step_number = app.protocol.current_step_number
+        step = app.protocol.steps[step_number]
+
+        options = step.get_data(self.name)
         if options is None:
             return None
         try:
