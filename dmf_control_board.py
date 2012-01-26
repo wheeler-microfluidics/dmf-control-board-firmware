@@ -58,9 +58,9 @@ class DmfControlBoard(Base, SerialDevice):
         try:
             i=0
             while True:
-                self.set_series_resistor(0, i)
+                self.set_series_resistor_index(0, i)
                 self.R_hv.append(
-                    self.series_resistor(0))
+                    self.series_resistance(0))
                 self.C_hv.append(
                     self.series_capacitance(0))
                 i+=1
@@ -70,17 +70,17 @@ class DmfControlBoard(Base, SerialDevice):
         try:
             i=0
             while True:
-                self.set_series_resistor(1, i)
+                self.set_series_resistor_index(1, i)
                 self.R_fb.append(
-                    self.series_resistor(1))
+                    self.series_resistance(1))
                 self.C_fb.append(
                     self.series_capacitance(1))
                 i+=1
         except:
             logger.info("Feedback series resistors=%s" % self.R_fb)
             logger.info("Feedback series capacitance=%s" % self.C_fb)
-        self.set_series_resistor(0,0)
-        self.set_series_resistor(1,0)
+        self.set_series_resistor_index(0,0)
+        self.set_series_resistor_index(1,0)
         return self.RETURN_OK
     
     def state_of_all_channels(self):

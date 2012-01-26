@@ -53,9 +53,9 @@ public:
     0 and 5V).*/
     uint8_t vgnd;
 
-    float A0_series_resistors[2];
+    float A0_series_resistance[2];
     float A0_series_capacitance[2];
-    float A1_series_resistors[4];
+    float A1_series_resistance[4];
     float A1_series_capacitance[4];
   };
 
@@ -81,10 +81,12 @@ public:
   static const uint8_t CMD_SET_WAVEFORM_FREQUENCY =         0xAA;
   static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
   static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
-  static const uint8_t CMD_GET_SERIES_RESISTOR =            0xAD;
-  static const uint8_t CMD_SET_SERIES_RESISTOR =            0xAE;
-
-  static const uint8_t CMD_GET_SERIES_CAPACITANCE =         0xAF;
+  static const uint8_t CMD_GET_SERIES_RESISTOR_INDEX =      0xAD;
+  static const uint8_t CMD_SET_SERIES_RESISTOR_INDEX =      0xAE;
+  static const uint8_t CMD_GET_SERIES_RESISTANCE =          0xAF;
+  static const uint8_t CMD_SET_SERIES_RESISTANCE =          0xB0;
+  static const uint8_t CMD_GET_SERIES_CAPACITANCE =         0xB1;
+  static const uint8_t CMD_SET_SERIES_CAPACITANCE =         0xB2;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -113,7 +115,8 @@ public:
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
   float sampling_rate();
-  float series_resistor(const uint8_t channel);
+  uint8_t series_resistor_index(const uint8_t channel);
+  float series_resistance(const uint8_t channel);
   float series_capacitance(const uint8_t channel);
   std::string waveform();
   float waveform_frequency();
@@ -126,8 +129,12 @@ public:
   uint8_t set_waveform_frequency(const float freq_hz);
   uint8_t set_waveform(bool waveform);
   uint8_t set_sampling_rate(const uint8_t sampling_rate);
-  uint8_t set_series_resistor(const uint8_t channel,
-                              const uint8_t series_resistor);
+  uint8_t set_series_resistor_index(const uint8_t channel,
+                                    const uint8_t index);
+  uint8_t set_series_resistance(const uint8_t channel,
+                                float resistance);
+  uint8_t set_series_capacitance(const uint8_t channel,
+                                 float capacitance);
 
   // other functions
   std::vector<float> SampleVoltage(
@@ -230,6 +237,8 @@ private:
                             const uint8_t index);
   uint8_t SetAdcPrescaler(const uint8_t index);
   float GetPeakVoltage(const uint8_t interrupt, const uint16_t sample_time_ms);
+  void LoadConfig();
+  void SaveConfig();
 #else
   uint8_t SendCommand(const uint8_t cmd);
   float MillisecondsSinceLastCheck();

@@ -36,7 +36,7 @@ extern "C" {
 }
 
 const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
-                                                 68191, 90293, 105263 };
+                                                   68191, 90293, 105263 };
 const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
 const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
 
@@ -251,17 +251,44 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_GET_SERIES_RESISTOR:
+    case CMD_GET_SERIES_RESISTOR_INDEX:
       if(payload_length()==sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
         return_code_ = RETURN_OK;
         switch(channel) {
           case 0:
-            Serialize(&config_settings_.A0_series_resistors[A0_series_resistor_index_],
+            Serialize(&A0_series_resistor_index_,sizeof(A0_series_resistor_index_));
+            break;
+          case 1:
+            Serialize(&A1_series_resistor_index_,sizeof(A1_series_resistor_index_));
+            break;
+          default:
+            return_code_ = RETURN_BAD_INDEX;
+            break;
+        }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_SERIES_RESISTOR_INDEX:
+      if(payload_length()==2*sizeof(uint8_t)) {
+        uint8_t channel = ReadUint8();
+        return_code_ = SetSeriesResistor(channel, ReadUint8());
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_SERIES_RESISTANCE:
+      if(payload_length()==sizeof(uint8_t)) {
+        uint8_t channel = ReadUint8();
+        return_code_ = RETURN_OK;
+        switch(channel) {
+          case 0:
+            Serialize(&config_settings_.A0_series_resistance[A0_series_resistor_index_],
                       sizeof(float));
             break;
           case 1:
-            Serialize(&config_settings_.A1_series_resistors[A1_series_resistor_index_],
+            Serialize(&config_settings_.A1_series_resistance[A1_series_resistor_index_],
                       sizeof(float));
             break;
           default:
@@ -272,10 +299,24 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_SET_SERIES_RESISTOR:
-      if(payload_length()==2*sizeof(uint8_t)) {
+    case CMD_SET_SERIES_RESISTANCE:
+      if(payload_length()==sizeof(uint8_t)+sizeof(float)) {
+        LoadConfig();
         uint8_t channel = ReadUint8();
-        return_code_ = SetSeriesResistor(channel, ReadUint8());
+        return_code_ = RETURN_OK;
+        switch(channel) {
+          case 0:
+            config_settings_.A0_series_resistance[A0_series_resistor_index_] = ReadFloat();
+            SaveConfig();
+            break;
+          case 1:
+            config_settings_.A1_series_resistance[A1_series_resistor_index_] = ReadFloat();
+            SaveConfig();
+            break;
+          default:
+            return_code_ = RETURN_BAD_INDEX;
+            break;
+        }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -292,6 +333,28 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           case 1:
             Serialize(&config_settings_.A1_series_capacitance[A1_series_resistor_index_],
                       sizeof(float));
+            break;
+          default:
+            return_code_ = RETURN_BAD_INDEX;
+            break;
+        }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_SERIES_CAPACITANCE:
+      if(payload_length()==sizeof(uint8_t)+sizeof(float)) {
+        LoadConfig();
+        uint8_t channel = ReadUint8();
+        return_code_ = RETURN_OK;
+        switch(channel) {
+          case 0:
+            config_settings_.A0_series_capacitance[A0_series_resistor_index_] = ReadFloat();
+            SaveConfig();
+            break;
+          case 1:
+            config_settings_.A1_series_capacitance[A1_series_resistor_index_] = ReadFloat();
+            SaveConfig();
             break;
           default:
             return_code_ = RETURN_BAD_INDEX;
@@ -381,9 +444,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             
             // set the resistors to their highest values
             SetSeriesResistor(0,
-               sizeof(config_settings_.A0_series_resistors)/sizeof(float)-1);
+               sizeof(config_settings_.A0_series_resistance)/sizeof(float)-1);
             SetSeriesResistor(1,
-               sizeof(config_settings_.A1_series_resistors)/sizeof(float)-1);
+               sizeof(config_settings_.A1_series_resistance)/sizeof(float)-1);
 
             // update the channels (if they were included in the packet)
             if(payload_length()==3*sizeof(uint16_t)
@@ -559,32 +622,12 @@ void DmfControlBoard::begin() {
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
 
-  // if the EEPROM_INIT flag has been set, load configuration settings from
-  // EEPROM
   if(EEPROM.read(EEPROM_INIT)==0) {
-    Serial.println("Using calibration info from EEPROM.");
-    uint8_t* p = (uint8_t*)&config_settings_;
-    for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-      p[i] = EEPROM.read(EEPROM_INIT+i);
-    }
+    Serial.println("Using configuration settings from EEPROM.");
   } else { // use defaults
-    Serial.println("Using default calibration info.");
-    config_settings_.waveout_gain_1 = 112;
-    config_settings_.aref = 255;
-    config_settings_.vgnd = 124;
-    config_settings_.A0_series_resistors[0] = 8.7e4;
-    config_settings_.A0_series_resistors[1] = 6.4e5;
-    config_settings_.A0_series_capacitance[0] = 1.4e-10;
-    config_settings_.A0_series_capacitance[1] = 1.69e-10;
-    config_settings_.A1_series_resistors[0] = 1.14e3;
-    config_settings_.A1_series_resistors[1] = 1e4;
-    config_settings_.A1_series_resistors[2] = 9.27e4;
-    config_settings_.A1_series_resistors[3] = 6.17e5;
-    config_settings_.A1_series_capacitance[0] = 3e-14;
-    config_settings_.A1_series_capacitance[1] = 3.2e-10;
-    config_settings_.A1_series_capacitance[2] = 3.2e-10;
-    config_settings_.A1_series_capacitance[3] = 3.2e-10;
+    Serial.println("Using default configuration settings.");
   }
+  LoadConfig();
 
   Serial.print("waveout_gain_1=");
   Serial.println(config_settings_.waveout_gain_1, DEC);
@@ -592,22 +635,22 @@ void DmfControlBoard::begin() {
   Serial.println(config_settings_.aref, DEC);
   Serial.print("vgnd=");
   Serial.println(config_settings_.vgnd, DEC);
-  Serial.print("A0_series_resistor[0]=");
-  Serial.println(config_settings_.A0_series_resistors[0]);
-  Serial.print("A0_series_resistor[1]=");
-  Serial.println(config_settings_.A0_series_resistors[1]);
+  Serial.print("A0_series_resistance[0]=");
+  Serial.println(config_settings_.A0_series_resistance[0]);
+  Serial.print("A0_series_resistance[1]=");
+  Serial.println(config_settings_.A0_series_resistance[1]);
   Serial.print("A0_series_capacitance[0]=");
   printlne(config_settings_.A0_series_capacitance[0]);
   Serial.print("A0_series_capacitance[1]=");
   printlne(config_settings_.A0_series_capacitance[1]);
-  Serial.print("A1_series_resistor[0]=");
-  Serial.println(config_settings_.A1_series_resistors[0]);
-  Serial.print("A1_series_resistor[1]=");
-  Serial.println(config_settings_.A1_series_resistors[1]);
-  Serial.print("A1_series_resistor[2]=");
-  Serial.println(config_settings_.A1_series_resistors[2]);
-  Serial.print("A1_series_resistor[3]=");
-  Serial.println(config_settings_.A1_series_resistors[3]);
+  Serial.print("A1_series_resistance[0]=");
+  Serial.println(config_settings_.A1_series_resistance[0]);
+  Serial.print("A1_series_resistance[1]=");
+  Serial.println(config_settings_.A1_series_resistance[1]);
+  Serial.print("A1_series_resistance[2]=");
+  Serial.println(config_settings_.A1_series_resistance[2]);
+  Serial.print("A1_series_resistance[3]=");
+  Serial.println(config_settings_.A1_series_resistance[3]);
   Serial.print("A1_series_capacitance[0]=");
   printlne(config_settings_.A1_series_capacitance[0]);
   Serial.print("A1_series_capacitance[1]=");
@@ -810,6 +853,41 @@ uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
   }
 }
 
+void DmfControlBoard::LoadConfig() {
+  // if the EEPROM_INIT flag has been set, load configuration settings from
+  // EEPROM
+  if(EEPROM.read(EEPROM_INIT)==0) {
+    uint8_t* p = (uint8_t*)&config_settings_;
+    for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
+      p[i] = EEPROM.read(EEPROM_INIT+i);
+    }
+  } else {
+    config_settings_.waveout_gain_1 = 112;
+    config_settings_.aref = 255;
+    config_settings_.vgnd = 124;
+    config_settings_.A0_series_resistance[0] = 8.7e4;
+    config_settings_.A0_series_resistance[1] = 6.4e5;
+    config_settings_.A0_series_capacitance[0] = 1.4e-10;
+    config_settings_.A0_series_capacitance[1] = 1.69e-10;
+    config_settings_.A1_series_resistance[0] = 1.14e3;
+    config_settings_.A1_series_resistance[1] = 1e4;
+    config_settings_.A1_series_resistance[2] = 9.27e4;
+    config_settings_.A1_series_resistance[3] = 6.17e5;
+    config_settings_.A1_series_capacitance[0] = 3e-14;
+    config_settings_.A1_series_capacitance[1] = 3.2e-10;
+    config_settings_.A1_series_capacitance[2] = 3.2e-10;
+    config_settings_.A1_series_capacitance[3] = 3.2e-10;
+  }
+}
+
+void DmfControlBoard::SaveConfig() {
+  uint8_t* p = (uint8_t*)&config_settings_;
+  for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
+    EEPROM.write(EEPROM_INIT+i, p[i]);
+  }
+  EEPROM.write(EEPROM_INIT, 0);
+}
+
 #else
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -930,21 +1008,43 @@ uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
   return return_code();
 }
 
-float DmfControlBoard::series_resistor(const uint8_t channel) {
-  const char* function_name = "series_resistor()";
+uint8_t DmfControlBoard::series_resistor_index(const uint8_t channel) {
+  const char* function_name = "series_resistor_index()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&channel,sizeof(channel));
-  if(SendCommand(CMD_GET_SERIES_RESISTOR)==RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_RESISTOR", function_name);
-    if(payload_length()==sizeof(float)) {
-      float series_resistor = ReadFloat();
+  if(SendCommand(CMD_GET_SERIES_RESISTOR_INDEX)==RETURN_OK) {
+    LogMessage("CMD_GET_SERIES_RESISTOR_INDEX", function_name);
+    if(payload_length()==sizeof(uint8_t)) {
+      uint8_t index = ReadUint8();
       sprintf(log_message_string_,
-              "series_resistor=%.1e",series_resistor);
+              "series_resistor_index=%d", index);
       LogMessage(log_message_string_, function_name);
-      return series_resistor;
+      return index;
     } else {
-      LogMessage("CMD_GET_SERIES_RESISTOR, Bad packet size",
+      LogMessage("CMD_GET_SERIES_RESISTOR_INDEX, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
+float DmfControlBoard::series_resistance(const uint8_t channel) {
+  const char* function_name = "series_resistance()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&channel,sizeof(channel));
+  if(SendCommand(CMD_GET_SERIES_RESISTANCE)==RETURN_OK) {
+    LogMessage("CMD_GET_SERIES_RESISTANCE", function_name);
+    if(payload_length()==sizeof(float)) {
+      float series_resistance = ReadFloat();
+      sprintf(log_message_string_,
+              "series_resistance=%.1e",series_resistance);
+      LogMessage(log_message_string_, function_name);
+      return series_resistance;
+    } else {
+      LogMessage("CMD_GET_SERIES_RESISTANCE, Bad packet size",
                  function_name);
       throw runtime_error("Bad packet size.");
     }
@@ -1049,20 +1149,48 @@ float DmfControlBoard::waveform_frequency() {
   return 0;
 }
 
-uint8_t DmfControlBoard::set_series_resistor(const uint8_t channel,
-                                           const uint8_t series_resistor) {
-  const char* function_name = "set_series_resistor()";
+uint8_t DmfControlBoard::set_series_resistor_index(const uint8_t channel,
+                                                   const uint8_t index) {
+  const char* function_name = "set_series_resistor_index()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&channel,sizeof(channel));
-  Serialize(&series_resistor,sizeof(series_resistor));
-  if(SendCommand(CMD_SET_SERIES_RESISTOR)==RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_RESISTOR", function_name);
-    LogMessage("series resistor set successfully", function_name);
+  Serialize(&index,sizeof(index));
+  if(SendCommand(CMD_SET_SERIES_RESISTOR_INDEX)==RETURN_OK) {
+    LogMessage("CMD_SET_SERIES_RESISTOR_INDEX", function_name);
+    LogMessage("series resistor index set successfully", function_name);
     std::ostringstream msg;
-    msg << "set series resistor," << (int)channel
-        << (int)series_resistor << endl;
+    msg << "set series resistor index," << (int)channel
+        << (int)index << endl;
     LogExperiment(msg.str().c_str());
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_series_resistance(const uint8_t channel,
+                                               float resistance) {
+  const char* function_name = "set_series_resistance()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&channel,sizeof(channel));
+  Serialize(&resistance,sizeof(resistance));
+  if(SendCommand(CMD_SET_SERIES_RESISTANCE)==RETURN_OK) {
+    LogMessage("CMD_SET_SERIES_RESISTANCE", function_name);
+    LogMessage("series resistance set successfully", function_name);
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_series_capacitance(const uint8_t channel,
+                                                float capacitance) {
+  const char* function_name = "set_series_capacitance()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&channel,sizeof(channel));
+  Serialize(&capacitance,sizeof(capacitance));
+  if(SendCommand(CMD_SET_SERIES_CAPACITANCE)==RETURN_OK) {
+    LogMessage("CMD_SET_SERIES_CAPACITANCE", function_name);
+    LogMessage("series capacitance set successfully", function_name);
   }
   return return_code();
 }
