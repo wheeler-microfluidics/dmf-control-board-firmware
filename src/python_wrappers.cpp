@@ -36,9 +36,6 @@ const uint8_t RemoteObject::RETURN_BAD_CRC;
 const uint8_t DmfControlBoard::SINE;
 const uint8_t DmfControlBoard::SQUARE;
 const uint16_t DmfControlBoard::EEPROM_INIT;
-const uint16_t DmfControlBoard::EEPROM_POT_WAVEOUT_GAIN_1;
-const uint16_t DmfControlBoard::EEPROM_AREF;
-const uint16_t DmfControlBoard::EEPROM_VGND;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
@@ -131,7 +128,4 @@ DmfControlBoard_class.attr("RETURN_BAD_INDEX") = DmfControlBoard::RETURN_BAD_IND
 DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_BAD_PACKET_SIZE;
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
 DmfControlBoard_class.attr("EEPROM_INIT") = DmfControlBoard::EEPROM_INIT;
-DmfControlBoard_class.attr("EEPROM_POT_WAVEOUT_GAIN_1") = DmfControlBoard::EEPROM_POT_WAVEOUT_GAIN_1;
-DmfControlBoard_class.attr("EEPROM_AREF") = DmfControlBoard::EEPROM_AREF;
-DmfControlBoard_class.attr("EEPROM_VGND") = DmfControlBoard::EEPROM_VGND;
 }

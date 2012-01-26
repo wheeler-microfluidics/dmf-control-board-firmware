@@ -35,16 +35,23 @@ extern "C" {
   void PeakExceededWrapper();
 }
 
-float DmfControlBoard::A0_SERIES_RESISTORS_[] = {8.7e4, 6.4e5};
-float DmfControlBoard::A1_SERIES_RESISTORS_[] = {1.14e3, 1e4, 9.27e4, 6.17e5};
-float DmfControlBoard::A0_SERIES_CAPACITANCE_[] = {1.4e-10, 1.69e-10};
-float DmfControlBoard::A1_SERIES_CAPACITANCE_[] = {3e-14, 3.2e-10,
-                                                   3.3e-10, 3.2e-10};
-
 const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
                                                  68191, 90293, 105263 };
 const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
 const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
+
+void printe(float number) {
+  int8_t exp = floor(log10(number));
+  Serial.print(number/pow(10, exp));
+  Serial.print("E");
+  Serial.print(exp, DEC);
+}
+
+void printlne(float number) {
+  printe(number);
+  Serial.println();
+}
+
 #else
 const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
@@ -250,11 +257,11 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_OK;
         switch(channel) {
           case 0:
-            Serialize(&A0_SERIES_RESISTORS_[A0_series_resistor_index_],
+            Serialize(&config_settings_.A0_series_resistors[A0_series_resistor_index_],
                       sizeof(float));
             break;
           case 1:
-            Serialize(&A1_SERIES_RESISTORS_[A1_series_resistor_index_],
+            Serialize(&config_settings_.A1_series_resistors[A1_series_resistor_index_],
                       sizeof(float));
             break;
           default:
@@ -279,11 +286,11 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_OK;
         switch(channel) {
           case 0:
-            Serialize(&A0_SERIES_CAPACITANCE_[A0_series_resistor_index_],
+            Serialize(&config_settings_.A0_series_capacitance[A0_series_resistor_index_],
                       sizeof(float));
             break;
           case 1:
-            Serialize(&A1_SERIES_CAPACITANCE_[A1_series_resistor_index_],
+            Serialize(&config_settings_.A1_series_capacitance[A1_series_resistor_index_],
                       sizeof(float));
             break;
           default:
@@ -374,9 +381,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             
             // set the resistors to their highest values
             SetSeriesResistor(0,
-               sizeof(A0_SERIES_RESISTORS_)/sizeof(float)-1);
+               sizeof(config_settings_.A0_series_resistors)/sizeof(float)-1);
             SetSeriesResistor(1,
-               sizeof(A1_SERIES_RESISTORS_)/sizeof(float)-1);
+               sizeof(config_settings_.A1_series_resistors)/sizeof(float)-1);
 
             // update the channels (if they were included in the packet)
             if(payload_length()==3*sizeof(uint16_t)
@@ -552,36 +559,68 @@ void DmfControlBoard::begin() {
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
 
-  // sets the maximum output voltage for the waveform generator
-  uint8_t waveout_gain_1 = 112;
-
-  // sets the value of the analog reference
-  uint8_t aref = 255;
-
-  // sets the value of the virtual ground
-  uint8_t vgnd = 124;
-
-  // if the EEPROM_INIT flag has been set, replace default values with those
-  // stored in EEPROM
+  // if the EEPROM_INIT flag has been set, load configuration settings from
+  // EEPROM
   if(EEPROM.read(EEPROM_INIT)==0) {
-	Serial.println("Using calibration info from EEPROM.");
-    waveout_gain_1 = EEPROM.read(EEPROM_POT_WAVEOUT_GAIN_1);
-    aref = EEPROM.read(EEPROM_AREF);
-    vgnd = EEPROM.read(EEPROM_VGND);
-  } else {
+    Serial.println("Using calibration info from EEPROM.");
+    uint8_t* p = (uint8_t*)&config_settings_;
+    for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
+      p[i] = EEPROM.read(EEPROM_INIT+i);
+    }
+  } else { // use defaults
     Serial.println("Using default calibration info.");
+    config_settings_.waveout_gain_1 = 112;
+    config_settings_.aref = 255;
+    config_settings_.vgnd = 124;
+    config_settings_.A0_series_resistors[0] = 8.7e4;
+    config_settings_.A0_series_resistors[1] = 6.4e5;
+    config_settings_.A0_series_capacitance[0] = 1.4e-10;
+    config_settings_.A0_series_capacitance[1] = 1.69e-10;
+    config_settings_.A1_series_resistors[0] = 1.14e3;
+    config_settings_.A1_series_resistors[1] = 1e4;
+    config_settings_.A1_series_resistors[2] = 9.27e4;
+    config_settings_.A1_series_resistors[3] = 6.17e5;
+    config_settings_.A1_series_capacitance[0] = 3e-14;
+    config_settings_.A1_series_capacitance[1] = 3.2e-10;
+    config_settings_.A1_series_capacitance[2] = 3.2e-10;
+    config_settings_.A1_series_capacitance[3] = 3.2e-10;
   }
+
   Serial.print("waveout_gain_1=");
-  Serial.println(waveout_gain_1, DEC);
+  Serial.println(config_settings_.waveout_gain_1, DEC);
   Serial.print("aref=");
-  Serial.println(aref, DEC);
+  Serial.println(config_settings_.aref, DEC);
   Serial.print("vgnd=");
-  Serial.println(vgnd, DEC);
+  Serial.println(config_settings_.vgnd, DEC);
+  Serial.print("A0_series_resistor[0]=");
+  Serial.println(config_settings_.A0_series_resistors[0]);
+  Serial.print("A0_series_resistor[1]=");
+  Serial.println(config_settings_.A0_series_resistors[1]);
+  Serial.print("A0_series_capacitance[0]=");
+  printlne(config_settings_.A0_series_capacitance[0]);
+  Serial.print("A0_series_capacitance[1]=");
+  printlne(config_settings_.A0_series_capacitance[1]);
+  Serial.print("A1_series_resistor[0]=");
+  Serial.println(config_settings_.A1_series_resistors[0]);
+  Serial.print("A1_series_resistor[1]=");
+  Serial.println(config_settings_.A1_series_resistors[1]);
+  Serial.print("A1_series_resistor[2]=");
+  Serial.println(config_settings_.A1_series_resistors[2]);
+  Serial.print("A1_series_resistor[3]=");
+  Serial.println(config_settings_.A1_series_resistors[3]);
+  Serial.print("A1_series_capacitance[0]=");
+  printlne(config_settings_.A1_series_capacitance[0]);
+  Serial.print("A1_series_capacitance[1]=");
+  printlne(config_settings_.A1_series_capacitance[1]);
+  Serial.print("A1_series_capacitance[2]=");
+  printlne(config_settings_.A1_series_capacitance[2]);
+  Serial.print("A1_series_capacitance[3]=");
+  printlne(config_settings_.A1_series_capacitance[3]);
 
   // set all digital pots
-  SetPot(POT_INDEX_AREF_, aref);
-  SetPot(POT_INDEX_VGND_, vgnd);
-  SetPot(POT_INDEX_WAVEOUT_GAIN_1_, waveout_gain_1);
+  SetPot(POT_INDEX_AREF_, config_settings_.aref);
+  SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
+  SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
   SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
 
   SetSeriesResistor(0, 0);

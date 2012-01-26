@@ -39,18 +39,25 @@ public:
   (default), the EEPROM is ignored and default values are used.*/
   static const uint16_t EEPROM_INIT =                        100;
 
-  /**\brief The byte stored at this address sets the maximum output voltage
-  for the waveform generator. It should be trimmed so that the output
-  waveform is 4Vp-p when POT_WAVEOUT_GAIN_2 is set to 255.*/
-  static const uint16_t EEPROM_POT_WAVEOUT_GAIN_1 =          101;
+  struct config_settings_t {
+    /**\brief This byte sets the maximum output voltage for the waveform
+    generator. It should be trimmed so that the output waveform is 4Vp-p when
+    POT_WAVEOUT_GAIN_2 is set to 255.*/
+    uint8_t waveout_gain_1;
 
-  /**\brief The byte stored at this address sets the value of the analog
-  reference (between 0 and ~5V).*/
-  static const uint16_t EEPROM_AREF =                        102;
+    /**\brief This byte sets the value of the analog reference (between 0 and
+    ~5V).*/
+    uint8_t aref;
 
-  /**\brief The byte stored at this address sets the value of the virtual
-  ground reference (between 0 and 5V).*/
-  static const uint16_t EEPROM_VGND =                        103;
+    /**\brief This byte sets the value of the virtual ground reference (between
+    0 and 5V).*/
+    uint8_t vgnd;
+
+    float A0_series_resistors[2];
+    float A0_series_capacitance[2];
+    float A1_series_resistors[4];
+    float A1_series_capacitance[4];
+  };
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
@@ -66,16 +73,17 @@ public:
   static const uint8_t CMD_SET_STATE_OF_ALL_CHANNELS =      0xA2;
   static const uint8_t CMD_GET_STATE_OF_CHANNEL =           0xA3;
   static const uint8_t CMD_SET_STATE_OF_CHANNEL =           0xA4;
-  static const uint8_t CMD_GET_WAVEFORM =                   0xA5; //TODO
+  static const uint8_t CMD_GET_WAVEFORM =                   0xA5;
   static const uint8_t CMD_SET_WAVEFORM =                   0xA6;
-  static const uint8_t CMD_GET_WAVEFORM_VOLTAGE =           0xA7; //TODO
+  static const uint8_t CMD_GET_WAVEFORM_VOLTAGE =           0xA7;
   static const uint8_t CMD_SET_WAVEFORM_VOLTAGE =           0xA8;
-  static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9; //TODO
+  static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9;
   static const uint8_t CMD_SET_WAVEFORM_FREQUENCY =         0xAA;
   static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
   static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
   static const uint8_t CMD_GET_SERIES_RESISTOR =            0xAD;
   static const uint8_t CMD_SET_SERIES_RESISTOR =            0xAE;
+
   static const uint8_t CMD_GET_SERIES_CAPACITANCE =         0xAF;
 
   // Other commands
@@ -186,11 +194,6 @@ private:
   static const uint8_t HV_PEAK_INTERRUPT_ = 1;
   static const uint8_t FB_PEAK_INTERRUPT_ = 0;
 
-  static float A0_SERIES_RESISTORS_[];
-  static float A0_SERIES_CAPACITANCE_[];
-  static float A1_SERIES_RESISTORS_[];
-  static float A1_SERIES_CAPACITANCE_[];
-
   static const float SAMPLING_RATES_[];
 
   // I2C bus
@@ -243,7 +246,8 @@ private:
   uint8_t peak_;
   uint8_t waveform_voltage_;
   float waveform_frequency_;
-#else
+  config_settings_t config_settings_;
+  #else
   std::string experiment_log_file_name_;
   std::ofstream experiment_log_file_;
   boost::posix_time::ptime t_last_check_;
