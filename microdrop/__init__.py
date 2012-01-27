@@ -68,9 +68,11 @@ PluginGlobals.push_env('microdrop')
 
 
 class DmfControlBoardOptions(object):
-    def __init__(self, voltage=100,
-                 frequency=1e3,
-                 feedback_options=None):
+    def __init__(self, duration=100,
+                voltage=100,
+                frequency=1e3,
+                feedback_options=None):
+        self.duration = duration
         if feedback_options is None:
             self.feedback_options = FeedbackOptions()
         else:
@@ -87,6 +89,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
     implements(IWaveformGenerator)
 
     Fields = Form.of(
+        Integer.named('duration').using(default=100, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
         Integer.named('voltage').using(default=100, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
         Integer.named('frequency').using(default=1e3, optional=True,
@@ -216,9 +220,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         options = self.get_step_options()
-        emit_signal('on_step_options_changed',
-                [self.name, protocol_options.current_step_number],
-                interface=IPlugin)
         step = app.protocol.current_step()
         dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
         logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' % (options, dmf_options))
@@ -333,7 +334,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 self.control_board.set_state_of_all_channels(state)
                 t = time.time()
                 while time.time()-t < \
-                    app.protocol.current_step().duration / 1000.0:
+                    options.duration / 1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
@@ -346,7 +347,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             # run through protocol (even though device is not connected)
             if not app.control_board.connected():
                 t = time.time()
-                while time.time()-t < app.protocol.current_step().duration / 1000.0:
+                while time.time() - t < options.duration / 1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
                     # Sleep for 0.1ms between protocol polling loop iterations.
@@ -414,8 +415,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     def get_step_options(self, step_number=None):
         """
-        Return a FeedbackOptions object for the current step in the protocol.
-        If none exists yet, create a new one.
+        Return a DmfControlBoardOptions object for the current step in the
+        protocol.  If none exists yet, create a new one.
         """
         step_number = self.get_step(step_number)
         app = get_app()
