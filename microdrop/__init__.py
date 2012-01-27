@@ -214,7 +214,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called whenever the current protocol step changes.
         """
         app = get_app()
-        self.feedback_options_controller.update()
+        emit_signal('on_step_options_changed',
+                [self.name, app.protocol.current_step_number],
+                interface=IPlugin)
         options = self.get_step_options()
         step = app.protocol.current_step()
         dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
@@ -400,14 +402,19 @@ class DmfControlBoardPlugin(SingletonPlugin):
     def get_default_options(self):
         return DmfControlBoardOptions()
 
+    def get_step(self, default):
+        if default is None:
+            app = get_app()
+            return app.protocol.current_step_number
+        return default
+
     def get_step_options(self, step_number=None):
         """
         Return a FeedbackOptions object for the current step in the protocol.
         If none exists yet, create a new one.
         """
+        step_number = self.get_step(step_number)
         app = get_app()
-        if step_number is None:
-            step_number = app.protocol.current_step_number
         
         step = app.protocol.steps[step_number]
         options = step.get_data(self.name)
@@ -424,13 +431,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
         return self.Fields.field_schema_mapping.keys()
 
     def set_step_values(self, values_dict, step_number=None):
-        logger.info('[DmfControlBoardPlugin] set_step_values(): values_dict=%s' % values_dict)
+        step_number = self.get_step(step_number)
+        logger.debug('[DmfControlBoardPlugin] set_step[%d]_values(): '\
+                    'values_dict=%s' % (step_number, values_dict,))
         el = self.Fields(value=values_dict)
         if not el.validate():
             raise ValueError('Invalid values: %s' % el.errors)
         options = self.get_step_options(step_number=step_number)
-        #import pdb; pdb.set_trace()
-        print '[DmfControlBoardPlugin] step_number=%s' % step_number
         for name, field in el.iteritems():
             if field.value is None:
                 continue
@@ -438,6 +445,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 setattr(options.feedback_options, name, field.value)
             else:
                 setattr(options, name, field.value)
+        emit_signal('on_step_options_changed', [self.name, step_number],
+                                                interface=IPlugin)
 
     def get_step_values(self, step_number=None):
         app = get_app()
@@ -473,6 +482,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
             return getattr(options, name)
         except AttributeError:
             return getattr(options.feedback_options, name)
+
+    def on_step_options_changed(self, plugin, step_number):
+        logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
+                    '%s step #%d' % (plugin, step_number))
+        self.feedback_options_controller\
+            .on_step_options_changed(plugin, step_number)
 
 
 PluginGlobals.pop_env()
