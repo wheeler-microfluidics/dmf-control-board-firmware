@@ -39,6 +39,9 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
+from flatland import Element, Dict, String, Integer, Boolean, Float, Form
+from flatland.validation import ValueAtLeast, ValueAtMost
+
 
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
@@ -82,6 +85,22 @@ class DmfControlBoardPlugin(SingletonPlugin):
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
+
+    Fields = Form.of(
+        Integer.named('voltage').using(default=100, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('frequency').using(default=1e3, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Boolean.named('feedback_enabled').using(default=False, optional=True),
+        Integer.named('sampling_time_ms').using(default=10, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('n_samples').using(default=10, optional=True,
+            validators=[ValueAtLeast(minimum=0), ]),
+        Integer.named('delay_between_samples_ms').using(default=0, optional=True,
+            validators=[ValueAtLeast(minimum=0), ])
+    )
+    _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
+                            'delay_between_samples_ms'])
 
     def __init__(self):
         self.control_board = DmfControlBoard()
@@ -174,33 +193,20 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app.main_window_controller.label_connection_status. \
             set_text(connection_status)
 
-    def get_step_options(self, step=None):
-        """
-        Return a FeedbackOptions object for the current step in the protocol.
-        If none exists yet, create a new one.
-        """
-        app = get_app()
-        if step is None:
-            step = app.protocol.current_step_number
-        
-        options = app.protocol.current_step().get_data(self.name)
-        if options is None:
-            # No data is registered for this plugin (for this step).
-            options = DmfControlBoardOptions()
-            app.protocol.current_step().set_data(self.name, options)
-        return options
-
     def get_actuated_area(self):
         area = 0
         app = get_app()
-        state_of_all_channels = app.protocol.state_of_all_channels()        
+        step = app.protocol.current_step()
+        dmf_device_name = step.plugin_name_lookup('microdrop.gui.dmf_device_controller')
+        options = step.get_data(dmf_device_name)
+        state_of_all_channels = options.state_of_channels
         for id, electrode in app.dmf_device.electrodes.iteritems():
             channels = app.dmf_device.electrodes[id].channels
             if channels:
                 # get the state(s) of the channel(s) connected to this electrode
                 states = state_of_all_channels[channels]
-                if len(np.nonzero(states>0)[0]):
-                    area += electrode.area()*app.dmf_device.scale
+                if len(np.nonzero(states > 0)[0]):
+                    area += electrode.area() * app.dmf_device.scale
         return area
 
     def on_protocol_update(self, data):
@@ -208,22 +214,25 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called whenever the current protocol step changes.
         """
         app = get_app()
-        self.feedback_options_controller.update()
+        emit_signal('on_step_options_changed',
+                [self.name, app.protocol.current_step_number],
+                interface=IPlugin)
         options = self.get_step_options()
-        logger.debug('[DmfControlBoardPlugin] options=%s' % options)
+        step = app.protocol.current_step()
+        dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
+        logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' % (options, dmf_options))
         feedback_options = options.feedback_options
         self.current_state.feedback_enabled = feedback_options.feedback_enabled
 
         if self.control_board.connected() and \
             (app.realtime_mode or app.running):
-            state = app.protocol.current_step().state_of_channels
+            state = dmf_options.state_of_channels
             max_channels = self.control_board.number_of_channels() 
             if len(state) >  max_channels:
                 state = state[0:max_channels]
             elif len(state) < max_channels:
                 state = np.concatenate([state,
-                                        np.zeros(max_channels-len(state),
-                                                 int)])
+                        np.zeros(max_channels - len(state), int)])
             else:
                 assert(len(state) == max_channels)
 
@@ -349,25 +358,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 gtk.main_iteration()
         return thread.results
 
-    def on_app_exit(self):
-        """
-        Handler called just before the Microdrop application exists. 
-        """
-        pass
-    
-    def on_protocol_save(self):
-        """
-        Handler called when a protocol is saved.
-        """
-        app = get_app()
-        app.protocol.plugin_data[self.name] = (self.version, dumps(self.steps))
-    
-    def on_protocol_load(self, version, data):
-        """
-        Handler called when a protocol is loaded.
-        """
-        self.steps = loads(data)
-    
     def on_protocol_run(self):
         """
         Handler called when a protocol starts running.
@@ -379,36 +369,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
-
     
-    def on_protocol_pause(self):
-        """
-        Handler called when a protocol is paused.
-        """
-        pass
-        
-    def on_protocol_changed(self, protocol):
-        """
-        Handler called when the protocol changes (e.g., when a new protocol
-        is loaded).
-        """
-        if len(protocol) == 1:
-            self.steps = []
-
-    def on_dmf_device_changed(self, dmf_device):
-        """
-        Handler called when the DMF device changes (e.g., when a new device
-        is loaded).
-        """
-        pass
-
-    def on_experiment_log_changed(self, id):
-        """
-        Handler called when the experiment log changes (e.g., when a protocol
-        finishes running.
-        """
-        pass
-        
     def on_experiment_log_selection_changed(self, data):
         """
         Handler called whenever the experiment log selection changes.
@@ -437,6 +398,96 @@ class DmfControlBoardPlugin(SingletonPlugin):
             frequency : frequency in Hz
         """
         self.control_board.set_waveform_frequency(frequency)
+
+    def get_default_options(self):
+        return DmfControlBoardOptions()
+
+    def get_step(self, default):
+        if default is None:
+            app = get_app()
+            return app.protocol.current_step_number
+        return default
+
+    def get_step_options(self, step_number=None):
+        """
+        Return a FeedbackOptions object for the current step in the protocol.
+        If none exists yet, create a new one.
+        """
+        step_number = self.get_step(step_number)
+        app = get_app()
+        
+        step = app.protocol.steps[step_number]
+        options = step.get_data(self.name)
+        if options is None:
+            # No data is registered for this plugin (for this step).
+            options = self.get_default_options()
+            step.set_data(self.name, options)
+        return options
+
+    def get_step_form_class(self):
+        return self.Fields
+
+    def get_step_fields(self):
+        return self.Fields.field_schema_mapping.keys()
+
+    def set_step_values(self, values_dict, step_number=None):
+        step_number = self.get_step(step_number)
+        logger.debug('[DmfControlBoardPlugin] set_step[%d]_values(): '\
+                    'values_dict=%s' % (step_number, values_dict,))
+        el = self.Fields(value=values_dict)
+        if not el.validate():
+            raise ValueError('Invalid values: %s' % el.errors)
+        options = self.get_step_options(step_number=step_number)
+        for name, field in el.iteritems():
+            if field.value is None:
+                continue
+            if name in self._feedback_fields:
+                setattr(options.feedback_options, name, field.value)
+            else:
+                setattr(options, name, field.value)
+        emit_signal('on_step_options_changed', [self.name, step_number],
+                                                interface=IPlugin)
+
+    def get_step_values(self, step_number=None):
+        app = get_app()
+        if step_number is None:
+            step_number = app.protocol.current_step_number
+        step = app.protocol.steps[step_number]
+
+        options = step.get_data(self.name)
+        if options is None:
+            return None
+
+        values = {}
+        for name in self.Fields.field_schema_mapping:
+            try:
+                value = getattr(options, name)
+            except AttributeError:
+                value = getattr(options.feedback_options, name)
+            values[name] = value
+        return values
+
+    def get_step_value(self, name, step_number=None):
+        app = get_app()
+        if not name in self.Fields.field_schema_mapping:
+            raise KeyError('No field with name %s for plugin %s' % (name, self.name))
+        if step_number is None:
+            step_number = app.protocol.current_step_number
+        step = app.protocol.steps[step_number]
+
+        options = step.get_data(self.name)
+        if options is None:
+            return None
+        try:
+            return getattr(options, name)
+        except AttributeError:
+            return getattr(options.feedback_options, name)
+
+    def on_step_options_changed(self, plugin, step_number):
+        logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
+                    '%s step #%d' % (plugin, step_number))
+        self.feedback_options_controller\
+            .on_step_options_changed(plugin, step_number)
 
 
 PluginGlobals.pop_env()
