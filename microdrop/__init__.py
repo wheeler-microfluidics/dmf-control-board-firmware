@@ -213,7 +213,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     area += electrode.area() * app.dmf_device.scale
         return area
 
-    def on_protocol_update(self, data):
+    def on_protocol_update(self):
         """
         Handler called whenever the current protocol step changes.
         """
@@ -243,10 +243,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 area =  self.get_actuated_area()
                 
                 if feedback_options.action.__class__ == RetryAction:
-                    if data.keys().count("attempt") == 0:
+                    if app.experiment_log.data[-1].keys().count("attempt") == 0:
                         attempt = 0
                     else:
-                        attempt = data["attempt"]
+                        attempt = app.experiment_log.data[-1]["attempt"]
 
                     if attempt <= feedback_options.action.max_repeats:
                         voltage = float(options.voltage +\
@@ -258,8 +258,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, options)
-                        results = FeedbackResults(options,
+                            self.measure_impedance(state, feedback_options)
+                        results = FeedbackResults(feedback_options,
                             V_hv, hv_resistor,
                             V_fb, fb_resistor,
                             area,
@@ -267,11 +267,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             voltage)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
-                        data["FeedbackResults"] = dumps(results)
+                        app.experiment_log.add_data({"FeedbackResults":dumps(results)})
                         protocol_options = app.protocol.get_data(
                                 'microdrop.gui.protocol_controller')
                         if max(results.capacitance())/area < \
-                            options.action.capacitance_threshold:
+                            feedback_options.action.capacitance_threshold:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
                                 (protocol_options.current_step_number,
                                  attempt, max(results.capacitance())/area))
@@ -298,16 +298,16 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                     float(frequency),
                                     interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, options)
+                            self.measure_impedance(state, feedback_options)
                         results.add_frequency_step(frequency,
                             V_hv, hv_resistor, V_fb, fb_resistor)
-                    data["SweepFrequencyResults"] = dumps(results)
+                    app.experiment_log.add_data({"SweepFrequencyResults":dumps(results)})
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
-                elif options.action.__class__==SweepVoltageAction:
-                    voltages = np.linspace(options.action.start_voltage,
-                                           options.action.end_voltage,
-                                           options.action.n_voltage_steps)
+                elif feedback_options.action.__class__==SweepVoltageAction:
+                    voltages = np.linspace(feedback_options.action.start_voltage,
+                                           feedback_options.action.end_voltage,
+                                           feedback_options.action.n_voltage_steps)
                     frequency = float(app.protocol.current_step(). \
                         frequency)
                     emit_signal("set_frequency", frequency,
@@ -317,10 +317,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, options)
+                            self.measure_impedance(state, feedback_options)
                         results.add_voltage_step(voltage,
                             V_hv, hv_resistor, V_fb, fb_resistor)
-                    data["SweepVoltageResults"] = dumps(results)
+                    app.experiment_log.add_data({"SweepVoltageResults":dumps(results)})
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
             else:
