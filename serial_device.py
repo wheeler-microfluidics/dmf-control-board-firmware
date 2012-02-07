@@ -56,7 +56,8 @@ class SerialDevice(object):
         try:
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
         except WindowsError:
-            raise IterationError
+            # No serial ports. Return empty generator.
+            return
 
         for i in itertools.count():
             try:
