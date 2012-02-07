@@ -232,9 +232,8 @@ class FeedbackOptionsController():
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
         options.feedback_enabled = widget.get_active()
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_step_options_changed(self, plugin_name, step_number):
@@ -383,9 +382,8 @@ class FeedbackOptionsController():
         if retry and options.action.__class__ != RetryAction:
             options.action = RetryAction()
         if retry:
-            protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
             emit_signal('on_step_options_changed',
-                        [self.plugin.name, protocol_options.current_step_number],
+                        [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
         
     def on_radiobutton_sweep_frequency_toggled(self, widget, data=None):
@@ -402,9 +400,8 @@ class FeedbackOptionsController():
         if sweep_frequency and options.action.__class__ != SweepFrequencyAction:
             options.action = SweepFrequencyAction()
         if sweep_frequency:
-            protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
             emit_signal('on_step_options_changed',
-                        [self.plugin.name, protocol_options.current_step_number],
+                        [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
         
     def on_radiobutton_sweep_voltage_toggled(self, widget, data=None):
@@ -421,9 +418,8 @@ class FeedbackOptionsController():
         if sweep_voltage and options.action.__class__!=SweepVoltageAction:
             options.action = SweepVoltageAction()
         if sweep_voltage:
-            protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
             emit_signal('on_step_options_changed',
-                        [self.plugin.name, protocol_options.current_step_number],
+                        [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
             
     def on_textentry_sampling_time_ms_focus_out_event(self, widget, event):
@@ -449,9 +445,8 @@ class FeedbackOptionsController():
         options.sampling_time_ms = check_textentry(widget,
                             options.sampling_time_ms, int)
         app = get_app()
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_n_samples_focus_out_event(self, widget, event):
@@ -477,9 +472,8 @@ class FeedbackOptionsController():
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
         options.n_samples = check_textentry(widget, options.n_samples, int)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_delay_between_samples_ms_focus_out_event(self,
@@ -510,9 +504,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.delay_between_samples_ms = check_textentry(widget,
                             options.delay_between_samples_ms, int)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
     
     def on_textentry_capacitance_threshold_focus_out_event(self,
@@ -543,9 +536,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.capacitance_threshold = check_textentry(widget,
                             options.action.capacitance_threshold, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_increase_voltage_focus_out_event(self, widget, event):
@@ -572,9 +564,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.increase_voltage = check_textentry(widget,
                             options.action.increase_voltage, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
     
     def on_textentry_max_repeats_focus_out_event(self, widget, event):
@@ -601,9 +592,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.max_repeats = check_textentry(widget,
                             options.action.max_repeats, int)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
             
     def on_textentry_start_frequency_focus_out_event(self, widget, event):
@@ -630,9 +620,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.start_frequency = check_textentry(widget,
                             options.action.start_frequency / 1e3, float) * 1e3
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_end_frequency_focus_out_event(self, widget, event):
@@ -659,9 +648,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.end_frequency = check_textentry(widget,
                             options.action.end_frequency / 1e3, float) * 1e3
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_n_frequency_steps_focus_out_event(self, widget, event):
@@ -688,9 +676,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.n_frequency_steps = check_textentry(widget,
                             options.action.n_frequency_steps, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_start_voltage_focus_out_event(self, widget, event):
@@ -717,9 +704,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.start_voltage = check_textentry(widget,
                             options.action.start_voltage, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_end_voltage_focus_out_event(self, widget, event):
@@ -746,9 +732,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.end_voltage = check_textentry(widget,
                             options.action.end_voltage, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_textentry_n_voltage_steps_focus_out_event(self, widget, event):
@@ -775,9 +760,8 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.n_voltage_steps = check_textentry(widget,
                             options.action.n_voltage_steps, float)
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         emit_signal('on_step_options_changed',
-                    [self.plugin.name, protocol_options.current_step_number],
+                    [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
 

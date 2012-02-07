@@ -218,7 +218,6 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called whenever the current protocol step changes.
         """
         app = get_app()
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         options = self.get_step_options()
         step = app.protocol.current_step()
         dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
@@ -268,18 +267,16 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
                         app.experiment_log.add_data({"FeedbackResults":dumps(results)})
-                        protocol_options = app.protocol.get_data(
-                                'microdrop.gui.protocol_controller')
                         if max(results.capacitance())/area < \
                             feedback_options.action.capacitance_threshold:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
-                                (protocol_options.current_step_number,
+                                (app.protocol.current_step_number,
                                  attempt, max(results.capacitance())/area))
                             # signal that the step should be repeated
                             return 'Repeat'
                         else:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. OK' % \
-                                (protocol_options.current_step_number,
+                                (app.protocol.current_step_number,
                                  attempt, max(results.capacitance())/area))
                             return 'Ok'
                     else:
@@ -408,9 +405,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     def get_step(self, default):
         if default is None:
-            app = get_app()
-            protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
-            return protocol_options.current_step_number
+            return get_app().protocol.current_step_number
         return default
 
     def get_step_options(self, step_number=None):
@@ -455,9 +450,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     def get_step_values(self, step_number=None):
         app = get_app()
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         if step_number is None:
-            step_number = protocol_options.current_step_number
+            step_number = app.protocol.current_step_number
         step = app.protocol.steps[step_number]
 
         options = step.get_data(self.name)
@@ -477,9 +471,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         if not name in self.Fields.field_schema_mapping:
             raise KeyError('No field with name %s for plugin %s' % (name, self.name))
-        protocol_options = app.protocol.get_data('microdrop.gui.protocol_controller')
         if step_number is None:
-            step_number = protocol_options.current_step_number
+            step_number = app.protocol.current_step_number
         step = app.protocol.steps[step_number]
 
         options = step.get_data(self.name)
