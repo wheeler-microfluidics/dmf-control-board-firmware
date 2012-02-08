@@ -32,7 +32,7 @@ if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
 
-from utility import *
+from utility.gui import combobox_set_model_from_list, combobox_get_active_text
 import logging
 
 try:
