@@ -31,6 +31,7 @@ import matplotlib.mlab as mlab
 if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
+from path import path
 
 from utility.gui import combobox_set_model_from_list, combobox_get_active_text
 import logging
@@ -154,7 +155,7 @@ class FeedbackOptionsController():
         self.builder = gtk.Builder()
         app = get_app()
         self.builder.add_from_file(
-            app.config.plugins_directory.joinpath('dmf_control_board',
+            path(app.config['plugins']['directory']).joinpath('dmf_control_board',
                         'microdrop', 'glade', 'feedback_options.glade'))
         self.window = self.builder.get_object("window")
         self.builder.connect_signals(self)
@@ -957,7 +958,7 @@ class FeedbackResultsController():
         self.builder = gtk.Builder()
         app = get_app()
         self.builder.add_from_file(
-            app.config.plugins_directory.joinpath('dmf_control_board',
+            path(app.config['plugins']['directory']).joinpath('dmf_control_board',
                                 'microdrop', 'glade', 'feedback_results.glade'))
         self.window = self.builder.get_object("window")
         self.combobox_x_axis = self.builder.get_object("combobox_x_axis")
