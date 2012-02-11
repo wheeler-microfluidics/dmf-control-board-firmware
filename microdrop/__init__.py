@@ -213,9 +213,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     area += electrode.area() * app.dmf_device.scale
         return area
 
-    def on_protocol_update(self):
+    def on_step_run(self):
         """
-        Handler called whenever the current protocol step changes.
+        Handler called whenever a step is executed.
+
+        Returns:
+            True if the step should be run again (e.g., if a feedback
+            plugin wants to signal that the step should be repeated)
         """
         app = get_app()
         options = self.get_step_options()
@@ -491,7 +495,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         if plugin=='microdrop.gui.dmf_device_controller':
             app = get_app()
             if app.protocol.current_step_number==step_number:
-                self.on_protocol_update()
+                self.on_step_run()
 
 
 PluginGlobals.pop_env()
