@@ -488,6 +488,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     '%s step #%d' % (plugin, step_number))
         self.feedback_options_controller\
             .on_step_options_changed(plugin, step_number)
+        if plugin=='microdrop.gui.dmf_device_controller':
+            app = get_app()
+            if app.protocol.current_step_number==step_number:
+                self.on_protocol_update()
 
 
 PluginGlobals.pop_env()
