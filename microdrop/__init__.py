@@ -213,7 +213,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     area += electrode.area() * app.dmf_device.scale
         return area
 
-    def on_run_step(self):
+    def on_step_run(self):
         """
         Handler called whenever a step is executed.
 
@@ -495,7 +495,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         if plugin=='microdrop.gui.dmf_device_controller':
             app = get_app()
             if app.protocol.current_step_number==step_number:
-                self.on_run_step()
+                self.on_step_run()
 
 
 PluginGlobals.pop_env()
