@@ -370,7 +370,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         if self.control_board.connected() == False:
             logger.warning("Warning: no control board connected.")
-        elif self.control_board.number_of_channels() < app.protocol.n_channels:
+        elif self.control_board.number_of_channels() <= app.dmf_device.max_channel():
             logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
