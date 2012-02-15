@@ -219,7 +219,7 @@ class FeedbackOptionsController():
                 V_hv, hv_resistor,
                 V_fb, fb_resistor,
                 area, frequency,
-                self.plugin.app.protocol.current_step().voltage)
+                app.protocol.current_step().voltage)
             logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold =\
