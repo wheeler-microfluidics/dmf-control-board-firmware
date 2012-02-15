@@ -34,6 +34,7 @@ from matplotlib.figure import Figure
 from path import path
 
 from utility.gui import combobox_set_model_from_list, combobox_get_active_text
+from utility import check_textentry
 import logging
 
 try:
@@ -219,8 +220,8 @@ class FeedbackOptionsController():
                 V_hv, hv_resistor,
                 V_fb, fb_resistor,
                 area, frequency,
-                app.protocol.current_step().voltage)
-            logger.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
+                voltage)
+            logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold =\
                 max(results.capacitance()) / area * .95
