@@ -475,9 +475,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   if(A0_series_resistor_index_>0) {
                     SetSeriesResistor(0, \
                       A0_series_resistor_index_-1);
+                    hv_max = 0;
+                    hv_min = 1024;
                   }
-                  hv_max = 0;
-                  hv_min = 1024;
                   continue;
                 }
                 if(hv>hv_max) {
@@ -495,9 +495,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   if(A1_series_resistor_index_>0) {
                     SetSeriesResistor(1,
                       A1_series_resistor_index_-1);
+                    fb_max = 0;
+                    fb_min = 1024;
                   }
-                  fb_max = 0;
-                  fb_min = 1024;
                   continue;
                 }
                 if(fb>fb_max) {
