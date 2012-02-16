@@ -221,6 +221,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             True if the step should be run again (e.g., if a feedback
             plugin wants to signal that the step should be repeated)
         """
+        logger.debug('[DmfControlBoardPlugin] on_step_run()')
         app = get_app()
         options = self.get_step_options()
         step = app.protocol.current_step()
@@ -488,14 +489,14 @@ class DmfControlBoardPlugin(SingletonPlugin):
             return getattr(options.feedback_options, name)
 
     def on_step_options_changed(self, plugin, step_number):
-        logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
+        app = get_app()
+        logger.info('[DmfControlBoardPlugin] on_step_options_changed():'\
                     '%s step #%d' % (plugin, step_number))
         self.feedback_options_controller\
             .on_step_options_changed(plugin, step_number)
-        if plugin=='microdrop.gui.dmf_device_controller':
-            app = get_app()
-            if app.protocol.current_step_number==step_number:
-                self.on_step_run()
+        if not app.running and (plugin=='microdrop.gui.dmf_device_controller' or \
+        plugin==self.name) and app.protocol.current_step_number==step_number:
+            self.on_step_run()
 
 
 PluginGlobals.pop_env()
