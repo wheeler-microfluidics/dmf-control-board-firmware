@@ -490,7 +490,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
     def on_step_options_changed(self, plugin, step_number):
         app = get_app()
-        logger.info('[DmfControlBoardPlugin] on_step_options_changed():'\
+        logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
                     '%s step #%d' % (plugin, step_number))
         self.feedback_options_controller\
             .on_step_options_changed(plugin, step_number)
