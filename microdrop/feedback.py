@@ -119,6 +119,16 @@ class SweepVoltageAction():
             self.n_voltage_steps = 20
 
 
+class SweepElectrodesAction():
+    def __init__(self,
+                 electrodes=None):
+        if electrodes:
+            self.electrodes = electrodes
+        else:
+            #TODO: default to all electrodes
+            self.electrodes = None
+
+
 class FeedbackOptions():
     """
     This class stores the feedback options for a single step in the protocol.
@@ -320,6 +330,20 @@ class FeedbackOptionsController():
             button.set_active(sweep_voltage)
             button.handler_unblock_by_func(self.on_radiobutton_sweep_voltage_toggled)
 
+        sweep_electrodes = (options.action.__class__ == SweepElectrodesAction)
+        # update the sweep electrodes action parameters
+        if sweep_electrodes:
+            self.builder.get_object("textentry_electrodes"). \
+                set_text(str(options.action.electrodes))
+        else:
+            self.builder.get_object("textentry_electrodes").set_text("")
+        button = self.builder.get_object("radiobutton_sweep_electrodes")
+        if sweep_electrodes != button.get_active():
+            # Temporarily disable toggled signal handler (see above)
+            button.handler_block_by_func(self.on_radiobutton_sweep_electrodes_toggled)
+            button.set_active(sweep_electrodes)
+            button.handler_unblock_by_func(self.on_radiobutton_sweep_electrodes_toggled)
+        
         # on_textentry_sampling_time_ms_changed
         self.builder.get_object("textentry_sampling_time_ms").set_text(
             str(options.sampling_time_ms))
@@ -346,6 +370,8 @@ class FeedbackOptionsController():
             .set_sensitive(options.feedback_enabled)
         self.builder.get_object("radiobutton_sweep_voltage")\
             .set_sensitive(options.feedback_enabled)
+        self.builder.get_object("radiobutton_sweep_electrodes")\
+            .set_sensitive(options.feedback_enabled)
 
         retry = (options.action.__class__ == RetryAction)
         self.builder.get_object("textentry_capacitance_threshold")\
@@ -370,6 +396,10 @@ class FeedbackOptionsController():
             .set_sensitive(options.feedback_enabled and sweep_voltage)
         self.builder.get_object("textentry_n_voltage_steps")\
             .set_sensitive(options.feedback_enabled and sweep_voltage)
+
+        sweep_electrodes = (options.action.__class__ == SweepElectrodesAction)
+        self.builder.get_object("textentry_electrodes")\
+            .set_sensitive(options.feedback_enabled and sweep_electrodes)
 
     def on_radiobutton_retry_toggled(self, widget, data=None):
         """
@@ -421,6 +451,25 @@ class FeedbackOptionsController():
         if sweep_voltage and options.action.__class__!=SweepVoltageAction:
             options.action = SweepVoltageAction()
         if sweep_voltage:
+            emit_signal('on_step_options_changed',
+                        [self.plugin.name, app.protocol.current_step_number],
+                        interface=IPlugin)
+
+    def on_radiobutton_sweep_electrodes_toggled(self, widget, data=None):
+        """
+        Handler called when the "Sweep Electrodes..." radio button is
+        toggled. 
+        """
+        logging.debug('sweep_electrodes was toggled %s'\
+            % (('OFF', 'ON')[widget.get_active()]))
+        app = get_app()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        sweep_electrodes = widget.get_active() 
+        if sweep_electrodes and options.action.__class__!= \
+        SweepElectrodesAction:
+            options.action = SweepElectrodesAction()
+        if sweep_electrodes:
             emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)

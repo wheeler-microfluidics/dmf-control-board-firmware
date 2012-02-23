@@ -987,6 +987,7 @@
                     <property name="use_action_appearance">False</property>
                     <property name="draw_indicator">True</property>
                     <property name="group">radiobutton_retry</property>
+                    <signal name="toggled" handler="on_radiobutton_sweep_electrodes_toggled" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">True</property>
@@ -1039,7 +1040,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkEntry" id="textentry_start_voltage1">
+                      <object class="GtkEntry" id="textentry_electrodes">
                         <property name="width_request">50</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
