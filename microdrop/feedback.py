@@ -33,8 +33,9 @@ if os.name=='nt':
 from matplotlib.figure import Figure
 from path import path
 
-from utility.gui import combobox_set_model_from_list, combobox_get_active_text
-from utility import check_textentry
+from utility import SetOfInts
+from utility.gui import textentry_validate, combobox_set_model_from_list, \
+    combobox_get_active_text
 import logging
 
 try:
@@ -121,13 +122,14 @@ class SweepVoltageAction():
 
 class SweepElectrodesAction():
     def __init__(self,
-                 electrodes=None):
-        if electrodes:
-            self.electrodes = electrodes
+                 channels=None):
+        if channels:
+            self.channels = channels
         else:
-            #TODO: default to all electrodes
-            self.electrodes = None
-
+            self.channels = SetOfInts()
+            app = get_app()
+            for e in app.dmf_device.electrodes.values():
+                self.channels.update(e.channels)
 
 class FeedbackOptions():
     """
@@ -333,10 +335,10 @@ class FeedbackOptionsController():
         sweep_electrodes = (options.action.__class__ == SweepElectrodesAction)
         # update the sweep electrodes action parameters
         if sweep_electrodes:
-            self.builder.get_object("textentry_electrodes"). \
-                set_text(str(options.action.electrodes))
+            self.builder.get_object("textentry_channels"). \
+                set_text(str(options.action.channels))
         else:
-            self.builder.get_object("textentry_electrodes").set_text("")
+            self.builder.get_object("textentry_channels").set_text("")
         button = self.builder.get_object("radiobutton_sweep_electrodes")
         if sweep_electrodes != button.get_active():
             # Temporarily disable toggled signal handler (see above)
@@ -398,7 +400,7 @@ class FeedbackOptionsController():
             .set_sensitive(options.feedback_enabled and sweep_voltage)
 
         sweep_electrodes = (options.action.__class__ == SweepElectrodesAction)
-        self.builder.get_object("textentry_electrodes")\
+        self.builder.get_object("textentry_channels")\
             .set_sensitive(options.feedback_enabled and sweep_electrodes)
 
     def on_radiobutton_retry_toggled(self, widget, data=None):
@@ -478,13 +480,15 @@ class FeedbackOptionsController():
         """
         Handler called when the "sampling time" text box loses focus. 
         """
+        logging.info("on_textentry_sampling_time_ms_focus_out_event")
         self.on_textentry_sampling_time_ms_changed(widget)
         return False
-    
+
     def on_textentry_sampling_time_ms_key_press_event(self, widget, event):
         """
         Handler called when the user presses a key within the "sampling time" text box. 
         """
+        logging.info("on_textentry_sampling_time_ms_key_press_event")
         if event.keyval == 65293: # user pressed enter
             self.on_textentry_sampling_time_ms_changed(widget)
     
@@ -492,9 +496,10 @@ class FeedbackOptionsController():
         """
         Update the sampling time value for the current step. 
         """
+        logging.info("on_textentry_sampling_time_ms_changed")
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.sampling_time_ms = check_textentry(widget,
+        options.sampling_time_ms = textentry_validate(widget,
                             options.sampling_time_ms, int)
         app = get_app()
         emit_signal('on_step_options_changed',
@@ -523,7 +528,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.n_samples = check_textentry(widget, options.n_samples, int)
+        options.n_samples = textentry_validate(widget, options.n_samples, int)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
@@ -554,7 +559,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.delay_between_samples_ms = check_textentry(widget,
+        options.delay_between_samples_ms = textentry_validate(widget,
                             options.delay_between_samples_ms, int)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -586,7 +591,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.capacitance_threshold = check_textentry(widget,
+        options.action.capacitance_threshold = textentry_validate(widget,
                             options.action.capacitance_threshold, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -614,7 +619,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.increase_voltage = check_textentry(widget,
+        options.action.increase_voltage = textentry_validate(widget,
                             options.action.increase_voltage, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -642,7 +647,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.max_repeats = check_textentry(widget,
+        options.action.max_repeats = textentry_validate(widget,
                             options.action.max_repeats, int)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -670,7 +675,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.start_frequency = check_textentry(widget,
+        options.action.start_frequency = textentry_validate(widget,
                             options.action.start_frequency / 1e3, float) * 1e3
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -698,7 +703,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.end_frequency = check_textentry(widget,
+        options.action.end_frequency = textentry_validate(widget,
                             options.action.end_frequency / 1e3, float) * 1e3
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -726,7 +731,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.n_frequency_steps = check_textentry(widget,
+        options.action.n_frequency_steps = textentry_validate(widget,
                             options.action.n_frequency_steps, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -754,7 +759,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.start_voltage = check_textentry(widget,
+        options.action.start_voltage = textentry_validate(widget,
                             options.action.start_voltage, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -782,7 +787,7 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.end_voltage = check_textentry(widget,
+        options.action.end_voltage = textentry_validate(widget,
                             options.action.end_voltage, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
@@ -810,11 +815,43 @@ class FeedbackOptionsController():
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.n_voltage_steps = check_textentry(widget,
+        options.action.n_voltage_steps = textentry_validate(widget,
                             options.action.n_voltage_steps, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
+
+    def on_textentry_channels_focus_out_event(self, widget, event):
+        """
+        Handler called when the "electrodes" text box loses focus. 
+        """
+        self.on_textentry_channels_changed(widget)
+        return False
+    
+    def on_textentry_channels_key_press_event(self, widget, event):
+        """
+        Handler called when the user presses a key within the "electrodes"
+        text box. 
+        """
+        if event.keyval == 65293: # user pressed enter
+            self.on_textentry_channels_changed(widget)
+    
+    def on_textentry_channels_changed(self, widget):
+        """
+        Update the electrodes value for the current step. 
+        """
+        app = get_app()
+        all_options = self.plugin.get_step_options()
+        options = all_options.feedback_options
+        try:
+            channels = SetOfInts(widget.get_text())
+            assert(min(channels)>=0)
+            options.action.channels = channels
+            emit_signal('on_step_options_changed',
+                        [self.plugin.name, app.protocol.current_step_number],
+                        interface=IPlugin)
+        except:
+            widget.set_text(str(options.action.channels))
 
 
 class FeedbackResults():
