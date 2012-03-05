@@ -20,10 +20,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import threading
 import time
 import math
-try:
-    from cPickle import dumps, loads
-except ImportError:
-    from pickle import dumps, loads
 
 import gtk
 import numpy as np
@@ -246,10 +242,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 area =  self.get_actuated_area()
                 
                 if feedback_options.action.__class__ == RetryAction:
-                    if app.experiment_log.data[-1].keys().count("attempt") == 0:
+                    if 'attempt' in app.experiment_log.data[-1]['core'].keys():
                         attempt = 0
                     else:
-                        attempt = app.experiment_log.data[-1]["attempt"]
+                        attempt = app.experiment_log.data[-1]['core']['attempt']
 
                     if attempt <= feedback_options.action.max_repeats:
                         voltage = float(options.voltage +\
@@ -270,7 +266,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             voltage)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
-                        app.experiment_log.add_data({"FeedbackResults":dumps(results)})
+                        app.experiment_log.add_data({"FeedbackResults":results},
+                                                    self.name)
                         if max(results.capacitance())/area < \
                             feedback_options.action.capacitance_threshold:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
@@ -302,7 +299,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             self.measure_impedance(state, feedback_options)
                         results.add_frequency_step(frequency,
                             V_hv, hv_resistor, V_fb, fb_resistor)
-                    app.experiment_log.add_data({"SweepFrequencyResults":dumps(results)})
+                    app.experiment_log.add_data({"SweepFrequencyResults":results},
+                                                self.name)
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
                 elif feedback_options.action.__class__==SweepVoltageAction:
@@ -321,7 +319,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             self.measure_impedance(state, feedback_options)
                         results.add_voltage_step(voltage,
                             V_hv, hv_resistor, V_fb, fb_resistor)
-                    app.experiment_log.add_data({"SweepVoltageResults":dumps(results)})
+                    app.experiment_log.add_data({"SweepVoltageResults":results},
+                                                self.name)
                     logger.info("V_total=%s" % results.V_total())
                     logger.info("Z_device=%s" % results.Z_device())                        
             else:

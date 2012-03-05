@@ -19,10 +19,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import math
-try:
-    from cPickle import dumps, loads
-except ImportError:
-    from pickle import dumps, loads
 
 import gtk
 import numpy as np
@@ -873,6 +869,12 @@ class FeedbackResults():
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
         self._V_total = V_total
+        
+    def __getstate__(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, np.ndarray):
+                self.__dict__[k] = v.tolist()
+        return self.__dict__
 
     def V_total(self):
         T = feedback_signal([_C_hv[self.hv_resistor],
@@ -965,6 +967,15 @@ class SweepFrequencyResults():
         self.V_fb = []
         self.fb_resistor = []
 
+    def __getstate__(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                for i in range(len(v)):
+                    self.__dict__[k][i] = self.__dict__[k][i].tolist()
+            elif isinstance(v, np.ndarray):
+                self.__dict__[k] = v.tolist()
+        return self.__dict__
+
     def add_frequency_step(self, frequency,
                            V_hv, hv_resistor,
                            V_fb, fb_resistor):
@@ -1010,6 +1021,15 @@ class SweepVoltageResults():
         self.hv_resistor = []
         self.V_fb = []
         self.fb_resistor = []
+
+    def __getstate__(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                for i in range(len(v)):
+                    self.__dict__[k][i] = self.__dict__[k][i].tolist()
+            elif isinstance(v, np.ndarray):
+                self.__dict__[k] = v.tolist()
+        return self.__dict__
 
     def add_voltage_step(self, voltage,
                          V_hv, hv_resistor,
@@ -1123,8 +1143,8 @@ class FeedbackResultsController():
         if x_axis=="Time":
             self.axis.set_xlabel("Time (ms)")
             for row in self.data:
-                if row.keys().count("FeedbackResults"):
-                    results = loads(row["FeedbackResults"])
+                if self.plugin.name in row.keys() and "FeedbackResults" in row[self.plugin.name].keys():
+                    results = row[self.plugin.name]["FeedbackResults"]
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1145,12 +1165,12 @@ class FeedbackResultsController():
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
                         self.axis.plot((results.time[:-1]+results.time[1:])/2,
                                        dxdt)
-                    legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
+                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
             for row in self.data:
-                if row.keys().count("SweepFrequencyResults"):
-                    results = loads(row["SweepFrequencyResults"])
+                if self.plugin.name in row.keys() and "SweepFrequencyResults" in row[self.plugin.name].keys():
+                    results = row[self.plugin.name]["SweepFrequencyResults"]
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
@@ -1170,12 +1190,12 @@ class FeedbackResultsController():
                         self.axis.set_xscale('log')
                         
                     legend.append("Step %d (%.3f s)" % \
-                                  (row["step"]+1, row["time"]))
+                                  (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
-                if row.keys().count("SweepVoltageResults"):
-                    results = loads(row["SweepVoltageResults"])
+                if self.plugin.name in row.keys() and "SweepVoltageResults" in row[self.plugin.name].keys():
+                    results = row[self.plugin.name]["SweepVoltageResults"]
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1193,7 +1213,7 @@ class FeedbackResultsController():
                                            np.mean(results.capacitance()/results.area, 1),
                                            np.std(results.capacitance()/results.area, 1),
                                            fmt='.')
-                    legend.append("Step %d (%.3f s)" % (row["step"]+1, row["time"]))
+                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
         if len(legend):
             self.axis.legend(legend, loc=legend_loc)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)
