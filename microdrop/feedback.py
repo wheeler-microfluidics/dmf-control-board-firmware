@@ -1124,6 +1124,9 @@ class FeedbackResultsController():
     def on_combobox_y_axis_changed(self, widget, data=None):
         self.update_plot()
 
+    def on_export_data_clicked(self, widget, data=None):
+        print self.data
+
     def on_experiment_log_selection_changed(self, data):
         """
         Handler called whenever the experiment log selection changes.
@@ -1132,7 +1135,7 @@ class FeedbackResultsController():
         """
         self.data = data
         self.update_plot()
-        
+
     def update_plot(self):
         x_axis = combobox_get_active_text(self.combobox_x_axis)
         y_axis = combobox_get_active_text(self.combobox_y_axis)
