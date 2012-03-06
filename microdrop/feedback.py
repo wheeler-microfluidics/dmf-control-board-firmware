@@ -1125,7 +1125,32 @@ class FeedbackResultsController():
         self.update_plot()
 
     def on_export_data_clicked(self, widget, data=None):
-        print self.data
+        dialog = gtk.FileChooserDialog(title="Export data",
+                                       action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       buttons=(gtk.STOCK_CANCEL,
+                                                gtk.RESPONSE_CANCEL,
+                                                gtk.STOCK_SAVE,
+                                                gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        dialog.set_current_name("export.csv")
+        filter = gtk.FileFilter()
+        filter.set_name("*.csv")
+        filter.add_pattern("*.csv")
+        dialog.add_filter(filter)
+        filter = gtk.FileFilter()
+        filter.set_name("All files")
+        filter.add_pattern("*")
+        dialog.add_filter(filter)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            filename = dialog.get_filename()
+            logging.info("Exporting to file %s." % filename)
+            try:
+                with open(filename, 'w') as f:
+                    f.write("\n".join(self.export_data))
+            except Exception, e:
+                logging.error("Problem exporting file. %s." % e)
+        dialog.destroy()
 
     def on_experiment_log_selection_changed(self, data):
         """
@@ -1143,11 +1168,14 @@ class FeedbackResultsController():
         self.axis.grid(True)
         legend = []
         legend_loc = "upper right"
+        self.export_data = []        
         if x_axis=="Time":
             self.axis.set_xlabel("Time (ms)")
             for row in self.data:
                 if self.plugin.name in row.keys() and "FeedbackResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["FeedbackResults"]
+                    self.export_data.append('step:, %d' % (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % (row['core']["time"]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1156,24 +1184,47 @@ class FeedbackResultsController():
                         self.axis.plot(results.time,
                                        results.Z_device())
                         self.axis.set_yscale('log')
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in results.time]))
+                        self.export_data.append('impedance (Ohms):, ' + 
+                            ", ".join([str(x) for x in results.Z_device()]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.plot(results.time,
                                        results.capacitance()/results.area)
                         legend_loc = "lower right"
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in results.time]))
+                        self.export_data.append('capacitance/area (F/mm^2):,' + 
+                            ", ".join([str(x) for x in results.capacitance()]))
                     elif y_axis=="Velocity":
                         dxdt = results.dxdt()
                         self.axis.set_title("Instantaneous velocity")
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        self.axis.plot((results.time[:-1]+results.time[1:])/2,
+                        self.axis.plot((np.array(results.time[:-1]) + \
+                                        np.array(results.time[1:]))/2,
                                        dxdt)
-                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in (
+                                np.array(results.time[:-1])+
+                                np.array(results.time[1:]))/2]))
+                        self.export_data.append('velocity (mm/s):,' + 
+                            ", ".join([str(x) for x in dxdt]))
+                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
+                                                        row['core']["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
             for row in self.data:
-                if self.plugin.name in row.keys() and "SweepFrequencyResults" in row[self.plugin.name].keys():
+                if self.plugin.name in row.keys() and \
+                "SweepFrequencyResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepFrequencyResults"]
+                    self.export_data.append('step:, %d' % \
+                                            (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % \
+                                            (row['core']["time"]))
+                    self.export_data.append('frequency (Hz):, '+
+                        ", ".join([str(x) for x in results.frequency]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
@@ -1183,22 +1234,42 @@ class FeedbackResultsController():
                                            fmt='.')
                         self.axis.set_xscale('log')
                         self.axis.set_yscale('log')
+                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.capacitance(), 1)/results.area,
-                                           np.std(results.capacitance(), 1)/results.area,
+                                           np.mean(results.capacitance(), 1)/
+                                                results.area,
+                                           np.std(results.capacitance(), 1)/
+                                                results.area,
                                            fmt='.')
                         self.axis.set_xscale('log')
-                        
+                        self.export_data.append('mean(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     legend.append("Step %d (%.3f s)" % \
                                   (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
-                if self.plugin.name in row.keys() and "SweepVoltageResults" in row[self.plugin.name].keys():
+                if self.plugin.name in row.keys() and \
+                "SweepVoltageResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepVoltageResults"]
+                    self.export_data.append('step:, %d' % \
+                                            (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % \
+                                            (row['core']["time"]))
+                    self.export_data.append('voltage (Vrms):, '+
+                        ", ".join([str(x) for x in results.voltage]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1209,6 +1280,12 @@ class FeedbackResultsController():
                                            np.std(results.Z_device(), 1),
                                            fmt='.')
                         self.axis.set_yscale('log')
+                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
@@ -1216,6 +1293,12 @@ class FeedbackResultsController():
                                            np.mean(results.capacitance()/results.area, 1),
                                            np.std(results.capacitance()/results.area, 1),
                                            fmt='.')
+                        self.export_data.append('mean(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
         if len(legend):
             self.axis.legend(legend, loc=legend_loc)
