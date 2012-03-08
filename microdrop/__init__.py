@@ -195,9 +195,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
     def get_actuated_area(self):
         area = 0
         app = get_app()
-        step = app.protocol.current_step()
-        dmf_device_name = step.plugin_name_lookup('microdrop.gui.dmf_device_controller')
-        options = step.get_data(dmf_device_name)
+        options = app.dmf_device_controller.get_step_options()
         state_of_all_channels = options.state_of_channels
         for id, electrode in app.dmf_device.electrodes.iteritems():
             channels = app.dmf_device.electrodes[id].channels
@@ -219,8 +217,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         logger.debug('[DmfControlBoardPlugin] on_step_run()')
         app = get_app()
         options = self.get_step_options()
-        step = app.protocol.current_step()
-        dmf_options = step.get_data('microdrop.gui.dmf_device_controller')
+        dmf_options = app.dmf_device_controller.get_step_options()
         logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' % (options, dmf_options))
         feedback_options = options.feedback_options
         self.current_state.feedback_enabled = feedback_options.feedback_enabled
@@ -242,7 +239,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 area =  self.get_actuated_area()
                 
                 if feedback_options.action.__class__ == RetryAction:
-                    if 'attempt' in app.experiment_log.data[-1]['core'].keys():
+                    if 'attempt' not in app.experiment_log.data[-1]['core'].keys():
                         attempt = 0
                     else:
                         attempt = app.experiment_log.data[-1]['core']['attempt']
