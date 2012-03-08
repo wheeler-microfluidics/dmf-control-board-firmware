@@ -971,7 +971,8 @@ class SweepFrequencyResults():
         for k, v in self.__dict__.items():
             if isinstance(v, list):
                 for i in range(len(v)):
-                    self.__dict__[k][i] = self.__dict__[k][i].tolist()
+                    if isinstance(self.__dict__[k][i], np.ndarray):
+                        self.__dict__[k][i] = self.__dict__[k][i].tolist()
             elif isinstance(v, np.ndarray):
                 self.__dict__[k] = v.tolist()
         return self.__dict__
