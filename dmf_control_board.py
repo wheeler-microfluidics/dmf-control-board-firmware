@@ -33,14 +33,31 @@ from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
 
 
+class FeedbackCalibration():
+    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None):
+        if R_hv:
+            self.R_hv = R_hv
+        else:
+            self.R_hv = np.array([8.7e4, 6.4e5])
+        if C_hv:
+            self.C_hv = C_hv
+        else:
+            self.C_hv = np.array([1.4e-10, 1.69e-10])
+        if R_fb:
+            self.R_fb = R_fb
+        else:
+            self.R_fb = np.array([1.14e3, 1e4, 9.3e4, 6.5e5])
+        if C_fb:
+            self.C_fb = C_fb
+        else:
+            self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])        
+
+
 class DmfControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
         SerialDevice.__init__(self)
-        self.R_hv = []
-        self.C_hv = []
-        self.R_fb = []
-        self.C_fb = []
+        self.calibration = None
                 
     def connect(self, port=None):
         if port:
@@ -51,34 +68,32 @@ class DmfControlBoard(Base, SerialDevice):
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")            
         
-        self.R_hv = []
-        self.C_hv = []
-        self.R_fb = []
-        self.C_fb = []
+        self.calibration = FeedbackCalibration([], [], [], [])
         try:
             i=0
             while True:
                 self.set_series_resistor_index(0, i)
-                self.R_hv.append(
+                self.calibration.R_hv.append(
                     self.series_resistance(0))
-                self.C_hv.append(
+                self.calibration.C_hv.append(
                     self.series_capacitance(0))
                 i+=1
         except:
-            logger.info("HV series resistors=%s" % self.R_hv)
-            logger.info("HV series capacitance=%s" % self.C_hv)
+            logger.info("HV series resistors=%s" % self.calibration.R_hv)
+            logger.info("HV series capacitance=%s" % self.calibration.C_hv)
         try:
             i=0
             while True:
                 self.set_series_resistor_index(1, i)
-                self.R_fb.append(
+                self.calibration.R_fb.append(
                     self.series_resistance(1))
-                self.C_fb.append(
+                self.calibration.C_fb.append(
                     self.series_capacitance(1))
                 i+=1
         except:
-            logger.info("Feedback series resistors=%s" % self.R_fb)
-            logger.info("Feedback series capacitance=%s" % self.C_fb)
+            logger.info("Feedback series resistors=%s" % self.calibration.R_fb)
+            logger.info("Feedback series capacitance=%s" % \
+                        self.calibration.C_fb)
         self.set_series_resistor_index(0,0)
         self.set_series_resistor_index(1,0)
         return self.RETURN_OK

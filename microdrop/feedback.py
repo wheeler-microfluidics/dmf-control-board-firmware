@@ -29,7 +29,7 @@ if os.name=='nt':
 from matplotlib.figure import Figure
 from path import path
 
-from utility import SetOfInts
+from utility import SetOfInts, Version, VersionError, FutureVersionError
 from utility.gui import textentry_validate, combobox_set_model_from_list, \
     combobox_get_active_text
 import logging
@@ -44,13 +44,6 @@ except RuntimeError:
         logging.info('Skipping error!')
 from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
 from app_context import get_app
-
-
-# calibration settings
-_R_hv = np.array([8.7e4, 6.4e5])
-_C_hv = np.array([1.4e-10, 1.69e-10])
-_R_fb = np.array([1.14e3, 1e4, 9.3e4, 6.5e5])
-_C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
 
 
 def feedback_signal(p, frequency, Z):
@@ -228,7 +221,8 @@ class FeedbackOptionsController():
                 V_hv, hv_resistor,
                 V_fb, fb_resistor,
                 area, frequency,
-                voltage)
+                voltage,
+                self.plugin.control_board.calibration)
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold =\
@@ -853,10 +847,18 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    def __init__(self, options,
-                 V_hv, hv_resistor,
-                 V_fb, fb_resistor,
-                 area, frequency, V_total):
+    class_version = str(Version(0,1))
+    
+    def __init__(self,
+                 options,
+                 V_hv,
+                 hv_resistor,
+                 V_fb,
+                 fb_resistor,
+                 area,
+                 frequency,
+                 V_total,
+                 calibration):
         self.options = options
         self.area = area
         self.frequency = frequency
@@ -868,6 +870,39 @@ class FeedbackResults():
             (self.options.sampling_time_ms + \
             self.options.delay_between_samples_ms)
         self._V_total = V_total
+        self.calibration = calibration
+        self.version = self.class_version
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logger.debug('[FeedbackResults]._upgrade()')
+        if hasattr(self, 'version'):
+            version = Version.fromstring(self.version)
+        else:
+            version = Version(0)
+        logger.debug('[FeedbackResults] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logger.debug('[FeedbackResults] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                self.calibration = FeedbackCalibration()
+                self.version = str(Version(0,1))
+                logger.info('[FeedbackResults] upgrade to version %s' % \
+                            self.version)
+        # else the versions are equal and don't need to be upgraded
+
+    def __setstate__(self, state):
+        self.dict = state
+        self._upgrade()
         
     def __getstate__(self):
         for k, v in self.__dict__.items():
@@ -876,14 +911,14 @@ class FeedbackResults():
         return self.__dict__
 
     def V_total(self):
-        T = feedback_signal([_C_hv[self.hv_resistor],
-                             _R_hv[self.hv_resistor]],
+        T = feedback_signal([self.calibration.C_hv[self.hv_resistor],
+                             self.calibration.R_hv[self.hv_resistor]],
                             self.frequency, 10e6)
         return self.V_hv/T
 
     def Z_device(self):
-        R_fb = _R_fb[self.fb_resistor]
-        C_fb = _C_fb[self.fb_resistor]
+        R_fb = self.calibration.R_fb[self.fb_resistor]
+        C_fb = self.calibration.C_fb[self.fb_resistor]
         return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
             (self.V_total()/self.V_fb - 1)
         
@@ -956,17 +991,54 @@ class SweepFrequencyResults():
     """
     This class stores the results for a frequency sweep.
     """
-    def __init__(self, options, area, V_total):
+    class_version = str(Version(0,1))
+    
+    def __init__(self, options, area, V_total, calibration):
         self.options = options
         self.area = area
         self._V_total = V_total
+        self.calibration = calibration
         self.frequency = []
         self.V_hv = []
         self.hv_resistor = []
         self.V_fb = []
         self.fb_resistor = []
+        self.version = self.class_version
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logger.debug('[SweepFrequencyResults]._upgrade()')
+        if hasattr(self, 'version'):
+            version = Version.fromstring(self.version)
+        else:
+            version = Version(0)
+        logger.debug('[SweepFrequencyResults] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logger.debug('[SweepFrequencyResults] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                self.calibration = FeedbackCalibration()
+                self.version = str(Version(0,1))
+                logger.info('[SweepFrequencyResults] upgrade to version %s' % \
+                            self.version)
+        # else the versions are equal and don't need to be upgraded
+
+    def __setstate__(self, state):
+        print '[SweepFrequencyResults].__setstate__()'
+        self.dict = state
+        self._upgrade()
 
     def __getstate__(self):
+        print '[SweepFrequencyResults].__getstate__()'
         for k, v in self.__dict__.items():
             if isinstance(v, list):
                 for i in range(len(v)):
@@ -988,7 +1060,9 @@ class SweepFrequencyResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency[i], 10e6)
+            T = feedback_signal([self.calibration.C_hv[self.hv_resistor[i]],
+                                 self.calibration.R_hv[self.hv_resistor[i]]],
+                                self.frequency[i], 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -996,8 +1070,9 @@ class SweepFrequencyResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            R_fb = _R_fb[self.fb_resistor[i]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
+            R_fb = caliration.R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb* \
+                     self.calibration.C_fb[self.fb_resistor[i]]* \
                      self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
         return Z
     
@@ -1012,10 +1087,13 @@ class SweepVoltageResults():
     """
     This class stores the results for a frequency sweep.
     """
-    def __init__(self, options, area, frequency):
+    class_version = str(Version(0,1))
+    
+    def __init__(self, options, area, frequency, calibration):
         self.options = options
         self.area = area
         self.frequency = frequency
+        self.calibration = calibration
         self.voltage = []
         self.V_hv = []
         self.hv_resistor = []
@@ -1043,7 +1121,9 @@ class SweepVoltageResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([_C_hv[self.hv_resistor[i]], _R_hv[self.hv_resistor[i]]], self.frequency, 10e6)
+            T = feedback_signal([self.calibration.C_hv[self.hv_resistor[i]],
+                                 self.calibration.R_hv[self.hv_resistor[i]]],
+                                self.frequency, 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -1051,8 +1131,9 @@ class SweepVoltageResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            R_fb = _R_fb[self.fb_resistor[i]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb*_C_fb[self.fb_resistor[i]]* \
+            R_fb = self.calibration.R_fb[self.fb_resistor[i]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb* \
+                     self.calibration.C_fb[self.fb_resistor[i]]* \
                      self.frequency*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
         return Z
 
