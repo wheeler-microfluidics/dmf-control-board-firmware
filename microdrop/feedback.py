@@ -20,6 +20,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import math
 
+import logging
 import gtk
 import numpy as np
 import matplotlib
@@ -28,12 +29,6 @@ if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
 from path import path
-
-from utility import SetOfInts, Version, VersionError, FutureVersionError
-from utility.gui import textentry_validate, combobox_set_model_from_list, \
-    combobox_get_active_text
-import logging
-
 try:
     from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
     from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as NavigationToolbar
@@ -42,6 +37,19 @@ except RuntimeError:
         raise
     else:
         logging.info('Skipping error!')
+
+
+try:
+    from ...dmf_control_board import *
+except:
+    # Raise the exception(s) if we're running the program (these exceptions
+    # are expected when generating documentation with doxygen, so in that case
+    # we can safely ignore them).
+    if utility.PROGRAM_LAUNCHED:
+        raise
+from utility import SetOfInts, Version, VersionError, FutureVersionError
+from utility.gui import textentry_validate, combobox_set_model_from_list, \
+    combobox_get_active_text
 from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
 from app_context import get_app
 
@@ -881,27 +889,27 @@ class FeedbackResults():
             FutureVersionError: file was written by a future version of the
                 software.
         """
-        logger.debug('[FeedbackResults]._upgrade()')
+        logging.debug('[FeedbackResults]._upgrade()')
         if hasattr(self, 'version'):
             version = Version.fromstring(self.version)
         else:
             version = Version(0)
-        logger.debug('[FeedbackResults] version=%s, class_version=%s' % \
+        logging.debug('[FeedbackResults] version=%s, class_version=%s' % \
                      (str(version), self.class_version))
         if version > Version.fromstring(self.class_version):
-            logger.debug('[FeedbackResults] version>class_version')
+            logging.debug('[FeedbackResults] version>class_version')
             raise FutureVersionError(Version.fromstring(self.class_version),
                                      version)
         elif version < Version.fromstring(self.class_version):
             if version < Version(0,1):
                 self.calibration = FeedbackCalibration()
                 self.version = str(Version(0,1))
-                logger.info('[FeedbackResults] upgrade to version %s' % \
+                logging.info('[FeedbackResults] upgrade to version %s' % \
                             self.version)
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
-        self.dict = state
+        self.__dict__ = state
         self._upgrade()
         
     def __getstate__(self):
@@ -1013,37 +1021,37 @@ class SweepFrequencyResults():
             FutureVersionError: file was written by a future version of the
                 software.
         """
-        logger.debug('[SweepFrequencyResults]._upgrade()')
+        logging.debug('[SweepFrequencyResults]._upgrade()')
         if hasattr(self, 'version'):
             version = Version.fromstring(self.version)
         else:
             version = Version(0)
-        logger.debug('[SweepFrequencyResults] version=%s, class_version=%s' % \
+        logging.debug('[SweepFrequencyResults] version=%s, class_version=%s' % \
                      (str(version), self.class_version))
         if version > Version.fromstring(self.class_version):
-            logger.debug('[SweepFrequencyResults] version>class_version')
+            logging.debug('[SweepFrequencyResults] version>class_version')
             raise FutureVersionError(Version.fromstring(self.class_version),
                                      version)
         elif version < Version.fromstring(self.class_version):
             if version < Version(0,1):
                 self.calibration = FeedbackCalibration()
                 self.version = str(Version(0,1))
-                logger.info('[SweepFrequencyResults] upgrade to version %s' % \
+                logging.info('[SweepFrequencyResults] upgrade to version %s' % \
                             self.version)
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
-        print '[SweepFrequencyResults].__setstate__()'
-        self.dict = state
+        self.__dict__ = state
         self._upgrade()
 
     def __getstate__(self):
-        print '[SweepFrequencyResults].__getstate__()'
         for k, v in self.__dict__.items():
             if isinstance(v, list):
                 for i in range(len(v)):
                     if isinstance(self.__dict__[k][i], np.ndarray):
                         self.__dict__[k][i] = self.__dict__[k][i].tolist()
+                    elif isinstance(self.__dict__[k][i], np.float64):
+                        self.__dict__[k][i] = float(self.__dict__[k][i])
             elif isinstance(v, np.ndarray):
                 self.__dict__[k] = v.tolist()
         return self.__dict__
@@ -1070,7 +1078,7 @@ class SweepFrequencyResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            R_fb = caliration.R_fb[self.fb_resistor[i]]
+            R_fb = self.calibration.R_fb[self.fb_resistor[i]]
             Z.append(R_fb/np.sqrt(1+np.square(R_fb* \
                      self.calibration.C_fb[self.fb_resistor[i]]* \
                      self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
@@ -1099,12 +1107,47 @@ class SweepVoltageResults():
         self.hv_resistor = []
         self.V_fb = []
         self.fb_resistor = []
+        self.version = self.class_version
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug('[SweepVoltageResults]._upgrade()')
+        if hasattr(self, 'version'):
+            version = Version.fromstring(self.version)
+        else:
+            version = Version(0)
+        logging.debug('[SweepVoltageResults] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[SweepVoltageResults] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                self.calibration = FeedbackCalibration()
+                self.version = str(Version(0,1))
+                logging.info('[SweepVoltageResults] upgrade to version %s' % \
+                            self.version)
+        # else the versions are equal and don't need to be upgraded
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._upgrade()
 
     def __getstate__(self):
         for k, v in self.__dict__.items():
             if isinstance(v, list):
                 for i in range(len(v)):
-                    self.__dict__[k][i] = self.__dict__[k][i].tolist()
+                    if isinstance(self.__dict__[k][i], np.ndarray):
+                        self.__dict__[k][i] = self.__dict__[k][i].tolist()
+                    elif isinstance(self.__dict__[k][i], np.float64):
+                        self.__dict__[k][i] = float(self.__dict__[k][i])
             elif isinstance(v, np.ndarray):
                 self.__dict__[k] = v.tolist()
         return self.__dict__

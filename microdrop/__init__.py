@@ -256,11 +256,14 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results = FeedbackResults(feedback_options,
-                            V_hv, hv_resistor,
-                            V_fb, fb_resistor,
+                            V_hv,
+                            hv_resistor,
+                            V_fb,
+                            fb_resistor,
                             area,
                             frequency,
-                            voltage)
+                            voltage,
+                            self.control_board.calibration)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
                         app.experiment_log.add_data({"FeedbackResults":results},
@@ -287,7 +290,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                     voltage = float(options.voltage)
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
-                    results = SweepFrequencyResults(feedback_options, area, voltage)
+                    results = SweepFrequencyResults(feedback_options,
+                        area,
+                        voltage,
+                        self.control_board.calibration)
                     for frequency in frequencies:
                         emit_signal("set_frequency",
                                     float(frequency),
@@ -308,7 +314,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         frequency)
                     emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
-                    results = SweepVoltageResults(feedback_options, area, frequency)
+                    results = SweepVoltageResults(feedback_options,
+                        area,
+                        frequency,
+                        self.control_board.calibration)
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
