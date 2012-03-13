@@ -175,9 +175,9 @@ class FeedbackOptionsController():
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
         
-        menu_item = gtk.MenuItem("Calibrate feedback")
+        menu_item = gtk.MenuItem("Measure device capacitance")
         app.dmf_device_controller.popup.append(menu_item)
-        menu_item.connect("activate", self.on_calibrate_feedback)
+        menu_item.connect("activate", self.on_measure_device_capacitance)
         menu_item.show()
 
     def on_window_show(self, widget, data=None):
@@ -194,7 +194,7 @@ class FeedbackOptionsController():
         self.window.hide()
         return True
 
-    def on_calibrate_feedback(self, widget, data=None):
+    def on_measure_device_capacitance(self, widget, data=None):
         app = get_app()
         if self.plugin.control_board.connected():
             electrode = \
@@ -1428,3 +1428,35 @@ class FeedbackResultsController():
             self.axis.legend(legend, loc=legend_loc)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)
         self.canvas.draw()
+
+
+class FeedbackCalibrationController():
+    def __init__(self, plugin):
+        self.plugin = plugin
+        
+    def on_feedback_calibration_wizard(self, widget=None, data=None):
+        if not self.plugin.control_board.connected():
+            logging.error("A control board must be connected in order to "
+                          "perform calibration.")
+            return
+        
+        app = get_app()
+        app.main_window_controller.info("The control board uses a bank of "
+            "resistors to measure device impedance and amplifier voltage. "
+            "These resistors need to be characterized in order to obtain "
+            "accurate measurements with the feedback system. Using an "
+            "oscilloscope, please measure the output from your amplifier "
+            "and answer the following prompts.", "Feedback calibration wizard")
+
+        # set reference voltage
+        for frequency in np.logspace(2, 5, 10):
+            # set frequency
+            voltage = app.main_window_controller.get_text_input(
+                "Feedback calibration wizard",
+                "What is the current RMS output voltage?")
+            print voltage
+            # check that it is a valid voltage
+            
+        # 1. fit results
+        # 2. plot current calibration versus newly calculated values
+        # 3. prompt user to accept new values

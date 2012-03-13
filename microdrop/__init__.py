@@ -111,6 +111,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.current_state = FeedbackOptions()
         self.feedback_options_controller = None
         self.feedback_results_controller = None
+        self.feedback_calibration_controller = None
         self.initialized = False
 
     def on_app_init(self):
@@ -118,14 +119,23 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Handler called once when the Microdrop application starts.
         """
         if not self.initialized:
+            self.feedback_options_controller = FeedbackOptionsController(self)
+            self.feedback_results_controller = FeedbackResultsController(self)
+            self.feedback_calibration_controller = \
+                FeedbackCalibrationController(self)
+
             app = get_app()
             menu_item = gtk.MenuItem("Flash DMF control board firmware")
             app.main_window_controller.menu_tools.append(menu_item)
             menu_item.connect("activate", self.on_flash_firmware)
             menu_item.show()
+            menu_item = gtk.MenuItem("Feedback calibration wizard")
+            app.main_window_controller.menu_tools.append(menu_item)
+            menu_item.connect("activate",
+                self.feedback_calibration_controller. \
+                on_feedback_calibration_wizard)
+            menu_item.show()
             
-            self.feedback_options_controller = FeedbackOptionsController(self)
-            self.feedback_results_controller = FeedbackResultsController(self)
             self.initialized = True
             self.check_device_name_and_version()
 
