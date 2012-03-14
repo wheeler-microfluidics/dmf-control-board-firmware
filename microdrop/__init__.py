@@ -332,27 +332,16 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             frequency,
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
-                t = time.time()
-                while time.time()-t < \
-                    options.duration / 1000.0:
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                    # Sleep for 0.1ms between protocol polling loop iterations.
-                    # Without sleeping between iterations, CPU usage spikes to
-                    # 100% while protocol is running.  With sleeping, CPU usage
-                    # is reduced to <20%.
-                    time.sleep(0.0001)
-        elif (app.realtime_mode or app.running):
-            # Board is not connected
-            # run through protocol (even though device is not connected)
-            if not app.control_board.connected():
-                t = time.time()
-                while time.time() - t < options.duration / 1000.0:
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                    # Sleep for 0.1ms between protocol polling loop iterations.
-                    # (see above for reasoning)
-                    time.sleep(0.0001)
+
+        # unless we're in realtime mode, wait for specified duration
+        if not app.realtime_mode:
+            t = time.time()
+            while time.time() - t < options.duration / 1000.0:
+                while gtk.events_pending():
+                    gtk.main_iteration()
+                # Sleep for 0.1ms between protocol polling loop iterations.
+                # (see above for reasoning)
+                time.sleep(0.0001)
 
     def measure_impedance(self, state, options):
         thread = WaitForFeedbackMeasurement(self.control_board, state, options)
