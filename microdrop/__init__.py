@@ -40,8 +40,8 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
-    implements, emit_signal, PluginGlobals
-from app_context import get_app
+    implements, PluginGlobals, ScheduleRequest
+from app_context import get_app, plugin_manager
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -249,9 +249,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             feedback_options.action.increase_voltage * attempt)
                         frequency = \
                             float(options.frequency)
-                        emit_signal("set_frequency", frequency,
+                        plugin_manager.emit_signal("set_frequency", frequency,
                             interface=IWaveformGenerator)
-                        emit_signal("set_voltage", voltage,
+                        plugin_manager.emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
@@ -285,11 +285,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         np.log10(feedback_options.action.end_frequency),
                         int(feedback_options.action.n_frequency_steps))
                     voltage = float(options.voltage)
-                    emit_signal("set_voltage", voltage,
+                    plugin_manager.emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
                     results = SweepFrequencyResults(feedback_options, area, voltage)
                     for frequency in frequencies:
-                        emit_signal("set_frequency",
+                        plugin_manager.emit_signal("set_frequency",
                                     float(frequency),
                                     interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
@@ -306,11 +306,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                            feedback_options.action.n_voltage_steps)
                     frequency = float(app.protocol.current_step(). \
                         frequency)
-                    emit_signal("set_frequency", frequency,
+                    plugin_manager.emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
                     results = SweepVoltageResults(feedback_options, area, frequency)
                     for voltage in voltages:
-                        emit_signal("set_voltage", voltage,
+                        plugin_manager.emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
@@ -323,9 +323,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
             else:
                 voltage = float(options.voltage)
                 frequency = float(options.frequency)
-                emit_signal("set_voltage", voltage,
+                plugin_manager.emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                emit_signal("set_frequency",
+                plugin_manager.emit_signal("set_frequency",
                             frequency,
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
@@ -445,7 +445,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 setattr(options.feedback_options, name, field.value)
             else:
                 setattr(options, name, field.value)
-        emit_signal('on_step_options_changed', [self.name, step_number],
+        plugin_manager.emit_signal('on_step_options_changed', [self.name, step_number],
                                                 interface=IPlugin)
 
     def get_step_values(self, step_number=None):
@@ -492,6 +492,18 @@ class DmfControlBoardPlugin(SingletonPlugin):
         if not app.running and (plugin=='microdrop.gui.dmf_device_controller' or \
         plugin==self.name) and app.protocol.current_step_number==step_number:
             self.on_step_run()
+
+    def get_schedule_requests(self, function_name):
+        """
+        Returns a list of scheduling requests (i.e., ScheduleRequest
+        instances) for the function specified by function_name.
+        """
+        if function_name == 'on_app_init':
+            return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
+                    ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
+        elif function_name in ['on_dmf_device_changed']:
+            return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
+        return []
 
 
 PluginGlobals.pop_env()
