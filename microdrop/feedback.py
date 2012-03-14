@@ -42,8 +42,8 @@ except RuntimeError:
         raise
     else:
         logging.info('Skipping error!')
-from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
-from app_context import get_app
+from plugin_manager import IWaveformGenerator, IPlugin
+from app_context import get_app, plugin_manager
 
 
 # calibration settings
@@ -219,9 +219,9 @@ class FeedbackOptionsController():
             dmf_options = step.get_data(self.plugin.name)
             voltage = dmf_options.voltage
             frequency = dmf_options.frequency
-            emit_signal("set_frequency", frequency,
+            plugin_manager.emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
-            emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
+            plugin_manager.emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                 self.plugin.measure_impedance(state, options)
             results = FeedbackResults(options,
@@ -242,13 +242,12 @@ class FeedbackOptionsController():
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
         options.feedback_enabled = widget.get_active()
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
     def on_step_options_changed(self, plugin_name, step_number):
         app = get_app()
-
         if(self.plugin.name == plugin_name) \
         and app.protocol.current_step_number == step_number:
             all_options = self.plugin.get_step_options(step_number)
@@ -413,7 +412,7 @@ class FeedbackOptionsController():
         if retry and options.action.__class__ != RetryAction:
             options.action = RetryAction()
         if retry:
-            emit_signal('on_step_options_changed',
+            plugin_manager.emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
         
@@ -431,7 +430,7 @@ class FeedbackOptionsController():
         if sweep_frequency and options.action.__class__ != SweepFrequencyAction:
             options.action = SweepFrequencyAction()
         if sweep_frequency:
-            emit_signal('on_step_options_changed',
+            plugin_manager.emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
         
@@ -449,7 +448,7 @@ class FeedbackOptionsController():
         if sweep_voltage and options.action.__class__!=SweepVoltageAction:
             options.action = SweepVoltageAction()
         if sweep_voltage:
-            emit_signal('on_step_options_changed',
+            plugin_manager.emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
 
@@ -468,7 +467,7 @@ class FeedbackOptionsController():
         SweepElectrodesAction:
             options.action = SweepElectrodesAction()
         if sweep_electrodes:
-            emit_signal('on_step_options_changed',
+            plugin_manager.emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
             
@@ -498,7 +497,7 @@ class FeedbackOptionsController():
         options.sampling_time_ms = textentry_validate(widget,
                             options.sampling_time_ms, int)
         app = get_app()
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -525,7 +524,7 @@ class FeedbackOptionsController():
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
         options.n_samples = textentry_validate(widget, options.n_samples, int)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -557,7 +556,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.delay_between_samples_ms = textentry_validate(widget,
                             options.delay_between_samples_ms, int)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
     
@@ -589,7 +588,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.capacitance_threshold = textentry_validate(widget,
                             options.action.capacitance_threshold, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -617,7 +616,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.increase_voltage = textentry_validate(widget,
                             options.action.increase_voltage, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
     
@@ -645,7 +644,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.max_repeats = textentry_validate(widget,
                             options.action.max_repeats, int)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
             
@@ -673,7 +672,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.start_frequency = textentry_validate(widget,
                             options.action.start_frequency / 1e3, float) * 1e3
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -701,7 +700,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.end_frequency = textentry_validate(widget,
                             options.action.end_frequency / 1e3, float) * 1e3
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -729,7 +728,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.n_frequency_steps = textentry_validate(widget,
                             options.action.n_frequency_steps, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -757,7 +756,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.start_voltage = textentry_validate(widget,
                             options.action.start_voltage, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -785,7 +784,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.end_voltage = textentry_validate(widget,
                             options.action.end_voltage, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -813,7 +812,7 @@ class FeedbackOptionsController():
         options = all_options.feedback_options
         options.action.n_voltage_steps = textentry_validate(widget,
                             options.action.n_voltage_steps, float)
-        emit_signal('on_step_options_changed',
+        plugin_manager.emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
 
@@ -843,7 +842,7 @@ class FeedbackOptionsController():
             channels = SetOfInts(widget.get_text())
             assert(min(channels)>=0)
             options.action.channels = channels
-            emit_signal('on_step_options_changed',
+            plugin_manager.emit_signal('on_step_options_changed',
                         [self.plugin.name, app.protocol.current_step_number],
                         interface=IPlugin)
         except:
@@ -971,7 +970,8 @@ class SweepFrequencyResults():
         for k, v in self.__dict__.items():
             if isinstance(v, list):
                 for i in range(len(v)):
-                    self.__dict__[k][i] = self.__dict__[k][i].tolist()
+                    if isinstance(self.__dict__[k][i], np.ndarray):
+                        self.__dict__[k][i] = self.__dict__[k][i].tolist()
             elif isinstance(v, np.ndarray):
                 self.__dict__[k] = v.tolist()
         return self.__dict__
@@ -1125,7 +1125,32 @@ class FeedbackResultsController():
         self.update_plot()
 
     def on_export_data_clicked(self, widget, data=None):
-        print self.data
+        dialog = gtk.FileChooserDialog(title="Export data",
+                                       action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       buttons=(gtk.STOCK_CANCEL,
+                                                gtk.RESPONSE_CANCEL,
+                                                gtk.STOCK_SAVE,
+                                                gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        dialog.set_current_name("export.csv")
+        filter = gtk.FileFilter()
+        filter.set_name("*.csv")
+        filter.add_pattern("*.csv")
+        dialog.add_filter(filter)
+        filter = gtk.FileFilter()
+        filter.set_name("All files")
+        filter.add_pattern("*")
+        dialog.add_filter(filter)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            filename = dialog.get_filename()
+            logging.info("Exporting to file %s." % filename)
+            try:
+                with open(filename, 'w') as f:
+                    f.write("\n".join(self.export_data))
+            except Exception, e:
+                logging.error("Problem exporting file. %s." % e)
+        dialog.destroy()
 
     def on_experiment_log_selection_changed(self, data):
         """
@@ -1143,11 +1168,14 @@ class FeedbackResultsController():
         self.axis.grid(True)
         legend = []
         legend_loc = "upper right"
+        self.export_data = []        
         if x_axis=="Time":
             self.axis.set_xlabel("Time (ms)")
             for row in self.data:
                 if self.plugin.name in row.keys() and "FeedbackResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["FeedbackResults"]
+                    self.export_data.append('step:, %d' % (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % (row['core']["time"]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1156,24 +1184,47 @@ class FeedbackResultsController():
                         self.axis.plot(results.time,
                                        results.Z_device())
                         self.axis.set_yscale('log')
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in results.time]))
+                        self.export_data.append('impedance (Ohms):, ' + 
+                            ", ".join([str(x) for x in results.Z_device()]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.plot(results.time,
                                        results.capacitance()/results.area)
                         legend_loc = "lower right"
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in results.time]))
+                        self.export_data.append('capacitance/area (F/mm^2):,' + 
+                            ", ".join([str(x) for x in results.capacitance()]))
                     elif y_axis=="Velocity":
                         dxdt = results.dxdt()
                         self.axis.set_title("Instantaneous velocity")
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        self.axis.plot((results.time[:-1]+results.time[1:])/2,
+                        self.axis.plot((np.array(results.time[:-1]) + \
+                                        np.array(results.time[1:]))/2,
                                        dxdt)
-                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in (
+                                np.array(results.time[:-1])+
+                                np.array(results.time[1:]))/2]))
+                        self.export_data.append('velocity (mm/s):,' + 
+                            ", ".join([str(x) for x in dxdt]))
+                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
+                                                        row['core']["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
             for row in self.data:
-                if self.plugin.name in row.keys() and "SweepFrequencyResults" in row[self.plugin.name].keys():
+                if self.plugin.name in row.keys() and \
+                "SweepFrequencyResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepFrequencyResults"]
+                    self.export_data.append('step:, %d' % \
+                                            (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % \
+                                            (row['core']["time"]))
+                    self.export_data.append('frequency (Hz):, '+
+                        ", ".join([str(x) for x in results.frequency]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
@@ -1183,22 +1234,42 @@ class FeedbackResultsController():
                                            fmt='.')
                         self.axis.set_xscale('log')
                         self.axis.set_yscale('log')
+                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.capacitance(), 1)/results.area,
-                                           np.std(results.capacitance(), 1)/results.area,
+                                           np.mean(results.capacitance(), 1)/
+                                                results.area,
+                                           np.std(results.capacitance(), 1)/
+                                                results.area,
                                            fmt='.')
                         self.axis.set_xscale('log')
-                        
+                        self.export_data.append('mean(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     legend.append("Step %d (%.3f s)" % \
                                   (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
             self.axis.set_xlabel("Voltage (V$_{rms}$)")
             for row in self.data:
-                if self.plugin.name in row.keys() and "SweepVoltageResults" in row[self.plugin.name].keys():
+                if self.plugin.name in row.keys() and \
+                "SweepVoltageResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepVoltageResults"]
+                    self.export_data.append('step:, %d' % \
+                                            (row['core']["step"]+1))
+                    self.export_data.append('step time (s):, %f' % \
+                                            (row['core']["time"]))
+                    self.export_data.append('voltage (Vrms):, '+
+                        ", ".join([str(x) for x in results.voltage]))
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
@@ -1209,6 +1280,12 @@ class FeedbackResultsController():
                                            np.std(results.Z_device(), 1),
                                            fmt='.')
                         self.axis.set_yscale('log')
+                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
@@ -1216,6 +1293,12 @@ class FeedbackResultsController():
                                            np.mean(results.capacitance()/results.area, 1),
                                            np.std(results.capacitance()/results.area, 1),
                                            fmt='.')
+                        self.export_data.append('mean(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
+                            results.Z_device(), 1)]))
+                        self.export_data.append('std(capacitance/area) '
+                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
+                            results.Z_device(), 1)]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
         if len(legend):
             self.axis.legend(legend, loc=legend_loc)
