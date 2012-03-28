@@ -40,8 +40,8 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
-    implements, PluginGlobals, ScheduleRequest
-from app_context import get_app, plugin_manager
+    implements, PluginGlobals, ScheduleRequest, emit_signal
+from app_context import get_app
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -249,10 +249,10 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             feedback_options.action.increase_voltage * attempt)
                         frequency = \
                             float(options.frequency)
-                        plugin_manager.emit_signal("set_frequency", frequency,
-                            interface=IWaveformGenerator)
-                        plugin_manager.emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
+                        emit_signal("set_frequency", frequency,
+                                    interface=IWaveformGenerator)
+                        emit_signal("set_voltage", voltage,
+                                    interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results = FeedbackResults(feedback_options,
@@ -285,11 +285,13 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         np.log10(feedback_options.action.end_frequency),
                         int(feedback_options.action.n_frequency_steps))
                     voltage = float(options.voltage)
-                    plugin_manager.emit_signal("set_voltage", voltage,
+                    emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
-                    results = SweepFrequencyResults(feedback_options, area, voltage)
+                    results = SweepFrequencyResults(feedback_options,
+                                                    area,
+                                                    voltage)
                     for frequency in frequencies:
-                        plugin_manager.emit_signal("set_frequency",
+                        emit_signal("set_frequency",
                                     float(frequency),
                                     interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
@@ -306,12 +308,12 @@ class DmfControlBoardPlugin(SingletonPlugin):
                                            feedback_options.action.n_voltage_steps)
                     frequency = float(app.protocol.current_step(). \
                         frequency)
-                    plugin_manager.emit_signal("set_frequency", frequency,
+                    emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
                     results = SweepVoltageResults(feedback_options, area, frequency)
                     for voltage in voltages:
-                        plugin_manager.emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
+                        emit_signal("set_voltage", voltage,
+                                    interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results.add_voltage_step(voltage,
@@ -323,9 +325,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
             else:
                 voltage = float(options.voltage)
                 frequency = float(options.frequency)
-                plugin_manager.emit_signal("set_voltage", voltage,
+                emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
-                plugin_manager.emit_signal("set_frequency",
+                emit_signal("set_frequency",
                             frequency,
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
@@ -434,8 +436,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 setattr(options.feedback_options, name, field.value)
             else:
                 setattr(options, name, field.value)
-        plugin_manager.emit_signal('on_step_options_changed', [self.name, step_number],
-                                                interface=IPlugin)
+        emit_signal('on_step_options_changed', [self.name, step_number],
+                    interface=IPlugin)
 
     def get_step_values(self, step_number=None):
         app = get_app()
