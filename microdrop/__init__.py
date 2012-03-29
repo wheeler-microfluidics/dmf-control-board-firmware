@@ -39,6 +39,7 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 
 from logger import logger
+from pygtkhelpers.ui.objectlist import PropertyMapper
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal
 from app_context import get_app
@@ -76,6 +77,17 @@ class DmfControlBoardOptions(object):
         self.frequency = frequency
 
 
+def format_func(value):
+    if value:
+        # Green
+        #return '#00FF00'
+        return True
+    else:
+        # Yellow
+        #return '#FFFF00'
+        return False
+
+
 class DmfControlBoardPlugin(SingletonPlugin):
     """
     This class is automatically registered with the PluginManager.
@@ -92,11 +104,23 @@ class DmfControlBoardPlugin(SingletonPlugin):
             validators=[ValueAtLeast(minimum=0), ]),
         Boolean.named('feedback_enabled').using(default=False, optional=True),
         Integer.named('sampling_time_ms').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ]),
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
         Integer.named('n_samples').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ]),
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
         Integer.named('delay_between_samples_ms').using(default=0, optional=True,
-            validators=[ValueAtLeast(minimum=0), ])
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
     )
     _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
                             'delay_between_samples_ms'])
