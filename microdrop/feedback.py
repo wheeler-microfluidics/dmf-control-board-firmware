@@ -29,7 +29,7 @@ if os.name=='nt':
 from matplotlib.figure import Figure
 from path import path
 
-from utility import SetOfInts
+from utility import Version, VersionError, FutureVersionError, SetOfInts
 from utility.gui import textentry_validate, combobox_set_model_from_list, \
     combobox_get_active_text
 import logging
@@ -59,15 +59,17 @@ def feedback_signal(p, frequency, Z):
 
 
 class RetryAction():
+    class_version = str(Version(0,1))
     capacitance_threshold = 0
+
     def __init__(self,
-                 capacitance_threshold=None,
+                 percent_threshold=None,
                  increase_voltage=None,
                  max_repeats=None):
-        if capacitance_threshold:
-            self.capacitance_threshold = capacitance_threshold
+        if percent_threshold:
+            self.percent_threshold = percent_threshold
         else:
-            self.capacitance_threshold = self.__class__.capacitance_threshold
+            self.percent_threshold = 0
         if increase_voltage:
             self.increase_voltage = increase_voltage
         else:
@@ -76,6 +78,36 @@ class RetryAction():
             self.max_repeats = max_repeats
         else:
             self.max_repeats = 3
+        self.version = self.class_version
+
+    def __setstate__(self, dict):
+        self.__dict__ = dict
+        if 'version' not in self.__dict__:
+            self.version = str(Version(0,0))
+        self._upgrade()
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug("[RetryAction]._upgrade()")
+        version = Version.fromstring(self.version)
+        logging.debug('[RetryAction] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[RetryAction] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version), version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                del self.capacitance_threshold
+                self.percent_threshold = 0
+                self.version = str(Version(0,1))
+                logging.info('[RetryAction] upgrade to version %s' % self.version)
+        # else the versions are equal and don't need to be upgraded
 
 
 class SweepFrequencyAction():
@@ -232,7 +264,7 @@ class FeedbackOptionsController():
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.set_state_of_all_channels(current_state)
             RetryAction.capacitance_threshold =\
-                max(results.capacitance()) / area * .95
+                max(results.capacitance()) / area
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """
@@ -269,14 +301,14 @@ class FeedbackOptionsController():
         # update the retry action parameters
         retry = (options.action.__class__ == RetryAction)
         if retry:
-            self.builder.get_object("textentry_capacitance_threshold"). \
-                set_text(str(options.action.capacitance_threshold))
+            self.builder.get_object("textentry_percent_threshold"). \
+                set_text(str(options.action.percent_threshold))
             self.builder.get_object("textentry_increase_voltage"). \
                 set_text(str(options.action.increase_voltage))
             self.builder.get_object("textentry_max_repeats").set_text(
                 str(options.action.max_repeats))
         else:
-            self.builder.get_object("textentry_capacitance_threshold"). \
+            self.builder.get_object("textentry_percent_threshold"). \
                 set_text("")
             self.builder.get_object("textentry_increase_voltage").set_text("")
             self.builder.get_object("textentry_max_repeats").set_text("")
@@ -371,7 +403,7 @@ class FeedbackOptionsController():
             .set_sensitive(options.feedback_enabled)
 
         retry = (options.action.__class__ == RetryAction)
-        self.builder.get_object("textentry_capacitance_threshold")\
+        self.builder.get_object("textentry_percent_threshold")\
             .set_sensitive(options.feedback_enabled and retry)
         self.builder.get_object("textentry_increase_voltage")\
             .set_sensitive(options.feedback_enabled and retry)
@@ -560,34 +592,34 @@ class FeedbackOptionsController():
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
     
-    def on_textentry_capacitance_threshold_focus_out_event(self,
-                                                           widget,
-                                                           event):
+    def on_textentry_percent_threshold_focus_out_event(self,
+                                                       widget,
+                                                       event):
         """
-        Handler called when the "capacitance threshold" text box loses focus. 
+        Handler called when the "percent threshold" text box loses focus. 
         """
-        self.on_textentry_capacitance_threshold_changed(widget)
+        self.on_textentry_percent_threshold_changed(widget)
         return False
     
-    def on_textentry_capacitance_threshold_key_press_event(self,
-                                                           widget,
-                                                           event):
+    def on_textentry_percent_threshold_key_press_event(self,
+                                                       widget,
+                                                       event):
         """
-        Handler called when the user presses a key within the "capacitance
+        Handler called when the user presses a key within the "percent
         threshold" text box. 
         """
         if event.keyval == 65293: # user pressed enter
-            self.on_textentry_capacitance_threshold_changed(widget)
+            self.on_textentry_percent_threshold_changed(widget)
     
-    def on_textentry_capacitance_threshold_changed(self, widget):
+    def on_textentry_percent_threshold_changed(self, widget):
         """
-        Update the capacitance threshold value for the current step. 
+        Update the percent threshold value for the current step. 
         """
         app = get_app()
         all_options = self.plugin.get_step_options()
         options = all_options.feedback_options
-        options.action.capacitance_threshold = textentry_validate(widget,
-                            options.action.capacitance_threshold, float)
+        options.action.percent_threshold = textentry_validate(widget,
+                            options.action.percent_threshold, float)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)

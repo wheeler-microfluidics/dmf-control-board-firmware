@@ -292,7 +292,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         app.experiment_log.add_data({"FeedbackResults":results},
                                                     self.name)
                         if max(results.capacitance())/area < \
-                            feedback_options.action.capacitance_threshold:
+                            feedback_options.action.percent_threshold/100.0 *\
+                                RetryAction.capacitance_threshold:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
                                 (app.protocol.current_step_number,
                                  attempt, max(results.capacitance())/area))
