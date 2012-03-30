@@ -246,6 +246,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         feedback_options = options.feedback_options
         self.current_state.feedback_enabled = feedback_options.feedback_enabled
 
+        start_time = time.time()
+
         if self.control_board.connected() and \
             (app.realtime_mode or app.running):
             state = dmf_options.state_of_channels
@@ -356,10 +358,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
 
-        # unless we're in realtime mode, wait for specified duration
-        if not app.realtime_mode:
-            t = time.time()
-            while time.time() - t < options.duration / 1000.0:
+        # if a protocol is running, wait for the specified minimum duration
+        if app.running and not app.realtime_mode:
+            while time.time() - start_time < options.duration / 1000.0:
                 while gtk.events_pending():
                     gtk.main_iteration()
                 # Sleep for 0.1ms between protocol polling loop iterations.
