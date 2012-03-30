@@ -4,9 +4,9 @@ import logging
 from path import path
 
 try:
-    import utility
+    from app_context import get_app
     def package_path():
-        return utility.base_path() / path('plugins') / \
+        return path(get_app().config['plugins']['directory']) / \
             path('dmf_control_board')
 except ImportError:
     def package_path():
