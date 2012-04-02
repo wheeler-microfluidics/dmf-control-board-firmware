@@ -784,8 +784,16 @@ uint8_t RemoteObject::Connect(const char* port) {
 
   if(return_code==0) {
     // verify that the device name and hardware version are correct
-    std::string remote_name = name();
-    std::string remote_hardware_version = hardware_version();
+    std::string remote_name;
+    std::string remote_hardware_version;
+    try {
+      remote_name = name();
+      remote_hardware_version = hardware_version();
+    } catch(...) {
+      // close the Serial port if we can't get a name/version
+      Serial.end();
+      throw;
+    }
     msg.str("");
     msg << "name()=\"" << remote_name.c_str() << "\", hardware_version()=\""
       << remote_hardware_version.c_str() << "\"";
