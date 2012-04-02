@@ -536,6 +536,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           Wire.send(ReadUint8());
         }
         Wire.endTransmission();
+        delay(1);
         uint8_t n_bytes_to_read = ReadUint8();
         Wire.requestFrom(address, n_bytes_to_read);
         while(Wire.available()) {
