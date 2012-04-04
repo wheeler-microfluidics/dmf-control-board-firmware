@@ -43,6 +43,7 @@ from pygtkhelpers.ui.objectlist import PropertyMapper
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal
 from app_context import get_app
+from utility.gui import yesno
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -154,9 +155,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             self.check_device_name_and_version()
 
     def check_device_name_and_version(self):
-        app = get_app()
         try:
-            app.control_board = self.control_board
             self.control_board.connect()
             name = self.control_board.name()
             hardware_version = self.control_board.hardware_version()
@@ -176,11 +175,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
             # reflash the firmware if it is not the right version
             if host_software_version !=  remote_software_version:
-                response = app.main_window_controller.question("The "
+                response = yesno("The "
                     "control board firmware version (%s) does not match the "
                     "driver version (%s). Update firmware?" %
-                    (remote_software_version, host_software_version),
-                    "Update firmware?")
+                    (remote_software_version, host_software_version))
+                    #"Update firmware?")
                 if response == gtk.RESPONSE_YES:
                     self.on_flash_firmware()
         except Exception, why:
@@ -192,7 +191,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         try:
             self.control_board.flash_firmware()
-            app.main_window_controller.info("Firmware updated "
+            logger.info("Firmware updated "
                                                  "successfully.",
                                                  "Firmware update")
         except Exception, why:
@@ -521,6 +520,18 @@ class DmfControlBoardPlugin(SingletonPlugin):
         elif function_name in ['on_dmf_device_changed']:
             return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
         return []
+
+    def on_experiment_log_created(self, log):
+        app = get_app()
+        data = {}
+        if self.control_board.connected():
+            data["control board name"] = \
+                self.control_board.name()
+            data["control board hardware version"] = \
+                self.control_board.hardware_version()
+            data["control board software version"] = \
+                self.control_board.software_version()
+        log.add_data(data)
 
 
 PluginGlobals.pop_env()

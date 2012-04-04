@@ -281,7 +281,7 @@ class FeedbackOptionsController():
     def on_step_options_changed(self, plugin_name, step_number):
         app = get_app()
         if(self.plugin.name == plugin_name) \
-        and app.protocol.current_step_number == step_number:
+                and app.protocol.current_step_number == step_number:
             all_options = self.plugin.get_step_options(step_number)
             options = all_options.feedback_options
             self._set_gui_sensitive(options)
