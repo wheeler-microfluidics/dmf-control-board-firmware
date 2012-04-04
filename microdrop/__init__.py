@@ -361,7 +361,7 @@ class DmfControlBoardPlugin(Plugin):
                 emit_signal("set_frequency",
                             frequency,
                             interface=IWaveformGenerator)
-                self.control_board.set_state_of_all_channels(state)
+                self.control_board.state_of_all_channels = state
 
         # if a protocol is running, wait for the specified minimum duration
         if app.running and not app.realtime_mode:

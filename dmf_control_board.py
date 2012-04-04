@@ -83,15 +83,18 @@ class DmfControlBoard(Base, SerialDevice):
         self.set_series_resistor_index(1,0)
         return self.RETURN_OK
     
+    @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
 
-    def set_state_of_all_channels(self, state):
+    @state_of_all_channels.setter
+    def state_of_all_channels(self, state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        return Base.set_state_of_all_channels(self, state_)
+        Base.set_state_of_all_channels(self, state_)
 
+    @property
     def default_pin_modes(self):
         pin_modes = []
         for i in range(0,53/8+1):
@@ -101,7 +104,8 @@ class DmfControlBoard(Base, SerialDevice):
                     pin_modes.append(~mode>>j&0x01)
         return pin_modes
         
-    def set_default_pin_modes(self, pin_modes):
+    @default_pin_modes.setter
+    def default_pin_modes(self, pin_modes):
         for i in range(0,53/8+1):
             mode = 0
             for j in range(0,8):
@@ -109,6 +113,7 @@ class DmfControlBoard(Base, SerialDevice):
                     mode += pin_modes[i*8+j]<<j
             self.eeprom_write(self.EEPROM_PIN_MODE_ADDRESS+i,~mode&0xFF)
             
+    @property
     def default_pin_states(self):
         pin_states = []
         for i in range(0,53/8+1):
@@ -118,7 +123,8 @@ class DmfControlBoard(Base, SerialDevice):
                     pin_states.append(~state>>j&0x01)
         return pin_states
         
-    def set_default_pin_states(self, pin_states):
+    @default_pin_states.setter
+    def default_pin_states(self, pin_states):
         for i in range(0,53/8+1):
             state = 0
             for j in range(0,8):

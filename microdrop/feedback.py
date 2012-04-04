@@ -231,7 +231,7 @@ class FeedbackOptionsController():
             electrode = \
                 app.dmf_device_controller.last_electrode_clicked
             area = electrode.area() * app.dmf_device.scale
-            current_state = self.plugin.control_board.state_of_all_channels()
+            current_state = self.plugin.control_board.state_of_all_channels
             state = np.zeros(len(current_state))
 
             if self.plugin.control_board.number_of_channels() < \
@@ -262,7 +262,7 @@ class FeedbackOptionsController():
                 area, frequency,
                 voltage)
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
-            self.plugin.control_board.set_state_of_all_channels(current_state)
+            self.plugin.control_board.state_of_all_channels = current_state
             RetryAction.capacitance_threshold =\
                 max(results.capacitance()) / area
 
