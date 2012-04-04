@@ -40,23 +40,24 @@ class AvrDude(SerialDevice):
             self.avrdude = (p / path('avrdude.exe')).abspath()
         else:
             self.avrdude = (p / path('avrdude')).abspath()
+        logger.info("avrdude path=%s" % self.avrdude)
         if not self.avrdude.exists():
             raise FirmwareError('avrdude not installed')
         self.avrconf = (p / path('avrdude.conf')).abspath()
         if port:
             self.port = port
+            logger.info('avrdude set to connect on port: %s' % self.port)
         else:
             self.port = self.get_port()
             logger.info('avrdude successfully connected on port: %s' % self.port)
         
-    def _run_command(self, flags, verbose=False):
+    def _run_command(self, flags):
         config = dict(avrdude=self.avrdude, avrconf=self.avrconf)
 
         cmd = ['%(avrdude)s'] + flags
         cmd = [v % config for v in cmd]
         
-        if verbose:
-            logger.info(' '.join(cmd))
+        logger.info(' '.join(cmd))
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE)
         stdout, stderr = p.communicate()
         if p.returncode:
@@ -69,6 +70,7 @@ class AvrDude(SerialDevice):
                     '-P', self.port,
                     '-U', 'flash:w:%s' % hex_path.name, 
                     '-C', '%(avrconf)s']
+        
 
         try:
             cwd = os.getcwd()

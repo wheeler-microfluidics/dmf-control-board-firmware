@@ -107,7 +107,7 @@ archive_name = 'dmf_control_board-%s-py%s.tar.gz' % (SOFTWARE_VERSION,
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
 tar = env.DistTar('%s' % archive_name, [package_hex, package_pyext,
-                  version_target, Glob('*.py')] + extra_files)
+                  version_target, Glob('*.py'), Glob('*.inf')] + extra_files)
 if 'DMF_ARCHIVE_DIR' in os.environ:
     target_archive_dir = os.environ['DMF_ARCHIVE_DIR']
     Install(target_archive_dir, tar)

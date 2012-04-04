@@ -210,13 +210,20 @@ class DmfControlBoard(Base, SerialDevice):
         return False
     
     def flash_firmware(self):
+        logger.info("[DmfControlBoard].flash_firmware()")
         reconnect = self.connected()  
         if reconnect:
             self.disconnect()
         try:
             hex_path = package_path() / path("dmf_driver.hex")
+            logger.info("hex_path=%s" % hex_path)
+
+            logger.info("initializing avrdude")
             avrdude = AvrDude(self.port)
+
+            logger.info("flashing firmware")
             stdout, stderr = avrdude.flash(hex_path.abspath())
+
             if stdout:
                 logger.info(str(stdout))
             if stderr:
@@ -225,7 +232,8 @@ class DmfControlBoard(Base, SerialDevice):
                 # need to sleep here, otherwise reconnect fails
                 time.sleep(.1)
                 self.connect(self.port)
-        except:
+        except Exception, why:
+            print "Exception flashing firmware: %s" % why
             if reconnect:
                 self.connect(self.port)
             raise

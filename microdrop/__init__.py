@@ -39,8 +39,9 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 
 from logger import logger
+from pygtkhelpers.ui.objectlist import PropertyMapper
 from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
-    implements, emit_signal, PluginGlobals
+    implements, PluginGlobals, ScheduleRequest, emit_signal
 from app_context import get_app
 
 
@@ -76,6 +77,17 @@ class DmfControlBoardOptions(object):
         self.frequency = frequency
 
 
+def format_func(value):
+    if value:
+        # Green
+        #return '#00FF00'
+        return True
+    else:
+        # Yellow
+        #return '#FFFF00'
+        return False
+
+
 class DmfControlBoardPlugin(SingletonPlugin):
     """
     This class is automatically registered with the PluginManager.
@@ -92,11 +104,23 @@ class DmfControlBoardPlugin(SingletonPlugin):
             validators=[ValueAtLeast(minimum=0), ]),
         Boolean.named('feedback_enabled').using(default=False, optional=True),
         Integer.named('sampling_time_ms').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ]),
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
         Integer.named('n_samples').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ]),
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
         Integer.named('delay_between_samples_ms').using(default=0, optional=True,
-            validators=[ValueAtLeast(minimum=0), ])
+            validators=[ValueAtLeast(minimum=0), ],
+            properties={'mappers': [PropertyMapper('sensitive',
+                    attr='feedback_enabled'), PropertyMapper('editable',
+                            attr='feedback_enabled'), ],
+            }),
     )
     _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
                             'delay_between_samples_ms'])
@@ -232,6 +256,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         feedback_options = options.feedback_options
         self.current_state.feedback_enabled = feedback_options.feedback_enabled
 
+        start_time = time.time()
+
         if self.control_board.connected() and \
             (app.realtime_mode or app.running):
             state = dmf_options.state_of_channels
@@ -260,9 +286,9 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         frequency = \
                             float(options.frequency)
                         emit_signal("set_frequency", frequency,
-                            interface=IWaveformGenerator)
+                                    interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
+                                    interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results = FeedbackResults(feedback_options,
@@ -279,7 +305,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         app.experiment_log.add_data({"FeedbackResults":results},
                                                     self.name)
                         if max(results.capacitance())/area < \
-                            feedback_options.action.capacitance_threshold:
+                            feedback_options.action.percent_threshold/100.0 *\
+                                RetryAction.capacitance_threshold:
                             logger.info('step=%d: attempt=%d, max(C)/A=%.1e F/mm^2. Repeat' % \
                                 (app.protocol.current_step_number,
                                  attempt, max(results.capacitance())/area))
@@ -330,7 +357,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                         self.control_board.calibration)
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
+                                    interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results.add_voltage_step(voltage,
@@ -348,27 +375,15 @@ class DmfControlBoardPlugin(SingletonPlugin):
                             frequency,
                             interface=IWaveformGenerator)
                 self.control_board.set_state_of_all_channels(state)
-                t = time.time()
-                while time.time()-t < \
-                    options.duration / 1000.0:
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                    # Sleep for 0.1ms between protocol polling loop iterations.
-                    # Without sleeping between iterations, CPU usage spikes to
-                    # 100% while protocol is running.  With sleeping, CPU usage
-                    # is reduced to <20%.
-                    time.sleep(0.0001)
-        elif (app.realtime_mode or app.running):
-            # Board is not connected
-            # run through protocol (even though device is not connected)
-            if not app.control_board.connected():
-                t = time.time()
-                while time.time() - t < options.duration / 1000.0:
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                    # Sleep for 0.1ms between protocol polling loop iterations.
-                    # (see above for reasoning)
-                    time.sleep(0.0001)
+
+        # if a protocol is running, wait for the specified minimum duration
+        if app.running and not app.realtime_mode:
+            while time.time() - start_time < options.duration / 1000.0:
+                while gtk.events_pending():
+                    gtk.main_iteration()
+                # Sleep for 0.1ms between protocol polling loop iterations.
+                # (see above for reasoning)
+                time.sleep(0.0001)
 
     def measure_impedance(self, state, options):
         thread = WaitForFeedbackMeasurement(self.control_board, state, options)
@@ -465,7 +480,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             else:
                 setattr(options, name, field.value)
         emit_signal('on_step_options_changed', [self.name, step_number],
-                                                interface=IPlugin)
+                    interface=IPlugin)
 
     def get_step_values(self, step_number=None):
         app = get_app()
@@ -511,6 +526,18 @@ class DmfControlBoardPlugin(SingletonPlugin):
         if not app.running and (plugin=='microdrop.gui.dmf_device_controller' or \
         plugin==self.name) and app.protocol.current_step_number==step_number:
             self.on_step_run()
+
+    def get_schedule_requests(self, function_name):
+        """
+        Returns a list of scheduling requests (i.e., ScheduleRequest
+        instances) for the function specified by function_name.
+        """
+        if function_name == 'on_app_init':
+            return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
+                    ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
+        elif function_name in ['on_dmf_device_changed']:
+            return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
+        return []
 
 
 PluginGlobals.pop_env()

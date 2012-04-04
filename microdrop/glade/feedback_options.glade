@@ -251,7 +251,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkEntry" id="textentry_capacitance_threshold">
+                  <object class="GtkEntry" id="textentry_percent_threshold">
                     <property name="width_request">50</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -261,8 +261,8 @@
                     <property name="secondary_icon_activatable">False</property>
                     <property name="primary_icon_sensitive">True</property>
                     <property name="secondary_icon_sensitive">True</property>
-                    <signal name="key-press-event" handler="on_textentry_capacitance_threshold_key_press_event" swapped="no"/>
-                    <signal name="focus-out-event" handler="on_textentry_capacitance_threshold_focus_out_event" swapped="no"/>
+                    <signal name="key-press-event" handler="on_textentry_percent_threshold_key_press_event" swapped="no"/>
+                    <signal name="focus-out-event" handler="on_textentry_percent_threshold_focus_out_event" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -276,7 +276,7 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="xalign">0</property>
-                    <property name="label" translatable="yes">F/mm&lt;span rise="5000" font_size="smaller"&gt;2&lt;/span&gt;</property>
+                    <property name="label" translatable="yes">%</property>
                     <property name="use_markup">True</property>
                   </object>
                   <packing>
