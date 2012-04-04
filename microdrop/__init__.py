@@ -40,7 +40,7 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
-from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
+from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal
 from app_context import get_app
 from utility.gui import yesno
@@ -61,7 +61,7 @@ class WaitForFeedbackMeasurement(threading.Thread):
                             self.feedback_options.delay_between_samples_ms,
                             self.state)
 
-PluginGlobals.push_env('microdrop')
+PluginGlobals.push_env('microdrop.managed')
 
 
 class DmfControlBoardOptions(object):
@@ -89,7 +89,7 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(SingletonPlugin):
+class DmfControlBoardPlugin(Plugin):
     """
     This class is automatically registered with the PluginManager.
     """
@@ -137,6 +137,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.feedback_options_controller = None
         self.feedback_results_controller = None
         self.initialized = False
+
+    def on_plugin_enable(self):
+        self.on_app_init()
+        if get_app().protocol:
+            self.on_step_run()
 
     def on_app_init(self):
         """
@@ -394,7 +399,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Parameters:
             data : dictionary of experiment log data for the selected steps
         """
-        self.feedback_results_controller.on_experiment_log_selection_changed(data)
+        if self.feedback_results_controller:
+            self.feedback_results_controller.on_experiment_log_selection_changed(data)
         
     def set_voltage(self, voltage):
         """
@@ -503,20 +509,35 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
                     '%s step #%d' % (plugin, step_number))
-        self.feedback_options_controller\
-            .on_step_options_changed(plugin, step_number)
+        if self.feedback_options_controller:
+            self.feedback_options_controller\
+                .on_step_options_changed(plugin, step_number)
         if not app.running and (plugin=='microdrop.gui.dmf_device_controller' or \
-        plugin==self.name) and app.protocol.current_step_number==step_number:
+                plugin==self.name) and app.protocol.current_step_number==step_number:
             self.on_step_run()
+
+    def on_experiment_log_created(self, log):
+        app = get_app()
+        data = {}
+        if self.control_board.connected():
+            data["control board name"] = \
+                self.control_board.name()
+            data["control board hardware version"] = \
+                self.control_board.hardware_version()
+            data["control board software version"] = \
+                self.control_board.software_version()
+        log.add_data(data)
 
     def get_schedule_requests(self, function_name):
         """
         Returns a list of scheduling requests (i.e., ScheduleRequest
         instances) for the function specified by function_name.
         """
-        if function_name == 'on_app_init':
+        if function_name == 'on_app_init' or function_name == 'on_plugin_enable':
             return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
                     ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
+        elif function_name in ['on_step_options_changed']:
+            return [ScheduleRequest(self.name, 'microdrop.gui.protocol_grid_controller')]
         elif function_name in ['on_dmf_device_changed']:
             return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
         return []
