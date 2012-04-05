@@ -29,6 +29,7 @@ if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
 from path import path
+import yaml
 
 try:
     from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvasGTK
@@ -47,9 +48,10 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
-from utility import SetOfInts, Version, VersionError, FutureVersionError
+from utility import SetOfInts, Version, VersionError, FutureVersionError, \
+    is_float
 from utility.gui import textentry_validate, combobox_set_model_from_list, \
-    combobox_get_active_text
+    combobox_get_active_text, text_entry_dialog
 from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
 from app_context import get_app
 
@@ -1480,14 +1482,78 @@ class FeedbackCalibrationController():
             "oscilloscope, please measure the output from your amplifier "
             "and answer the following prompts.", "Feedback calibration wizard")
 
+        current_state = self.plugin.control_board.state_of_all_channels()
+        
         # set reference voltage
-        for frequency in np.logspace(2, 5, 10):
-            # set frequency
-            voltage = app.main_window_controller.get_text_input(
-                "Feedback calibration wizard",
-                "What is the current RMS output voltage?")
-            print voltage
-            # check that it is a valid voltage
+        reference_voltage = 100
+        emit_signal("set_voltage", reference_voltage,
+                    interface=IWaveformGenerator)
+
+        n_samples = 1000
+        frequencies = np.logspace(2, 5, 10)
+        voltages = np.zeros(len(frequencies))
+        impedance_measurements = []
+        fb_measurements = np.zeros([
+                                    len(frequencies),
+                                    len(self.plugin.control_board.calibration.R_fb),
+                                    n_samples])
+        hv_measurements = np.zeros([len(frequencies),
+                                    len(self.plugin.control_board.calibration.R_hv),
+                                    n_samples])
+
+        for i, frequency in enumerate(frequencies):
+            emit_signal("set_frequency", frequency,
+                        interface=IWaveformGenerator)
+            
+            while True:
+                voltage = text_entry_dialog("What is the current RMS output voltage?",
+                                            title="Feedback calibration wizard")
+
+                # cancel calibration
+                if voltage is None:
+                    app.main_window_controller.info("Calibration cancelled.",
+                        "Feedback calibration wizard")
+                    return
+                # check that it is a valid voltage
+                elif is_float(voltage):
+                    voltages[i] = float(voltage)
+                    area = self.plugin.get_actuated_area()
+                    options = FeedbackOptions(feedback_enabled=True,
+                              sampling_time_ms=10,
+                              n_samples=100,
+                              delay_between_samples_ms=0,
+                              action=RetryAction)
+                    (V_hv, hv_resistor, V_fb, fb_resistor) = \
+                        self.plugin.measure_impedance(current_state, options)
+                    impedance_measurements.append(FeedbackResults(options,
+                                        V_hv, hv_resistor,
+                                        V_fb, fb_resistor,
+                                        area, frequency,
+                                        reference_voltage,
+                                        self.plugin.control_board.calibration))
+                    for j in range(0, len(self.plugin.control_board.calibration.R_hv)):
+                            self.plugin.control_board.set_series_resistor_index(0, j)
+                            hv_measurements[i,j,:] = self.plugin.control_board. \
+                                analog_reads(0, n_samples)
+                    for j in range(0, len(self.plugin.control_board.calibration.R_fb)):
+                            self.plugin.control_board.set_series_resistor_index(1, j)
+                            fb_measurements[i,j,:] = self.plugin.control_board. \
+                                analog_reads(1, n_samples)
+                    break
+                # try again
+                else:
+                    logging.error("Not a valid float.")
+
+        filename = path("amp_calibration.yaml")
+
+        print "save to %s" % filename.abspath()
+        
+        with open(filename.abspath(), 'wb') as f:
+            yaml.dump(dict(frequencies=frequencies.tolist(),
+                           voltages=voltages.tolist(),
+                           impedance_measurements=impedance_measurements,
+                           hv_measurements=hv_measurements.tolist(),
+                           fb_measurements=fb_measurements.tolist()), f)
             
         # 1. fit results
         # 2. plot current calibration versus newly calculated values

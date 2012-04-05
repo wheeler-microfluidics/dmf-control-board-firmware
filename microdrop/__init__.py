@@ -272,7 +272,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
             if feedback_options.feedback_enabled:
                 # calculate the total area of actuated electrodes
-                area =  self.get_actuated_area()
+                area = self.get_actuated_area()
                 
                 if feedback_options.action.__class__ == RetryAction:
                     if 'attempt' not in app.experiment_log.data[-1]['core'].keys():
