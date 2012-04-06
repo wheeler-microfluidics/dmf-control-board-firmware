@@ -40,9 +40,10 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
-from plugin_manager import IPlugin, IWaveformGenerator, SingletonPlugin, \
+from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal
 from app_context import get_app
+from utility.gui import yesno
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -60,7 +61,7 @@ class WaitForFeedbackMeasurement(threading.Thread):
                             self.feedback_options.delay_between_samples_ms,
                             self.state)
 
-PluginGlobals.push_env('microdrop')
+PluginGlobals.push_env('microdrop.managed')
 
 
 class DmfControlBoardOptions(object):
@@ -88,7 +89,7 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(SingletonPlugin):
+class DmfControlBoardPlugin(Plugin):
     """
     This class is automatically registered with the PluginManager.
     """
@@ -138,6 +139,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
         self.feedback_calibration_controller = None
         self.initialized = False
 
+    def on_plugin_enable(self):
+        self.on_app_init()
+        if get_app().protocol:
+            self.on_step_run()
+
     def on_app_init(self):
         """
         Handler called once when the Microdrop application starts.
@@ -164,9 +170,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
             self.check_device_name_and_version()
 
     def check_device_name_and_version(self):
-        app = get_app()
         try:
-            app.control_board = self.control_board
             self.control_board.connect()
             name = self.control_board.name()
             hardware_version = self.control_board.hardware_version()
@@ -186,11 +190,11 @@ class DmfControlBoardPlugin(SingletonPlugin):
 
             # reflash the firmware if it is not the right version
             if host_software_version !=  remote_software_version:
-                response = app.main_window_controller.question("The "
+                response = yesno("The "
                     "control board firmware version (%s) does not match the "
                     "driver version (%s). Update firmware?" %
-                    (remote_software_version, host_software_version),
-                    "Update firmware?")
+                    (remote_software_version, host_software_version))
+                    #"Update firmware?")
                 if response == gtk.RESPONSE_YES:
                     self.on_flash_firmware()
         except Exception, why:
@@ -202,7 +206,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         try:
             self.control_board.flash_firmware()
-            app.main_window_controller.info("Firmware updated "
+            logger.info("Firmware updated "
                                                  "successfully.",
                                                  "Firmware update")
         except Exception, why:
@@ -374,7 +378,7 @@ class DmfControlBoardPlugin(SingletonPlugin):
                 emit_signal("set_frequency",
                             frequency,
                             interface=IWaveformGenerator)
-                self.control_board.set_state_of_all_channels(state)
+                self.control_board.state_of_all_channels = state
 
         # if a protocol is running, wait for the specified minimum duration
         if app.running and not app.realtime_mode:
@@ -412,7 +416,8 @@ class DmfControlBoardPlugin(SingletonPlugin):
         Parameters:
             data : dictionary of experiment log data for the selected steps
         """
-        self.feedback_results_controller.on_experiment_log_selection_changed(data)
+        if self.feedback_results_controller:
+            self.feedback_results_controller.on_experiment_log_selection_changed(data)
         
     def set_voltage(self, voltage):
         """
@@ -521,23 +526,50 @@ class DmfControlBoardPlugin(SingletonPlugin):
         app = get_app()
         logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
                     '%s step #%d' % (plugin, step_number))
-        self.feedback_options_controller\
-            .on_step_options_changed(plugin, step_number)
+        if self.feedback_options_controller:
+            self.feedback_options_controller\
+                .on_step_options_changed(plugin, step_number)
         if not app.running and (plugin=='microdrop.gui.dmf_device_controller' or \
-        plugin==self.name) and app.protocol.current_step_number==step_number:
+                plugin==self.name) and app.protocol.current_step_number==step_number:
             self.on_step_run()
+
+    def on_experiment_log_created(self, log):
+        app = get_app()
+        data = {}
+        if self.control_board.connected():
+            data["control board name"] = \
+                self.control_board.name()
+            data["control board hardware version"] = \
+                self.control_board.hardware_version()
+            data["control board software version"] = \
+                self.control_board.software_version()
+        log.add_data(data)
 
     def get_schedule_requests(self, function_name):
         """
         Returns a list of scheduling requests (i.e., ScheduleRequest
         instances) for the function specified by function_name.
         """
-        if function_name == 'on_app_init':
+        if function_name == 'on_app_init' or function_name == 'on_plugin_enable':
             return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
                     ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
+        elif function_name in ['on_step_options_changed']:
+            return [ScheduleRequest(self.name, 'microdrop.gui.protocol_grid_controller')]
         elif function_name in ['on_dmf_device_changed']:
             return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
         return []
+
+    def on_experiment_log_created(self, log):
+        app = get_app()
+        data = {}
+        if self.control_board.connected():
+            data["control board name"] = \
+                self.control_board.name()
+            data["control board hardware version"] = \
+                self.control_board.hardware_version()
+            data["control board software version"] = \
+                self.control_board.software_version()
+        log.add_data(data)
 
 
 PluginGlobals.pop_env()

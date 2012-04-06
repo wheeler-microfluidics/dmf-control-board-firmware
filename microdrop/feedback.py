@@ -234,7 +234,7 @@ class FeedbackOptionsController():
             electrode = \
                 app.dmf_device_controller.last_electrode_clicked
             area = electrode.area() * app.dmf_device.scale
-            current_state = self.plugin.control_board.state_of_all_channels()
+            current_state = self.plugin.control_board.state_of_all_channels
             state = np.zeros(len(current_state))
 
             if self.plugin.control_board.number_of_channels() < \
@@ -266,7 +266,7 @@ class FeedbackOptionsController():
                 voltage,
                 self.plugin.control_board.calibration)
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
-            self.plugin.control_board.set_state_of_all_channels(current_state)
+            self.plugin.control_board.state_of_all_channels = current_state
             RetryAction.capacitance_threshold =\
                 max(results.capacitance()) / area
 
@@ -285,7 +285,7 @@ class FeedbackOptionsController():
     def on_step_options_changed(self, plugin_name, step_number):
         app = get_app()
         if(self.plugin.name == plugin_name) \
-        and app.protocol.current_step_number == step_number:
+                and app.protocol.current_step_number == step_number:
             all_options = self.plugin.get_step_options(step_number)
             options = all_options.feedback_options
             self._set_gui_sensitive(options)
