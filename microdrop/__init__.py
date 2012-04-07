@@ -40,8 +40,10 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
+from gui.protocol_grid_controller import ProtocolGridController
 from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
-    implements, PluginGlobals, ScheduleRequest, emit_signal
+    implements, PluginGlobals, ScheduleRequest, emit_signal,\
+            get_service_instance
 from app_context import get_app
 from utility.gui import yesno
 
@@ -142,6 +144,14 @@ class DmfControlBoardPlugin(Plugin):
         self.on_app_init()
         if get_app().protocol:
             self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_gui()
+
+    def on_plugin_disable(self):
+        if get_app().protocol:
+            self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_gui()
 
     def on_app_init(self):
         """
