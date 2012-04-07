@@ -51,7 +51,9 @@ except:
 from utility import SetOfInts, Version, VersionError, FutureVersionError, \
     is_float
 from utility.gui import textentry_validate, combobox_set_model_from_list, \
-    combobox_get_active_text, text_entry_dialog
+    combobox_get_active_text, text_entry_dialog, FormViewDialog
+from flatland.schema import String, Form, Integer
+from flatland.validation import ValueAtLeast, ValueAtMost
 from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
 from app_context import get_app
 
@@ -1238,7 +1240,7 @@ class FeedbackResultsController():
         menu_item.connect("activate", self.on_window_show)
         menu_item.show()
 
-        self.figure = Figure()   
+        self.figure = Figure()
         self.canvas = FigureCanvasGTK(self.figure)
         self.axis = self.figure.add_subplot(111)
         self.vbox = self.builder.get_object("vbox1")
@@ -1468,11 +1470,22 @@ class FeedbackCalibrationController():
     def __init__(self, plugin):
         self.plugin = plugin
         
-    def on_feedback_calibration_wizard(self, widget=None, data=None):
+    def on_perform_calibration(self, widget=None, data=None):
         if not self.plugin.control_board.connected():
             logging.error("A control board must be connected in order to "
                           "perform calibration.")
             return
+
+        form = Form.of(
+            Integer.named('start_frequency').using(default=1e2, optional=True,
+                validators=[ValueAtLeast(minimum=99), ]),
+            Integer.named('end_frequency').using(default=30e3, optional=True,
+                validators=[ValueAtLeast(minimum=1e3), ]),
+            Integer.named('number_of_steps').using(default=10, optional=True,
+                validators=[ValueAtLeast(minimum=0), ]),
+        )
+        dialog = FormViewDialog(title="Perform calibration")
+        valid, response =  dialog.run(form)
         
         app = get_app()
         app.main_window_controller.info("The control board uses a bank of "
@@ -1482,79 +1495,150 @@ class FeedbackCalibrationController():
             "oscilloscope, please measure the output from your amplifier "
             "and answer the following prompts.", "Feedback calibration wizard")
 
-        current_state = self.plugin.control_board.state_of_all_channels()
+        current_state = self.plugin.control_board.state_of_all_channels
         
-        # set reference voltage
-        reference_voltage = 100
-        emit_signal("set_voltage", reference_voltage,
-                    interface=IWaveformGenerator)
+        start_frequency = response['start_frequency']
+        end_frequency = response['end_frequency']
+        n_steps = response['number_of_steps']
+        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
 
+        reference_voltages = [10, 100]
         n_samples = 1000
-        frequencies = np.logspace(2, 5, 10)
-        voltages = np.zeros(len(frequencies))
-        impedance_measurements = []
-        fb_measurements = np.zeros([
-                                    len(frequencies),
-                                    len(self.plugin.control_board.calibration.R_fb),
-                                    n_samples])
-        hv_measurements = np.zeros([len(frequencies),
-                                    len(self.plugin.control_board.calibration.R_hv),
+        frequencies = np.logspace(np.log10(start_frequency),
+                                  np.log10(end_frequency),
+                                  n_steps)
+        voltages = np.zeros([n_attenuation_steps,
+                            len(frequencies)])
+        hv_measurements = np.zeros([n_attenuation_steps,
+                                    len(frequencies),                                    
                                     n_samples])
 
-        for i, frequency in enumerate(frequencies):
-            emit_signal("set_frequency", frequency,
-                        interface=IWaveformGenerator)
-            
+
+        for i in range(0, n_attenuation_steps):
+            self.plugin.control_board.set_series_resistor_index(0, i)
+            emit_signal("set_frequency", frequencies[0],
+                interface=IWaveformGenerator)
+
+            # adjust reference voltage so that we are reading ~1.4 Vrms
             while True:
-                voltage = text_entry_dialog("What is the current RMS output voltage?",
-                                            title="Feedback calibration wizard")
-
-                # cancel calibration
-                if voltage is None:
-                    app.main_window_controller.info("Calibration cancelled.",
-                        "Feedback calibration wizard")
-                    return
-                # check that it is a valid voltage
-                elif is_float(voltage):
-                    voltages[i] = float(voltage)
-                    area = self.plugin.get_actuated_area()
-                    options = FeedbackOptions(feedback_enabled=True,
-                              sampling_time_ms=10,
-                              n_samples=100,
-                              delay_between_samples_ms=0,
-                              action=RetryAction)
-                    (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                        self.plugin.measure_impedance(current_state, options)
-                    impedance_measurements.append(FeedbackResults(options,
-                                        V_hv, hv_resistor,
-                                        V_fb, fb_resistor,
-                                        area, frequency,
-                                        reference_voltage,
-                                        self.plugin.control_board.calibration))
-                    for j in range(0, len(self.plugin.control_board.calibration.R_hv)):
-                            self.plugin.control_board.set_series_resistor_index(0, j)
-                            hv_measurements[i,j,:] = self.plugin.control_board. \
-                                analog_reads(0, n_samples)
-                    for j in range(0, len(self.plugin.control_board.calibration.R_fb)):
-                            self.plugin.control_board.set_series_resistor_index(1, j)
-                            fb_measurements[i,j,:] = self.plugin.control_board. \
-                                analog_reads(1, n_samples)
-                    break
-                # try again
+                logging.info('set_voltage(%.1f)' % reference_voltages[i])
+                emit_signal("set_voltage", reference_voltages[i],
+                            interface=IWaveformGenerator)
+                V = np.array(self.plugin.control_board.analog_reads(0,
+                    n_samples))/1024.0*5-2.5
+                V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
+                logging.info("V_rms=%.1f" % V_rms)
+                if V_rms > 1.6:
+                    logging.info("divide reference voltage by 2")
+                    reference_voltages[i] /= 2
+                elif V_rms <.5:
+                    logging.info("multiply reference voltage by 2")
+                    reference_voltages[i] *= 2
                 else:
-                    logging.error("Not a valid float.")
-
-        filename = path("amp_calibration.yaml")
-
-        print "save to %s" % filename.abspath()
+                    logging.info("reference voltage set to %.1f" % \
+                                 reference_voltages[i])
+                    break
         
-        with open(filename.abspath(), 'wb') as f:
-            yaml.dump(dict(frequencies=frequencies.tolist(),
-                           voltages=voltages.tolist(),
-                           impedance_measurements=impedance_measurements,
-                           hv_measurements=hv_measurements.tolist(),
-                           fb_measurements=fb_measurements.tolist()), f)
+            for j, frequency in enumerate(frequencies):
+                emit_signal("set_frequency", frequency,
+                            interface=IWaveformGenerator)
+                while True:
+                    voltage = text_entry_dialog("What is the current RMS output voltage?",
+                                                title="Feedback calibration wizard")
+                    # cancel calibration
+                    if voltage is None:
+                        app.main_window_controller.info("Calibration cancelled.",
+                            "Feedback calibration wizard")
+                        return
+                    # check that it is a valid voltage
+                    elif is_float(voltage):
+                        voltages[i, j] = float(voltage)
+                        hv_measurements[i,j,:] = self.plugin.control_board. \
+                            analog_reads(0, n_samples)
+                        break
+                    # try again
+                    else:
+                        logging.error("Not a valid float.")
+
+        results = dict(reference_voltages=reference_voltages,
+                       frequencies = frequencies.tolist(), 
+                       voltages=voltages.tolist(),
+                       hv_measurements=hv_measurements.tolist())
+
+        dialog = gtk.FileChooserDialog(title="Save feedback calibration",
+                                       action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       buttons=(gtk.STOCK_CANCEL,
+                                                gtk.RESPONSE_CANCEL,
+                                                gtk.STOCK_SAVE,
+                                                gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            filename = path(dialog.get_filename())
+            with open(filename.abspath(), 'wb') as f:
+                yaml.dump(results, f)
+        dialog.destroy()
+        self.process_calibration(results)
             
+    def on_load_calibration_from_file(self, widget, data=None):
+        dialog = gtk.FileChooserDialog(title="Load calibration from file",
+                                       action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                                       buttons=(gtk.STOCK_CANCEL,
+                                                gtk.RESPONSE_CANCEL,
+                                                gtk.STOCK_OPEN,
+                                                gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            filename = path(dialog.get_filename())
+            with open(filename.abspath(), 'rb') as f:
+                results = yaml.load(f)
+        dialog.destroy()
+        self.process_calibration(results)
+
+    def create_plot(self, title):
+        win = gtk.Window()
+        win.set_default_size(500, 400)
+        win.set_title(title)
+        f = Figure()
+        a = f.add_subplot(111)
+        canvas = FigureCanvasGTK(f)
+        vbox = gtk.VBox(False, 0)
+        win.add(vbox)
+        toolbar = NavigationToolbar(canvas, win)
+        vbox.pack_start(canvas)
+        vbox.pack_start(toolbar, False, False)
+        vbox.show()
+        win.show_all()
+        f.subplots_adjust(left=0.12, bottom=0.16)
+        return (canvas, a)        
+
+    def process_calibration(self, results):
         # 1. fit results
         # 2. plot current calibration versus newly calculated values
         # 3. prompt user to accept new values
+
+        frequencies = np.array(results['frequencies'])
+        voltages = np.array(results['voltages'])
+        hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
+        
+        hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) - \
+                           np.min(hv_measurements[:, j, :],1) \
+                           for j in range(0, len(frequencies))])/2./np.sqrt(2))
+        attenuation = hv_rms/results['voltages']
+
+        canvas, a = self.create_plot("Control board attenuation")
+        for i in range(0, len(results['reference_voltages'])):
+            ind = mlab.find(hv_rms[i,:]>.1)
+            a.semilogx(frequencies[ind], attenuation[i, ind])
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Attenuation')
+        canvas.draw()
+
+        canvas, a = self.create_plot("Relative amplifier gain")
+        for i in range(0, len(results['reference_voltages'])):
+            ind = mlab.find(hv_rms[i,:]>.1)
+            a.semilogx(frequencies[ind], voltages[i, ind]/voltages[i, 0])
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Relative amplifier gain')
+        canvas.draw()
