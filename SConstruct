@@ -3,10 +3,25 @@ import os
 import warnings
 import sys
 
+import yaml
+from path import path
+
 import auto_config
 from get_libs import get_lib
 from git_util import GitUtil
-from path import path
+
+
+def get_plugin_version():
+    version = GitUtil(None).describe()
+    m = re.search('^v(?P<major>\d+)\.(?P<minor>\d+)(-(?P<micro>\d+))?', version)
+    if m.group('micro'):
+        micro = m.group('micro')
+    else:
+        micro = '0'
+    version_string = "%s.%s.%s" % (m.group('major'),
+            m.group('minor'), micro)
+    return version_string
+
 
 PYTHON_VERSION = "%s.%s" % (sys.version_info[0],
                             sys.version_info[1])
@@ -15,9 +30,7 @@ env = Environment()
 
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
-g = GitUtil(None)
-m = re.match('v(\d+)\.(\d+)-(\d+)', g.describe())
-SOFTWARE_VERSION = "%s.%s.%s" % (m.group(1), m.group(2), m.group(3))
+SOFTWARE_VERSION = get_plugin_version()
 Export('SOFTWARE_VERSION')
 
 Import('PYTHON_LIB')
@@ -97,26 +110,34 @@ Import('pyext')
 package_hex = Install('.', arduino_hex)
 package_pyext = Install('.', pyext)
 
-env = Environment(tools = ["default", "disttar"],
-                  DISTTAR_EXCLUDEEXTS=['.gz'])
-
-version_target = Command('version.txt', None,
-                        'echo %s > $TARGET' % SOFTWARE_VERSION)
-archive_name = 'dmf_control_board-%s-py%s.tar.gz' % (SOFTWARE_VERSION,
-                                                     PYTHON_VERSION)
-
-# This will build an archive using what ever DISTTAR_FORMAT that is set.
-tar = env.DistTar('%s' % archive_name, [package_hex, package_pyext,
-                  version_target, Glob('*.py'), Glob('*.inf')] + extra_files)
-if 'DMF_ARCHIVE_DIR' in os.environ:
-    target_archive_dir = os.environ['DMF_ARCHIVE_DIR']
-    Install(target_archive_dir, tar)
-
-Depends(tar, [package_hex, package_pyext, version_target] + extra_files)
-
-
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
     SConscript('src/SConscript.docs')
     Import('doc')
     Alias('docs', doc)
+
+
+tar_env = Environment(tools = ["default", "disttar"],
+        DISTTAR_EXCLUDEDIRS=['.git'],
+        DISTTAR_EXCLUDERES=[r'\.sconsign\.dblite'],
+        DISTTAR_EXCLUDEEXTS=['.gz', '.pyc', '.tgz', '.swp'])
+
+version_target = Command('version.txt', None,
+                        'echo %s > $TARGET' % SOFTWARE_VERSION)
+plugin_root = path('.').abspath()
+properties_target = plugin_root.joinpath('properties.yml')
+properties = {'name': str(plugin_root.name), 'version': SOFTWARE_VERSION}
+properties_target.write_bytes(yaml.dump(properties))
+archive_name = '%s-%s.tar.gz' % (properties['name'], SOFTWARE_VERSION)
+
+# This will build an archive using what ever DISTTAR_FORMAT that is set.
+tar = tar_env.DistTar('%s' % properties['name'], [tar_env.Dir('#')])
+renamed_tar = tar_env.Command(tar_env.File(archive_name), None,
+        Move(archive_name, tar[0]))
+Depends(tar, [package_hex, package_pyext, version_target] + extra_files)
+Depends(renamed_tar, tar)
+Clean(renamed_tar, tar)
+
+if 'PLUGIN_ARCHIVE_DIR' in os.environ:
+    target_archive_dir = os.environ['PLUGIN_ARCHIVE_DIR']
+    Install(target_archive_dir, renamed_tar)

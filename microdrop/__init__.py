@@ -39,8 +39,11 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
+from gui.protocol_grid_controller import ProtocolGridController
+from plugin_helpers import StepOptionsController
 from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
-    implements, PluginGlobals, ScheduleRequest, emit_signal
+    implements, PluginGlobals, ScheduleRequest, emit_signal,\
+            get_service_instance
 from app_context import get_app
 from utility.gui import yesno
 
@@ -88,14 +91,14 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin):
+class DmfControlBoardPlugin(Plugin, StepOptionsController):
     """
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
 
-    Fields = Form.of(
+    StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
         Integer.named('voltage').using(default=100, optional=True,
@@ -142,6 +145,14 @@ class DmfControlBoardPlugin(Plugin):
         self.on_app_init()
         if get_app().protocol:
             self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_gui()
+
+    def on_plugin_disable(self):
+        if get_app().protocol:
+            self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_gui()
 
     def on_app_init(self):
         """
@@ -452,41 +463,14 @@ class DmfControlBoardPlugin(Plugin):
         """
         self.control_board.set_waveform_frequency(frequency)
 
-    def get_default_options(self):
+    def get_default_step_options(self):
         return DmfControlBoardOptions()
 
-    def get_step(self, default):
-        if default is None:
-            return get_app().protocol.current_step_number
-        return default
-
-    def get_step_options(self, step_number=None):
-        """
-        Return a DmfControlBoardOptions object for the current step in the
-        protocol.  If none exists yet, create a new one.
-        """
-        step_number = self.get_step(step_number)
-        app = get_app()
-        
-        step = app.protocol.steps[step_number]
-        options = step.get_data(self.name)
-        if options is None:
-            # No data is registered for this plugin (for this step).
-            options = self.get_default_options()
-            step.set_data(self.name, options)
-        return options
-
-    def get_step_form_class(self):
-        return self.Fields
-
-    def get_step_fields(self):
-        return self.Fields.field_schema_mapping.keys()
-
     def set_step_values(self, values_dict, step_number=None):
-        step_number = self.get_step(step_number)
+        step_number = self.get_step_number(step_number)
         logger.debug('[DmfControlBoardPlugin] set_step[%d]_values(): '\
                     'values_dict=%s' % (step_number, values_dict,))
-        el = self.Fields(value=values_dict)
+        el = self.StepFields(value=values_dict)
         if not el.validate():
             raise ValueError('Invalid values: %s' % el.errors)
         options = self.get_step_options(step_number=step_number)
@@ -511,7 +495,7 @@ class DmfControlBoardPlugin(Plugin):
             return None
 
         values = {}
-        for name in self.Fields.field_schema_mapping:
+        for name in self.StepFields.field_schema_mapping:
             try:
                 value = getattr(options, name)
             except AttributeError:
@@ -521,7 +505,7 @@ class DmfControlBoardPlugin(Plugin):
 
     def get_step_value(self, name, step_number=None):
         app = get_app()
-        if not name in self.Fields.field_schema_mapping:
+        if not name in self.StepFields.field_schema_mapping:
             raise KeyError('No field with name %s for plugin %s' % (name, self.name))
         if step_number is None:
             step_number = app.protocol.current_step_number
