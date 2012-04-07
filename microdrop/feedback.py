@@ -1614,10 +1614,6 @@ class FeedbackCalibrationController():
         return (canvas, a)        
 
     def process_calibration(self, results):
-        # 1. fit results
-        # 2. plot current calibration versus newly calculated values
-        # 3. prompt user to accept new values
-
         frequencies = np.array(results['frequencies'])
         voltages = np.array(results['voltages'])
         hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
@@ -1632,7 +1628,9 @@ class FeedbackCalibrationController():
             ind = mlab.find(hv_rms[i,:]>.1)
             a.semilogx(frequencies[ind], attenuation[i, ind])
         a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('Attenuation')
+        a.set_ylabel('HV Attenuation')
+        a.legend(['Series resistor %d' % i
+                  for i in range(0, len(results['reference_voltages']))])
         canvas.draw()
 
         canvas, a = self.create_plot("Relative amplifier gain")
@@ -1642,3 +1640,7 @@ class FeedbackCalibrationController():
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Relative amplifier gain')
         canvas.draw()
+
+        # 1. fit results
+        # 2. plot current calibration versus newly calculated values
+        # 3. prompt user to accept new values
