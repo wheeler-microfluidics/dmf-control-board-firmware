@@ -128,11 +128,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
     )
     _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
                             'delay_between_samples_ms'])
+    plugin_name = 'wheelerlab.dmf_control_board_'
 
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = "wheelerlab.dmf_control_board_" + \
-            self.control_board.host_hardware_version()        
+        self.name = self.plugin_name +\
+                self.control_board.host_hardware_version()
         self.version = self.control_board.host_software_version()
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
