@@ -147,13 +147,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_gui()
+            pgc.update_grid()
 
     def on_plugin_disable(self):
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_gui()
+            pgc.update_grid()
 
     def on_app_init(self):
         """
