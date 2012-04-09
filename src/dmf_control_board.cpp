@@ -859,7 +859,7 @@ void DmfControlBoard::LoadConfig() {
   if(EEPROM.read(EEPROM_INIT)==0) {
     uint8_t* p = (uint8_t*)&config_settings_;
     for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-      p[i] = EEPROM.read(EEPROM_INIT+i);
+      p[i] = EEPROM.read(EEPROM_INIT+i+1);
     }
   } else {
     config_settings_.waveout_gain_1 = 112;
@@ -883,7 +883,7 @@ void DmfControlBoard::LoadConfig() {
 void DmfControlBoard::SaveConfig() {
   uint8_t* p = (uint8_t*)&config_settings_;
   for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-    EEPROM.write(EEPROM_INIT+i, p[i]);
+    EEPROM.write(EEPROM_INIT+i+1, p[i]);
   }
   EEPROM.write(EEPROM_INIT, 0);
 }
