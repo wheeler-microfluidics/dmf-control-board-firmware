@@ -19,6 +19,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import math
+import time
 
 import logging
 import gtk
@@ -52,7 +53,7 @@ except:
 from utility import SetOfInts, Version, VersionError, FutureVersionError, \
     is_float
 from utility.gui import textentry_validate, combobox_set_model_from_list, \
-    combobox_get_active_text, text_entry_dialog, FormViewDialog
+    combobox_get_active_text, text_entry_dialog, FormViewDialog, yesno
 from flatland.schema import String, Form, Integer
 from flatland.validation import ValueAtLeast, ValueAtMost
 from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
@@ -1475,12 +1476,78 @@ class FeedbackCalibrationController():
     def __init__(self, plugin):
         self.plugin = plugin
         
-    def on_perform_calibration(self, widget=None, data=None):
+    def on_perform_calibration(self, widget, data=None):
         if not self.plugin.control_board.connected():
             logging.error("A control board must be connected in order to "
                           "perform calibration.")
             return
 
+        # number of HV attenuators
+        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)        
+        gain = None
+        try:
+            [start_frequency, end_frequency] = self.plugin.frequency_range()
+            gain = self.plugin.gain(start_frequency)
+        except AmplifierGainNotCalibrated:
+            logging.warning("Amplifier not calibrated. Setting initial gain to unity.")
+            # set initial gain to 1
+            self.plugin.set_app_values(dict(amplifier_gain=dict(
+                frequency=[0],
+                gain=[1],
+            )))
+            
+        response = yesno("Would you like to calibrate the high voltage "
+                         "attenuators? Click no to keep current values")
+        if response == gtk.RESPONSE_YES:
+            self.calibrate_attenuators()
+
+        response = yesno("Would you like to calibrate the amplifier gain?")
+        if response == gtk.RESPONSE_YES:
+            self.calibrate_amplifier_gain()
+        
+    def calibrate_attenuators(self):
+        frequencies = self.prompt_for_frequency_range()
+        
+        app = get_app()
+        app.main_window_controller.info("The control board uses a bank of "
+            "resistors to measure amplifier voltage. These resistors need to "
+            "be characterized in order to obtain accurate measurements. Using "
+            "an oscilloscope, please measure the output from your amplifier "
+            "and answer the following prompts.",
+            "HV attenuator calibration wizard")
+
+        results = self.sweep_frequencies(frequencies,
+                                         input_voltage=None,
+                                         measure_with_scope=True,
+                                         autoscale_voltage=True)
+
+        if results:
+            dialog = gtk.FileChooserDialog(title="Save feedback calibration",
+                                           action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                           buttons=(gtk.STOCK_CANCEL,
+                                                    gtk.RESPONSE_CANCEL,
+                                                    gtk.STOCK_SAVE,
+                                                    gtk.RESPONSE_OK))
+            dialog.set_default_response(gtk.RESPONSE_OK)
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                filename = path(dialog.get_filename())
+                with open(filename.abspath(), 'wb') as f:
+                    yaml.dump(results, f)
+            dialog.destroy()
+            self.process_calibration(results)
+
+    def calibrate_amplifier_gain(self):
+        frequencies = self.prompt_for_frequency_range()
+        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
+        results = self.sweep_frequencies(frequencies,
+                                         input_voltage=None,
+                                         measure_with_scope=False,
+                                         autoscale_voltage=True)
+        if results:
+            self.process_calibration(results)
+
+    def prompt_for_frequency_range(self, title="Perform calibration"):
         form = Form.of(
             Integer.named('start_frequency').using(default=1e2, optional=True,
                 validators=[ValueAtLeast(minimum=99), ]),
@@ -1489,47 +1556,39 @@ class FeedbackCalibrationController():
             Integer.named('number_of_steps').using(default=10, optional=True,
                 validators=[ValueAtLeast(minimum=0), ]),
         )
-        dialog = FormViewDialog(title="Perform calibration")
+        dialog = FormViewDialog()
         valid, response =  dialog.run(form)
-        
-        app = get_app()
-        app.main_window_controller.info("The control board uses a bank of "
-            "resistors to measure device impedance and amplifier voltage. "
-            "These resistors need to be characterized in order to obtain "
-            "accurate measurements with the feedback system. Using an "
-            "oscilloscope, please measure the output from your amplifier "
-            "and answer the following prompts.", "Feedback calibration wizard")
-
-        start_frequency = response['start_frequency']
-        end_frequency = response['end_frequency']
-        n_steps = response['number_of_steps']
-        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
-
-        n_samples = 1000
+        start_frequency = np.array(response['start_frequency'])
+        end_frequency = np.array(response['end_frequency'])
+        number_of_steps = np.array(response['number_of_steps'])
         frequencies = np.logspace(np.log10(start_frequency),
                                   np.log10(end_frequency),
-                                  n_steps)
-        voltages = np.zeros([n_attenuation_steps,
-                            len(frequencies)])
+                                  number_of_steps)
+        return frequencies
+
+    def sweep_frequencies(self,
+                          frequencies,
+                          input_voltage=None,
+                          measure_with_scope=False,
+                          autoscale_voltage=True):
+        n_samples = 1000
+        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
+
+        if input_voltage is None:
+            input_voltage = .5*np.ones([n_attenuation_steps,
+                                        len(frequencies)]
+            )
+
+        if measure_with_scope:
+            voltages = np.zeros([n_attenuation_steps,
+                                len(frequencies)])
+
         hv_measurements = np.zeros([n_attenuation_steps,
                                     len(frequencies),                                    
                                     n_samples])
-        input_voltage = .01*np.ones([n_attenuation_steps,
-                                      len(frequencies)])
         
-        try:
-            self.plugin.gain(frequencies[0])
-        # if we have no gain calibrated, set the default gain to 1
-        except AmplifierGainNotCalibrated:
-            logging.info("No amplifier gain set, assume gain=1.")
-            self.plugin.set_app_values(dict(amplifier_gain=dict(
-                frequency=[0],
-                gain=[1],
-            )))
-
         for i in range(0, n_attenuation_steps):
-            self.plugin.control_board.set_series_resistor_index(0, i)
-
+            self.plugin.control_board.set_series_resistor_index(0,i)
             for j, frequency in enumerate(frequencies):
                 gain = self.plugin.gain(frequency)
                 emit_signal("set_voltage", input_voltage[i, j],
@@ -1538,72 +1597,67 @@ class FeedbackCalibrationController():
                     interface=IWaveformGenerator)
 
                 # adjust reference voltage so that we are reading ~1.4 Vrms
-                while True:
-                    logging.info('set_voltage(%.5f)' % input_voltage[i, j])
-                    emit_signal("set_voltage", input_voltage[i, j],
-                                interface=IWaveformGenerator)
-
-                    V = np.array(self.plugin.control_board.analog_reads(0,
-                        n_samples))/1024.0*5-2.5
-                    V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
-                    logging.info("V_rms=%.1f" % V_rms)
-                    if V_rms > 1.6:
-                        logging.info("divide input voltage by 2")
-                        input_voltage[i, j] /= 2
-                    # maximum of waveform generator is ~4Vpp = sqrt(2) Vrms
-                    elif V_rms <.5 and input_voltage[i, j]/gain < np.sqrt(.5):
-                        logging.info("multiply input voltage by 2")
-                        input_voltage[i, j] *= 2
-                    else:
-                        logging.info("input voltage set to %.1f" % \
-                                     input_voltage[i, j])
-                        break
+                if autoscale_voltage:
+                    while True:
+                        logging.info('set_voltage(%.5f)' % input_voltage[i, j])
+                        emit_signal("set_voltage", input_voltage[i, j],
+                                    interface=IWaveformGenerator)
+                        # wait for the signal to settle
+                        time.sleep(.1)
+                        V = np.array(self.plugin.control_board.analog_reads(0,
+                            n_samples))/1024.0*5-2.5
+                        V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
+                        logging.info("V_rms=%.1f" % V_rms)
+                        if V_rms > 1.6:
+                            logging.info("divide input voltage by 2")
+                            input_voltage[i, j] /= 2
+                        # maximum of waveform generator is ~4Vpp = sqrt(2) Vrms
+                        elif V_rms <.5 and input_voltage[i, j]/gain < np.sqrt(.5):
+                            logging.info("multiply input voltage by 2")
+                            input_voltage[i, j] *= 2
+                        else:
+                            logging.info("input voltage set to %.1f" % \
+                                         input_voltage[i, j])
+                            break
                 
-                while True:
-                    voltage = text_entry_dialog("What is the current RMS output voltage?",
-                                                title="Feedback calibration wizard")
-                    # cancel calibration
-                    if voltage is None:
-                        app.main_window_controller.info("Calibration cancelled.",
-                            "Feedback calibration wizard")
-                        return
-                    # check that it is a valid voltage
-                    elif is_float(voltage):
-                        voltages[i, j] = float(voltage)
-                        hv_measurements[i,j,:] = self.plugin.control_board. \
-                            analog_reads(0, n_samples)
-                        break
-                    # try again
-                    else:
-                        logging.error("Not a valid float.")
-        
+                if measure_with_scope:
+                    while True:
+                        voltage = text_entry_dialog("What is the current RMS output voltage?",
+                                                    title="Feedback calibration wizard")
+                        # cancel calibration
+                        if voltage is None:
+                            get_app().main_window_controller.info("Calibration cancelled.",
+                                "Feedback calibration wizard")
+                            return
+                        # check that it is a valid voltage
+                        elif is_float(voltage):
+                            voltages[i, j] = float(voltage)
+                            break
+                        # try again
+                        else:
+                            logging.error("Not a valid float.")
+
+                hv_measurements[i,j,:] = self.plugin.control_board. \
+                    analog_reads(0, n_samples)
+
+
         results = dict(input_voltage=input_voltage.tolist(),
                        frequencies = frequencies.tolist(), 
-                       voltages=voltages.tolist(),
                        hv_measurements=hv_measurements.tolist())
 
-        dialog = gtk.FileChooserDialog(title="Save feedback calibration",
-                                       action=gtk.FILE_CHOOSER_ACTION_SAVE,
-                                       buttons=(gtk.STOCK_CANCEL,
-                                                gtk.RESPONSE_CANCEL,
-                                                gtk.STOCK_SAVE,
-                                                gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            filename = path(dialog.get_filename())
-            with open(filename.abspath(), 'wb') as f:
-                yaml.dump(results, f)
-        dialog.destroy()
-        self.process_calibration(results)
+        if measure_with_scope:
+            results['voltages']=voltages.tolist()
+        return results
             
-    def on_load_calibration_from_file(self, widget, data=None):
-        dialog = gtk.FileChooserDialog(title="Load calibration from file",
-                                       action=gtk.FILE_CHOOSER_ACTION_OPEN,
-                                       buttons=(gtk.STOCK_CANCEL,
-                                                gtk.RESPONSE_CANCEL,
-                                                gtk.STOCK_OPEN,
-                                                gtk.RESPONSE_OK))
+    def on_load_attenuator_calibration_from_file(self, widget, data=None):
+        dialog = gtk.FileChooserDialog(
+            title="Load attenuator calibration from file",
+            action=gtk.FILE_CHOOSER_ACTION_OPEN,
+            buttons=(gtk.STOCK_CANCEL,
+                     gtk.RESPONSE_CANCEL,
+                     gtk.STOCK_OPEN,
+                     gtk.RESPONSE_OK)
+        )
         dialog.set_default_response(gtk.RESPONSE_OK)
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
@@ -1612,6 +1666,96 @@ class FeedbackCalibrationController():
                 results = yaml.load(f)
             self.process_calibration(results)
         dialog.destroy()
+
+    def process_calibration(self, results):
+        input_voltage = np.array(results['input_voltage'])
+        frequencies = np.array(results['frequencies'])
+        hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
+        hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) - \
+                           np.min(hv_measurements[:, j, :],1) \
+                           for j in range(0, len(frequencies))])/2./np.sqrt(2))
+
+        if 'voltages' in results:
+            voltages = np.array(results['voltages'])
+            attenuation = hv_rms/voltages
+        else:
+            attenuation = hv_rms/input_voltage
+
+        # p[0]=C, p[1]=R2
+        R1=10e6
+        f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
+        e = lambda p, x, y, R1: f(p, x, R1) - y
+        fit_params = []
+    
+        canvas, a = self.create_plot('HV attenuation')
+        colors = ['b', 'r']
+        legend = []
+        for i in range(0, np.size(hv_rms,0)):
+            ind = mlab.find(hv_rms[i,:]>.1)
+            p0 = [self.plugin.control_board.calibration.C_hv[i],
+                  self.plugin.control_board.calibration.R_hv[i]
+            ]
+            a.loglog(frequencies[ind], f(p0, frequencies[ind], R1), colors[i]+'--')
+            legend.append('Ch%d, fit' % i)
+
+            if 'voltages' in results:
+                voltages = np.array(results['voltages'])
+                T=attenuation[i,ind]
+                p1, success = optimize.leastsq(e, p0, args=(frequencies[ind], T, R1))
+                fit_params.append(p1)
+                a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'-')
+                legend.append('Ch%d, new fit' % i)
+
+                a.plot(frequencies, attenuation[i], colors[i]+'o')
+                legend.append('Ch%d, scope' % i)
+
+                # update control board calibration
+                self.plugin.control_board.set_series_resistor_index(0,i)
+                self.plugin.control_board.set_series_resistance(0, p1[1])
+                self.plugin.control_board.set_series_capacitance(0, p1[0])
+            else:
+                fit_params.append(p0)
+                a.plot(frequencies, attenuation[i], colors[i]+'o')
+                legend.append('Ch%d, CB measurements' % i)
+                
+        a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Attenuation')
+        a.set_title('HV attenuation')
+        canvas.draw()
+
+        i=0
+        legend = []
+        fit_params = np.array(fit_params)
+        canvas, a = self.create_plot("Relative amplifier gain")
+        ind = mlab.find(hv_rms[i,:]>.1)
+        gain = None
+        if 'voltages' in results:
+            gain = voltages[i, :]/input_voltage[i, :]
+            a.semilogx(frequencies, gain, 'bo')
+            legend.append('Ch%d, scope' % i)
+        else:
+            # adjust the gain
+            gain = self.plugin.gain(frequencies)* \
+                hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/ \
+                input_voltage[i, :]
+        a.semilogx(frequencies, gain/gain[0], 'bo')
+        legend.append('No feedback')
+        a.semilogx(frequencies,
+                   hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/input_voltage[i, :],
+                   'ro')
+        legend.append('Feedback')
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Relative gain')
+        a.set_title("V$_o$/V$_{in}$")
+        a.legend(legend, loc="upper left")
+        canvas.draw()
+
+        # adjust the amplifier gain
+        self.plugin.set_app_values(dict(amplifier_gain=dict(
+            frequency=frequencies,
+            gain=gain
+        )))
 
     def create_plot(self, title):
         win = gtk.Window()
@@ -1628,78 +1772,4 @@ class FeedbackCalibrationController():
         vbox.show()
         win.show_all()
         f.subplots_adjust(left=0.12, bottom=0.16)
-        return (canvas, a)        
-
-    def process_calibration(self, results):
-        input_voltage = np.array(results['input_voltage'])
-        frequencies = np.array(results['frequencies'])
-        voltages = np.array(results['voltages'])
-        hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
-        
-        hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) - \
-                           np.min(hv_measurements[:, j, :],1) \
-                           for j in range(0, len(frequencies))])/2./np.sqrt(2))
-        attenuation = hv_rms/voltages
-
-        # p[0]=C, p[1]=R2
-        R1=10e6
-        f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
-        e = lambda p, x, y, R1: f(p, x, R1) - y
-        fit_params = []
-    
-        canvas, a = self.create_plot('HV attenuation')
-        series_resistors = [1e5, 5e5]
-        colors = ['b', 'r']
-        legend = []
-        for i in range(0, len(series_resistors)):
-            a.plot(frequencies, attenuation[i], colors[i]+'o')
-            legend.append('Ch%d, scope' % i)
-            ind = mlab.find(hv_rms[i,:]>.2)
-            self.plugin.control_board.set_series_resistor_index(0, i)
-            p1 = [self.plugin.control_board.series_capacitance(0),
-                  self.plugin.control_board.series_resistance(0)
-            ]
-            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'--')
-            legend.append('Ch%d, CB (old config)' % i)
-            T=attenuation[i,ind]
-            p0=[1e-10, series_resistors[i]]
-            p1, success = optimize.leastsq(e, p0, args=(frequencies[ind], T, R1))
-            fit_params.append(p1)
-            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'-')
-            legend.append('Ch%d, CB (new config)' % i)
-
-            # update control board calibration
-            self.plugin.control_board.set_series_resistance(0, p1[1])
-            self.plugin.control_board.set_series_capacitance(0, p1[0])
-
-        a.legend(legend)
-        a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('Attenuation')
-        a.set_title('HV attenuation')
-        canvas.draw()
-
-        i=0
-        legend = []
-        fit_params = np.array(fit_params)
-        canvas, a = self.create_plot("Relative amplifier gain")
-        ind = mlab.find(hv_rms[i,:]>.1)
-        a.semilogx(frequencies, voltages[i, :]/input_voltage[i, :], 'bo')
-        legend.append('Ch%d, scope' % i)
-        a.semilogx(frequencies,
-                   hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/input_voltage[i, :],
-                   'ro')
-        legend.append('Ch%d, CB' % i)
-        a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('Relative gain')
-        a.set_title("Relative amplifier gain")
-        a.legend(legend, loc="upper left")
-        canvas.draw()
-
-        # adjust the amplifier gain
-        self.plugin.set_app_values(dict(amplifier_gain=dict(
-            frequency=frequencies,
-            gain=voltages[0, :]/input_voltage[0, :]
-        )))
-
-        # 2. plot current calibration versus newly calculated values
-        # 3. prompt user to accept new values
+        return (canvas, a)

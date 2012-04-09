@@ -196,7 +196,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             menu_item = gtk.MenuItem("Load calibration from file")
             menu_item.connect("activate",
                               self.feedback_calibration_controller. \
-                                  on_load_calibration_from_file)
+                                  on_load_attenuator_calibration_from_file)
             control_board_menu.append(menu_item)
             menu_item.show()
             
@@ -485,6 +485,15 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         self.set_voltage(voltage)
 
     def gain(self, frequency):
+        """
+        Get the gain of an amplifier for a given frequency/frequencies.
+        
+        Parameters:
+            frequency : frequency or list of frequencies
+            
+        Returns:
+            gain or list of gain terms corresponding to the input
+        """
         values_dict = self.get_app_values()
         try:
             frequencies = values_dict['amplifier_gain']['frequency']
@@ -492,6 +501,21 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             return np.interp(frequency,
                              frequencies,
                              gain)
+        except Exception:
+            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
+
+    def frequency_range(self):
+        """
+        Get the range of frequencies over which the amplifier has been
+        calibrated.
+        
+        Returns:
+            Two element list [min_frequency, max_frequency]
+        """
+        values_dict = self.get_app_values()
+        try:
+            frequencies = values_dict['amplifier_gain']['frequency']
+            return [frequencies[0], frequencies[-1]]
         except Exception:
             raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
 
