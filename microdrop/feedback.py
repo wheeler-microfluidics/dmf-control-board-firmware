@@ -1610,8 +1610,8 @@ class FeedbackCalibrationController():
             filename = path(dialog.get_filename())
             with open(filename.abspath(), 'rb') as f:
                 results = yaml.load(f)
+            self.process_calibration(results)
         dialog.destroy()
-        self.process_calibration(results)
 
     def create_plot(self, title):
         win = gtk.Window()
@@ -1645,28 +1645,54 @@ class FeedbackCalibrationController():
         R1=10e6
         f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
         e = lambda p, x, y, R1: f(p, x, R1) - y
+        fit_params = []
     
+        canvas, a = self.create_plot('HV attenuation')
         series_resistors = [1e5, 5e5]
+        colors = ['b', 'r']
+        legend = []
         for i in range(0, len(series_resistors)):
+            a.plot(frequencies, attenuation[i], colors[i]+'o')
+            legend.append('Ch%d, scope' % i)
             ind = mlab.find(hv_rms[i,:]>.2)
+            self.plugin.control_board.set_series_resistor_index(0, i)
+            p1 = [self.plugin.control_board.series_capacitance(0),
+                  self.plugin.control_board.series_resistance(0)
+            ]
+            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'--')
+            legend.append('Ch%d, CB (old config)' % i)
             T=attenuation[i,ind]
             p0=[1e-10, series_resistors[i]]
             p1, success = optimize.leastsq(e, p0, args=(frequencies[ind], T, R1))
-            canvas, a = self.create_plot('HV attenuation (resistor %d)' % i)
-            a.set_title("R=%.2e$\Omega$, C=%.2eF" % (p1[1], p1[0]))
-            a.set_xlabel('Frequency (Hz)')
-            a.set_ylabel('Attenuation')
-            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), 'b-')
-            a.plot(frequencies, attenuation[i], 'bo')
-            canvas.draw()
-            self.plugin.control_board.set_series_resistance(i, p1[1])
-            self.plugin.control_board.set_series_capacitance(i, p1[0])
+            fit_params.append(p1)
+            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'-')
+            legend.append('Ch%d, CB (new config)' % i)
 
+            # update control board calibration
+            self.plugin.control_board.set_series_resistance(0, p1[1])
+            self.plugin.control_board.set_series_capacitance(0, p1[0])
+
+        a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Attenuation')
+        a.set_title('HV attenuation')
+        canvas.draw()
+
+        i=0
+        legend = []
+        fit_params = np.array(fit_params)
         canvas, a = self.create_plot("Relative amplifier gain")
-        ind = mlab.find(hv_rms[0,:]>.1)
-        a.semilogx(frequencies, voltages[0, :]/input_voltage[0, :], 'o')
+        ind = mlab.find(hv_rms[i,:]>.1)
+        a.semilogx(frequencies, voltages[i, :]/input_voltage[i, :], 'bo')
+        legend.append('Ch%d, scope' % i)
+        a.semilogx(frequencies,
+                   hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/input_voltage[i, :],
+                   'ro')
+        legend.append('Ch%d, CB' % i)
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Relative gain')
+        a.set_title("Relative amplifier gain")
+        a.legend(legend, loc="upper left")
         canvas.draw()
 
         # adjust the amplifier gain
