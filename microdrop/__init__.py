@@ -27,7 +27,7 @@ import numpy as np
 import utility
 try:
     from ...dmf_control_board import *
-    from ...dmf_control_board.microdrop.feedback import *
+    from ..microdrop.feedback import *
 except:
     # Raise the exception(s) if we're running the program (these exceptions
     # are expected when generating documentation with doxygen, so in that case
@@ -46,10 +46,6 @@ from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     ExtensionPoint, get_service_instance
 from app_context import get_app
 from utility.gui import yesno
-
-
-class AmplifierGainNotCalibrated(Exception):
-    pass
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -160,12 +156,13 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
+        super(DmfControlBoardPlugin, self).on_plugin_enable()
 
     def on_plugin_disable(self):
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            #pgc.update_gui()
+            pgc.update_grid()
 
     def on_app_init(self):
         """
@@ -410,10 +407,10 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             else:
                 voltage = float(options.voltage)
                 frequency = float(options.frequency)
-                emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
                 emit_signal("set_frequency",
                             frequency,
+                            interface=IWaveformGenerator)
+                emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                 self.control_board.state_of_all_channels = state
 
@@ -463,7 +460,9 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         Parameters:
             voltage : RMS voltage
         """
-        gain = self.gain(self.control_board.waveform_frequency())
+        print "set_voltage(%.1f)" % voltage
+        gain = self.gain(self.get_step_options().frequency)
+        # adjust the voltage
         self.control_board.set_waveform_voltage(voltage/gain)
         
     def set_frequency(self, frequency):
@@ -473,17 +472,22 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         Parameters:
             frequency : frequency in Hz
         """
+        print "set_frequency(%.1f)" % frequency
+        # update the frequency
         self.control_board.set_waveform_frequency(frequency)
 
+        # adjust the voltage
+        self.set_voltage(self.get_step_options().voltage)
+
     def gain(self, frequency):
-        values_dict = get_app_values()
-        if 'amplifier_gain' in values_dict:
+        values_dict = self.get_app_values()
+        try:
             frequencies = values_dict['amplifier_gain']['frequency']
             gain = values_dict['amplifier_gain']['gain']
             return np.interp(frequency,
                              frequencies,
                              gain)
-        else:
+        except Exception:
             raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
 
     def get_default_step_options(self):

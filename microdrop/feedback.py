@@ -59,6 +59,10 @@ from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
 from app_context import get_app
 
 
+class AmplifierGainNotCalibrated(Exception):
+    pass
+
+
 def feedback_signal(p, frequency, Z):
     """p[0]=C, p[1]=R"""
     return np.abs(p[1]/(Z+p[1]+Z*p[1]*2*np.pi*p[0]*complex(0,1)*frequency))
@@ -1501,7 +1505,7 @@ class FeedbackCalibrationController():
         n_steps = response['number_of_steps']
         n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
 
-        reference_voltages = [10, 100]
+        reference_voltages = np.array([.01, .01])
         n_samples = 1000
         frequencies = np.logspace(np.log10(start_frequency),
                                   np.log10(end_frequency),
@@ -1511,7 +1515,15 @@ class FeedbackCalibrationController():
         hv_measurements = np.zeros([n_attenuation_steps,
                                     len(frequencies),                                    
                                     n_samples])
-
+        try:
+            self.plugin.gain(frequencies[0])
+        # if we have no gain calibrated, set the default gain to 1
+        except AmplifierGainNotCalibrated:
+            logging.info("No amplifier gain set, assume gain=1.")
+            self.plugin.set_app_values(dict(amplifier_gain=dict(
+                frequency=[0],
+                gain=[1],
+            )))
 
         for i in range(0, n_attenuation_steps):
             self.plugin.control_board.set_series_resistor_index(0, i)
@@ -1520,7 +1532,7 @@ class FeedbackCalibrationController():
 
             # adjust reference voltage so that we are reading ~1.4 Vrms
             while True:
-                logging.info('set_voltage(%.1f)' % reference_voltages[i])
+                logging.info('set_voltage(%.5f)' % reference_voltages[i])
                 emit_signal("set_voltage", reference_voltages[i],
                             interface=IWaveformGenerator)
                 V = np.array(self.plugin.control_board.analog_reads(0,
@@ -1559,7 +1571,10 @@ class FeedbackCalibrationController():
                     else:
                         logging.error("Not a valid float.")
 
-        results = dict(reference_voltages=reference_voltages,
+        input_voltage = np.array([ reference_voltages[i]/self.plugin.gain(frequencies)
+                          for i in range(0, len(reference_voltages)) ])
+        
+        results = dict(input_voltage=input_voltage.tolist(),
                        frequencies = frequencies.tolist(), 
                        voltages=voltages.tolist(),
                        hv_measurements=hv_measurements.tolist())
@@ -1613,7 +1628,7 @@ class FeedbackCalibrationController():
         return (canvas, a)        
 
     def process_calibration(self, results):
-        reference_voltages = results['reference_voltages']
+        input_voltage = np.array(results['input_voltage'])
         frequencies = np.array(results['frequencies'])
         voltages = np.array(results['voltages'])
         hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
@@ -1639,21 +1654,21 @@ class FeedbackCalibrationController():
             a.set_xlabel('Frequency (Hz)')
             a.set_ylabel('Attenuation')
             a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), 'b-')
-            a.plot(frequencies[ind], T, 'bo')
+            a.plot(frequencies, attenuation[i], 'bo')
             canvas.draw()
 
         canvas, a = self.create_plot("Relative amplifier gain")
-        for i in range(0, len(reference_voltages)):
-            ind = mlab.find(hv_rms[i,:]>.1)
-            a.semilogx(frequencies[ind], voltages[i, ind]/voltages[i, 0], 'o')
+        ind = mlab.find(hv_rms[0,:]>.1)
+        a.semilogx(frequencies, voltages[0, :]/voltages[0, 0], 'o')
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Relative gain')
         canvas.draw()
 
-        # set the amplifier gain        
+        # adjust the amplifier gain
         self.plugin.set_app_values(dict(amplifier_gain=dict(
-            frequency=frequencies,gain=voltages[0]/reference_voltages[0]))
-        )
+            frequency=frequencies,
+            gain=voltages[0, :]/input_voltage[0, :]
+        )))
 
         # 2. plot current calibration versus newly calculated values
         # 3. prompt user to accept new values
