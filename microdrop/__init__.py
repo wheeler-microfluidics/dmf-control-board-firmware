@@ -460,8 +460,8 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         Parameters:
             voltage : RMS voltage
         """
-        print "set_voltage(%.1f)" % voltage
-        gain = self.gain(self.get_step_options().frequency)
+        logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
+        gain = self.gain(self.control_board.waveform_frequency())
         # adjust the voltage
         self.control_board.set_waveform_voltage(voltage/gain)
         
@@ -472,12 +472,17 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         Parameters:
             frequency : frequency in Hz
         """
-        print "set_frequency(%.1f)" % frequency
+        logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
+
+        # get the current voltage
+        gain = self.gain(self.control_board.waveform_frequency())
+        voltage = self.control_board.waveform_voltage()*gain
+
         # update the frequency
         self.control_board.set_waveform_frequency(frequency)
 
         # adjust the voltage
-        self.set_voltage(self.get_step_options().voltage)
+        self.set_voltage(voltage)
 
     def gain(self, frequency):
         values_dict = self.get_app_values()

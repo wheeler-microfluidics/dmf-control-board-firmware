@@ -1240,8 +1240,8 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
   LogSeparator();
   LogMessage("send command", function_name);
   // max voltage is 4 Vpk-pk (1.414 Vrms)
-  if(v_rms>=0 && v_rms<=2*sqrt(.5)) {
-    uint8_t data = v_rms*sqrt(2)/2*255;
+  if(v_rms>=0 && v_rms<=sqrt(2)) {
+    uint8_t data = v_rms*sqrt(.5)*255;
     Serialize(&data,sizeof(data));
     msg << "data=" << (int)data;
     LogMessage(msg.str().c_str(), function_name);

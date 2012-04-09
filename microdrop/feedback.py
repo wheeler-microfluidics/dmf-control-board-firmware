@@ -1505,7 +1505,6 @@ class FeedbackCalibrationController():
         n_steps = response['number_of_steps']
         n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
 
-        reference_voltages = np.array([.01, .01])
         n_samples = 1000
         frequencies = np.logspace(np.log10(start_frequency),
                                   np.log10(end_frequency),
@@ -1515,6 +1514,9 @@ class FeedbackCalibrationController():
         hv_measurements = np.zeros([n_attenuation_steps,
                                     len(frequencies),                                    
                                     n_samples])
+        input_voltage = .01*np.ones([n_attenuation_steps,
+                                      len(frequencies)])
+        
         try:
             self.plugin.gain(frequencies[0])
         # if we have no gain calibrated, set the default gain to 1
@@ -1527,32 +1529,36 @@ class FeedbackCalibrationController():
 
         for i in range(0, n_attenuation_steps):
             self.plugin.control_board.set_series_resistor_index(0, i)
-            emit_signal("set_frequency", frequencies[0],
-                interface=IWaveformGenerator)
 
-            # adjust reference voltage so that we are reading ~1.4 Vrms
-            while True:
-                logging.info('set_voltage(%.5f)' % reference_voltages[i])
-                emit_signal("set_voltage", reference_voltages[i],
-                            interface=IWaveformGenerator)
-                V = np.array(self.plugin.control_board.analog_reads(0,
-                    n_samples))/1024.0*5-2.5
-                V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
-                logging.info("V_rms=%.1f" % V_rms)
-                if V_rms > 1.6:
-                    logging.info("divide reference voltage by 2")
-                    reference_voltages[i] /= 2
-                elif V_rms <.5:
-                    logging.info("multiply reference voltage by 2")
-                    reference_voltages[i] *= 2
-                else:
-                    logging.info("reference voltage set to %.1f" % \
-                                 reference_voltages[i])
-                    break
-        
             for j, frequency in enumerate(frequencies):
-                emit_signal("set_frequency", frequency,
+                gain = self.plugin.gain(frequency)
+                emit_signal("set_voltage", input_voltage[i, j],
                             interface=IWaveformGenerator)
+                emit_signal("set_frequency", frequency,
+                    interface=IWaveformGenerator)
+
+                # adjust reference voltage so that we are reading ~1.4 Vrms
+                while True:
+                    logging.info('set_voltage(%.5f)' % input_voltage[i, j])
+                    emit_signal("set_voltage", input_voltage[i, j],
+                                interface=IWaveformGenerator)
+
+                    V = np.array(self.plugin.control_board.analog_reads(0,
+                        n_samples))/1024.0*5-2.5
+                    V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
+                    logging.info("V_rms=%.1f" % V_rms)
+                    if V_rms > 1.6:
+                        logging.info("divide input voltage by 2")
+                        input_voltage[i, j] /= 2
+                    # maximum of waveform generator is ~4Vpp = sqrt(2) Vrms
+                    elif V_rms <.5 and input_voltage[i, j]/gain < np.sqrt(.5):
+                        logging.info("multiply input voltage by 2")
+                        input_voltage[i, j] *= 2
+                    else:
+                        logging.info("input voltage set to %.1f" % \
+                                     input_voltage[i, j])
+                        break
+                
                 while True:
                     voltage = text_entry_dialog("What is the current RMS output voltage?",
                                                 title="Feedback calibration wizard")
@@ -1570,9 +1576,6 @@ class FeedbackCalibrationController():
                     # try again
                     else:
                         logging.error("Not a valid float.")
-
-        input_voltage = np.array([ reference_voltages[i]/self.plugin.gain(frequencies)
-                          for i in range(0, len(reference_voltages)) ])
         
         results = dict(input_voltage=input_voltage.tolist(),
                        frequencies = frequencies.tolist(), 
@@ -1656,10 +1659,12 @@ class FeedbackCalibrationController():
             a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), 'b-')
             a.plot(frequencies, attenuation[i], 'bo')
             canvas.draw()
+            self.plugin.control_board.set_series_resistance(i, p1[1])
+            self.plugin.control_board.set_series_capacitance(i, p1[0])
 
         canvas, a = self.create_plot("Relative amplifier gain")
         ind = mlab.find(hv_rms[0,:]>.1)
-        a.semilogx(frequencies, voltages[0, :]/voltages[0, 0], 'o')
+        a.semilogx(frequencies, voltages[0, :]/input_voltage[0, :], 'o')
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Relative gain')
         canvas.draw()
