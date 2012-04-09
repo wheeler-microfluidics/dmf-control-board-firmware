@@ -29,6 +29,7 @@ if os.name=='nt':
     matplotlib.rc('font', **{'family':'sans-serif','sans-serif':['Arial']})
 from matplotlib.figure import Figure
 from path import path
+import scipy.optimize as optimize
 import yaml
 
 try:
@@ -1621,22 +1622,31 @@ class FeedbackCalibrationController():
         hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) - \
                            np.min(hv_measurements[:, j, :],1) \
                            for j in range(0, len(frequencies))])/2./np.sqrt(2))
-        attenuation = hv_rms/results['voltages']
+        attenuation = hv_rms/voltages
 
-        canvas, a = self.create_plot("Control board attenuation")
-        for i in range(0, len(results['reference_voltages'])):
-            ind = mlab.find(hv_rms[i,:]>.1)
-            a.semilogx(frequencies[ind], attenuation[i, ind])
-        a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('HV Attenuation')
-        a.legend(['Series resistor %d' % i
-                  for i in range(0, len(results['reference_voltages']))])
-        canvas.draw()
+        # p[0]=C, p[1]=R2
+        R1=10e6
+        f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
+        e = lambda p, x, y, R1: f(p, x, R1) - y
+    
+        series_resistors = [1e5, 5e5]
+        for i in range(0, len(series_resistors)):
+            ind = mlab.find(hv_rms[i,:]>.2)
+            T=attenuation[i,ind]
+            p0=[1e-10, series_resistors[i]]
+            p1, success = optimize.leastsq(e, p0, args=(frequencies[ind], T, R1))
+            canvas, a = self.create_plot('HV attenuation (resistor %d)' % i)
+            a.set_title("R=%.2e$\Omega$, C=%.2eF" % (p1[1], p1[0]))
+            a.set_xlabel('Frequency (Hz)')
+            a.set_ylabel('V$_{out}$/V$_{in}$')
+            a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), 'b-')
+            a.plot(frequencies[ind], T, 'bo')
+            canvas.draw()
 
         canvas, a = self.create_plot("Relative amplifier gain")
         for i in range(0, len(results['reference_voltages'])):
             ind = mlab.find(hv_rms[i,:]>.1)
-            a.semilogx(frequencies[ind], voltages[i, ind]/voltages[i, 0])
+            a.semilogx(frequencies[ind], voltages[i, ind]/voltages[i, 0], 'o')
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Relative amplifier gain')
         canvas.draw()
