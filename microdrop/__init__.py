@@ -34,18 +34,22 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
-from flatland import Element, Dict, String, Integer, Boolean, Float, Form
+from flatland import Element, Dict, List, String, Integer, Boolean, Float, Form
 from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import StepOptionsController
-from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
+from plugin_helpers import StepOptionsController, AppDataController
+from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
-            get_service_instance
+    ExtensionPoint, get_service_instance
 from app_context import get_app
 from utility.gui import yesno
+
+
+class AmplifierGainNotCalibrated(Exception):
+    pass
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -91,12 +95,21 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin, StepOptionsController):
+class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
     """
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
+    implements(IAmplifier)    
+
+    AppFields = Form.of(
+        Dict.named('amplifier_gain').using(optional=True,
+            properties=dict(show_in_gui=False)).of(
+                List.named('frequency').of(Float),
+                List.named('gain').of(Float),
+        ),
+    )
 
     StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
@@ -146,13 +159,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_gui()
+            pgc.update_grid()
 
     def on_plugin_disable(self):
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_gui()
+            #pgc.update_gui()
 
     def on_app_init(self):
         """
@@ -450,8 +463,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         Parameters:
             voltage : RMS voltage
         """
-        # TODO: get gain from amplifier object
-        gain = 200.0
+        gain = self.gain(self.control_board.waveform_frequency())
         self.control_board.set_waveform_voltage(voltage/gain)
         
     def set_frequency(self, frequency):
@@ -462,6 +474,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             frequency : frequency in Hz
         """
         self.control_board.set_waveform_frequency(frequency)
+
+    def gain(self, frequency):
+        values_dict = get_app_values()
+        if 'amplifier_gain' in values_dict:
+            frequencies = values_dict['amplifier_gain']['frequency']
+            gain = values_dict['amplifier_gain']['gain']
+            return np.interp(frequency,
+                             frequencies,
+                             gain)
+        else:
+            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()

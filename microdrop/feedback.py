@@ -1496,8 +1496,6 @@ class FeedbackCalibrationController():
             "oscilloscope, please measure the output from your amplifier "
             "and answer the following prompts.", "Feedback calibration wizard")
 
-        current_state = self.plugin.control_board.state_of_all_channels
-        
         start_frequency = response['start_frequency']
         end_frequency = response['end_frequency']
         n_steps = response['number_of_steps']
@@ -1615,6 +1613,7 @@ class FeedbackCalibrationController():
         return (canvas, a)        
 
     def process_calibration(self, results):
+        reference_voltages = results['reference_voltages']
         frequencies = np.array(results['frequencies'])
         voltages = np.array(results['voltages'])
         hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
@@ -1638,19 +1637,23 @@ class FeedbackCalibrationController():
             canvas, a = self.create_plot('HV attenuation (resistor %d)' % i)
             a.set_title("R=%.2e$\Omega$, C=%.2eF" % (p1[1], p1[0]))
             a.set_xlabel('Frequency (Hz)')
-            a.set_ylabel('V$_{out}$/V$_{in}$')
+            a.set_ylabel('Attenuation')
             a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), 'b-')
             a.plot(frequencies[ind], T, 'bo')
             canvas.draw()
 
         canvas, a = self.create_plot("Relative amplifier gain")
-        for i in range(0, len(results['reference_voltages'])):
+        for i in range(0, len(reference_voltages)):
             ind = mlab.find(hv_rms[i,:]>.1)
             a.semilogx(frequencies[ind], voltages[i, ind]/voltages[i, 0], 'o')
         a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('Relative amplifier gain')
+        a.set_ylabel('Relative gain')
         canvas.draw()
 
-        # 1. fit results
+        # set the amplifier gain        
+        self.plugin.set_app_values(dict(amplifier_gain=dict(
+            frequency=frequencies,gain=voltages[0]/reference_voltages[0]))
+        )
+
         # 2. plot current calibration versus newly calculated values
         # 3. prompt user to accept new values
