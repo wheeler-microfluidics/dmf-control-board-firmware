@@ -20,6 +20,10 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import math
 import time
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 import logging
 import gtk
@@ -1541,7 +1545,7 @@ class FeedbackCalibrationController():
                 with open(filename.abspath(), 'wb') as f:
                     yaml.dump(results, f)
             dialog.destroy()
-            self.process_calibration(results)
+            self.process_hv_calibration(results)
 
     def calibrate_amplifier_gain(self):
         frequencies = self.prompt_for_frequency_range()
@@ -1550,7 +1554,7 @@ class FeedbackCalibrationController():
                                          measure_with_scope=False,
                                          autoscale_voltage=True)
         if results:
-            self.process_calibration(results)
+            self.process_hv_calibration(results)
 
     def prompt_for_frequency_range(self, title="Perform calibration"):
         form = Form.of(
@@ -1608,6 +1612,7 @@ class FeedbackCalibrationController():
                         analog_reads(0, n_samples)/1024.0*5-2.5
 
                 for k in range(0, len(calibration.R_fb)):
+                    self.plugin.control_board.set_series_resistor_index(1,k)
                     fb_measurements[i, j, k, :] = self.plugin.control_board. \
                         analog_reads(1, n_samples)/1024.0*5-2.5
 
@@ -1714,7 +1719,7 @@ class FeedbackCalibrationController():
             results['voltages']=voltages.tolist()
         return results
             
-    def on_load_attenuator_calibration_from_file(self, widget, data=None):
+    def on_load_calibration_from_file(self, widget, data=None):
         dialog = gtk.FileChooserDialog(
             title="Load attenuator calibration from file",
             action=gtk.FILE_CHOOSER_ACTION_OPEN,
@@ -1727,12 +1732,87 @@ class FeedbackCalibrationController():
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             filename = path(dialog.get_filename())
-            with open(filename.abspath(), 'rb') as f:
-                results = yaml.load(f)
-            self.process_calibration(results)
+            results = None
+            with open(filename, 'rb') as f:
+                try:
+                    results = pickle.load(f)
+                    logging.debug("Loaded object from pickle.")
+                except Exception, e:
+                    logging.debug("Not a valid pickle file. %s." % e)
+            if results==None:
+                with open(filename, 'rb') as f:
+                    try:
+                        results = yaml.load(f)
+                        logging.debug("Loaded object from YAML file.")
+                    except Exception, e:
+                        logging.debug("Not a valid YAML file. %s." % e)
+            if not results:
+                raise TypeError
+            if 'fb_measurements' in results and 'voltages' in results and \
+            'hv_measurements' in results and 'frequencies' in results:
+                self.process_fb_calibration(results)
+            else:
+                self.process_hv_calibration(results)
         dialog.destroy()
 
-    def process_calibration(self, results):
+    def process_fb_calibration(self, results):
+        calibration = self.plugin.control_board.calibration
+        frequencies = np.array(results['frequencies'])
+        voltages = np.array(results['voltages'])
+        hv_measurements = np.array(results['hv_measurements'])
+        hv_rms = (np.max(hv_measurements, 3)-\
+                  np.min(hv_measurements, 3))/2./np.sqrt(2)
+
+        fb_measurements = np.array(results['fb_measurements'])
+        V_fb = (np.max(fb_measurements, 3)-\
+                np.min(fb_measurements, 3))/2./np.sqrt(2)
+
+        # correct V_hv values
+        
+        # p[0]=C, p[1]=R2
+        R1=10e6
+        f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
+        V_hv = np.zeros([len(frequencies),
+                         len(voltages)])
+        for i in range(0, np.size(hv_rms,2)):
+            # only include data points where .1<Vrms<1.7
+            data = hv_rms[:,:,i]
+            x,y = np.nonzero(np.logical_and(data>.1, data<1.7))
+            V_hv[x,y] = data[x,y]/f([calibration.C_hv[i], calibration.R_hv[i]], frequencies, R1)
+        
+        V_hv = np.tile(V_hv, [1, 1, len(calibration(R_fb))])
+
+        # fit parameters
+        p0 = [ calibration.R_fb[0],
+               calibration.R_fb[1],
+               calibration.R_fb[2],
+               calibration.R_fb[3],
+               calibration.C_fb[0],
+               calibration.C_fb[1],
+               calibration.C_fb[2],
+               calibration.C_fb[3],
+        ]
+    
+        print self.device_capacitance(p0, V_hv, V_fb, frequencies)
+    
+    def device_capacitance(self, p0, V_hv, V_fb, frequencies):
+        R_fb = np.concatenate((p0[0]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[1]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[2]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[3]*np.ones([V_fb.shape[0], V_fb.shape[1], 1])
+                               ),2)
+
+        C_fb = np.concatenate((p0[4]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[5]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[6]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
+                               p0[7]*np.ones([V_fb.shape[0], V_fb.shape[1], 1])
+                               ),2)
+        f = np.tile(np.reshape(frequencies, [len(frequencies), 1]),
+                    [1, V_fb.shape[1], 4])
+
+        return R_fb/(1+2*np.pi*R_fb*C_fb*f)*(V_hv/V_fb-1)
+
+    def process_hv_calibration(self, results):
         input_voltage = np.array(results['input_voltage'])
         frequencies = np.array(results['frequencies'])
         hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5

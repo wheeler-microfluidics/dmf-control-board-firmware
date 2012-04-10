@@ -196,7 +196,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             menu_item = gtk.MenuItem("Load calibration from file")
             menu_item.connect("activate",
                               self.feedback_calibration_controller. \
-                                  on_load_attenuator_calibration_from_file)
+                                  on_load_calibration_from_file)
             control_board_menu.append(menu_item)
             menu_item.show()
             
