@@ -1482,12 +1482,8 @@ class FeedbackCalibrationController():
                           "perform calibration.")
             return
 
-        # number of HV attenuators
-        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)        
-        gain = None
         try:
-            [start_frequency, end_frequency] = self.plugin.frequency_range()
-            gain = self.plugin.gain(start_frequency)
+            self.plugin.gain(0)
         except AmplifierGainNotCalibrated:
             logging.warning("Amplifier not calibrated. Setting initial gain to unity.")
             # set initial gain to 1
@@ -1501,10 +1497,20 @@ class FeedbackCalibrationController():
         if response == gtk.RESPONSE_YES:
             self.calibrate_attenuators()
 
-        response = yesno("Would you like to calibrate the amplifier gain?")
+        response = yesno("Would you like to calibrate the amplifier gain? "
+                         "Click no to keep current values.")
         if response == gtk.RESPONSE_YES:
             self.calibrate_amplifier_gain()
+
+        response = yesno("Would you like to calibrate the feedback resistors? "
+                         "Please note that you must have an electrode covered "
+                         "by a drop and that electrode should be actuated. If "
+                         "the device is not ready, press \"No\", setup the drop "
+                         "and relaunch the calibration wizard.")
         
+        if response == gtk.RESPONSE_YES:
+            self.calibrate_feedback_resistors()
+
     def calibrate_attenuators(self):
         frequencies = self.prompt_for_frequency_range()
         
@@ -1539,7 +1545,6 @@ class FeedbackCalibrationController():
 
     def calibrate_amplifier_gain(self):
         frequencies = self.prompt_for_frequency_range()
-        n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
         results = self.sweep_frequencies(frequencies,
                                          input_voltage=None,
                                          measure_with_scope=False,
@@ -1565,6 +1570,66 @@ class FeedbackCalibrationController():
                                   np.log10(end_frequency),
                                   number_of_steps)
         return frequencies
+
+    def calibrate_feedback_resistors(self):
+        app = get_app()
+        options = app.dmf_device_controller.get_step_options()
+        state_of_all_channels = options.state_of_channels
+        if len(mlab.find(state_of_all_channels>0))==0:
+            logging.error("Can't calibrate feedback resistors because no "
+                "electrodes are on.")
+            return
+        
+        frequencies = self.prompt_for_frequency_range()
+        n_samples = 1000
+        voltages = np.array([10, 50, 100]) 
+        calibration = self.plugin.control_board.calibration
+        hv_measurements = np.zeros([len(frequencies),
+                                    len(voltages),
+                                    len(calibration.R_hv),
+                                    n_samples])
+        fb_measurements = np.zeros([len(frequencies),
+                                    len(voltages),
+                                    len(calibration.R_fb),
+                                    n_samples])
+
+        for i, frequency in enumerate(frequencies):
+            for j, voltage in enumerate(voltages):
+                emit_signal("set_frequency", frequency,
+                    interface=IWaveformGenerator)
+                emit_signal("set_voltage", voltage,
+                            interface=IWaveformGenerator)
+                # wait for ths signal to settle
+                time.sleep(.1)
+
+                for k in range(0, len(calibration.R_hv)):
+                    self.plugin.control_board.set_series_resistor_index(0,k)
+                    hv_measurements[i, j, k, :] = self.plugin.control_board. \
+                        analog_reads(0, n_samples)/1024.0*5-2.5
+
+                for k in range(0, len(calibration.R_fb)):
+                    fb_measurements[i, j, k, :] = self.plugin.control_board. \
+                        analog_reads(1, n_samples)/1024.0*5-2.5
+
+        results = dict(voltages=voltages.tolist(),
+                       frequencies = frequencies.tolist(), 
+                       hv_measurements=hv_measurements.tolist(),
+                       fb_measurements=fb_measurements.tolist())
+
+        if results:
+            dialog = gtk.FileChooserDialog(title="Save feedback calibration",
+                                           action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                           buttons=(gtk.STOCK_CANCEL,
+                                                    gtk.RESPONSE_CANCEL,
+                                                    gtk.STOCK_SAVE,
+                                                    gtk.RESPONSE_OK))
+            dialog.set_default_response(gtk.RESPONSE_OK)
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                filename = path(dialog.get_filename())
+                with open(filename.abspath(), 'wb') as f:
+                    yaml.dump(results, f)
+            dialog.destroy()
 
     def sweep_frequencies(self,
                           frequencies,
