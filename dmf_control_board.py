@@ -117,6 +117,9 @@ class DmfControlBoard(Base, SerialDevice):
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
 
+    def set_state_of_all_channels(self, state):
+        self.state_of_all_channels = state
+
     @state_of_all_channels.setter
     def state_of_all_channels(self, state):
         state_ = uint8_tVector()
@@ -133,6 +136,9 @@ class DmfControlBoard(Base, SerialDevice):
                 if i*8+j<=53:
                     pin_modes.append(~mode>>j&0x01)
         return pin_modes
+
+    def set_default_pin_modes(self, pin_modes):
+        self.default_pin_modes = pin_modes
         
     @default_pin_modes.setter
     def default_pin_modes(self, pin_modes):
@@ -152,6 +158,9 @@ class DmfControlBoard(Base, SerialDevice):
                 if i*8+j<=53:
                     pin_states.append(~state>>j&0x01)
         return pin_states
+
+    def set_default_pin_states(self, pin_states):
+        self.default_pin_states = pin_states
         
     @default_pin_states.setter
     def default_pin_states(self, pin_states):
