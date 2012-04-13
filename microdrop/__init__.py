@@ -240,13 +240,10 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         app = get_app()
         try:
             self.control_board.flash_firmware()
-            logger.info("Firmware updated "
-                                                 "successfully.",
-                                                 "Firmware update")
+            app.main_window_controller.info("Firmware updated successfully.",
+                                            "Firmware update")
         except Exception, why:
-            logger.error("Problem flashing firmware. "
-                                                  "%s" % why,
-                                                  "Firmware update")
+            logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
 
     def update_connection_status(self):
@@ -321,8 +318,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
                     if attempt <= feedback_options.action.max_repeats:
                         voltage = float(options.voltage +\
                             feedback_options.action.increase_voltage * attempt)
-                        frequency = \
-                            float(options.frequency)
+                        frequency = float(options.frequency)
                         emit_signal("set_frequency", frequency,
                                     interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
@@ -385,8 +381,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
                     voltages = np.linspace(feedback_options.action.start_voltage,
                                            feedback_options.action.end_voltage,
                                            feedback_options.action.n_voltage_steps)
-                    frequency = float(app.protocol.current_step(). \
-                        frequency)
+                    frequency = float(options.frequency)
                     emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
                     results = SweepVoltageResults(feedback_options,
@@ -462,7 +457,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         """
         logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
         gain = self.gain(self.control_board.waveform_frequency())
-        # adjust the voltage
+        logger.info("[DmfControlBoardPlugin] voltage/gain=%.1f" % (voltage/gain))
         self.control_board.set_waveform_voltage(voltage/gain)
         
     def set_frequency(self, frequency):

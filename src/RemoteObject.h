@@ -271,7 +271,9 @@ protected:
   }
   const char* ReadString();
   uint16_t ReadUint16();
+  int16_t ReadInt16();
   uint8_t ReadUint8();
+  int8_t ReadInt8();
   float ReadFloat();
   uint8_t WaitForReply();
 

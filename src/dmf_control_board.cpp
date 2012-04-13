@@ -434,7 +434,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             return_code_ = RETURN_OK;
 
             // point the impedance_buffer_ to the payload_buffer_
-            uint16_t* impedance_buffer = (uint16_t*)payload();
+            int16_t* impedance_buffer = (int16_t*)payload();
 
             // update the number of bytes written
             bytes_written(n_samples*4*sizeof(uint16_t));
@@ -453,7 +453,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 +number_of_channels_*sizeof(uint8_t)){
               UpdateAllChannels();
             }
-
 
             // sample the feedback voltage
             for(uint16_t i=0; i<n_samples; i++) {
@@ -509,9 +508,23 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               }
 
               impedance_buffer[4*i] = hv_max-hv_min;
-              impedance_buffer[4*i+1] = A0_series_resistor_index_;
               impedance_buffer[4*i+2] = fb_max-fb_min;
-              impedance_buffer[4*i+3] = A1_series_resistor_index_;
+
+              // if we didn't get a valid sample during the sampling time,
+              // return -1 as the index
+              if(hv_max==0 || hv_min==1024) {
+                impedance_buffer[4*i+1] = -1;
+              } else {
+                impedance_buffer[4*i+1] = A0_series_resistor_index_;
+              }
+
+              // if we didn't get a valid sample during the sampling time,
+              // return -1 as the index
+              if(fb_max==0 || fb_min==1024) {
+                impedance_buffer[4*i+3] = -1;
+              } else {
+                impedance_buffer[4*i+3] = A1_series_resistor_index_;
+              }
 
               uint32_t t_delay = millis();
               while(millis()-t_delay<delay_between_samples_ms) {
@@ -1339,7 +1352,7 @@ std::vector<float> DmfControlBoard::SampleVoltage(
   return std::vector<float>(); // return an empty vector
 }
 
-std::vector<uint16_t> DmfControlBoard::MeasureImpedance(
+std::vector<int16_t> DmfControlBoard::MeasureImpedance(
                                           uint16_t sampling_time_ms,
                                           uint16_t n_samples,
                                           uint16_t delay_between_samples_ms,
@@ -1362,14 +1375,14 @@ std::vector<uint16_t> DmfControlBoard::MeasureImpedance(
     uint16_t n_samples = payload_length()/4/sizeof(uint16_t);
     sprintf(log_message_string_,"Read %d impedance samples",n_samples);
     LogMessage(log_message_string_,function_name);
-    std::vector<uint16_t> impedance_buffer(4*n_samples);
+    std::vector<int16_t> impedance_buffer(4*n_samples);
     for(uint16_t i=0; i<4*n_samples; i++) {
-      impedance_buffer[i] = ReadUint16();
+      impedance_buffer[i] = ReadInt16();
     }
     LogExperiment(msg.str().c_str());
     return impedance_buffer;
   }
-  return std::vector<uint16_t>(); // return an empty vector
+  return std::vector<int16_t>(); // return an empty vector
 }
 
 float DmfControlBoard::GetPeakVoltage(uint8_t adc_channel,

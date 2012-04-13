@@ -901,7 +901,7 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    class_version = str(Version(0,1))
+    class_version = str(Version(0,2))
     
     def __init__(self,
                  options,
@@ -949,13 +949,20 @@ class FeedbackResults():
         elif version < Version.fromstring(self.class_version):
             if version < Version(0,1):
                 self.calibration = FeedbackCalibration()
-                self.version = str(Version(0,1))
+            if version < Version(0,2):
+                # flag invalid data points
+                self.version = str(Version(0,2))
+                self.fb_resistor[self.V_fb>5]=-1
+                self.hv_resistor[self.V_hv>5]=-1
                 logging.info('[FeedbackResults] upgrade to version %s' % \
                             self.version)
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
         self.__dict__ = state
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                self.__dict__[k] = np.array(v)
         self._upgrade()
         
     def __getstate__(self):
@@ -965,14 +972,19 @@ class FeedbackResults():
         return self.__dict__
 
     def V_total(self):
-        T = feedback_signal([self.calibration.C_hv[self.hv_resistor],
-                             self.calibration.R_hv[self.hv_resistor]],
+        ind = mlab.find(self.hv_resistor!=-1)
+        T = np.zeros(self.hv_resistor.shape)
+        T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
+                             self.calibration.R_hv[self.hv_resistor[ind]]],
                             self.frequency, 10e6)
         return self.V_hv/T
 
     def Z_device(self):
-        R_fb = self.calibration.R_fb[self.fb_resistor]
-        C_fb = self.calibration.C_fb[self.fb_resistor]
+        ind = mlab.find(self.fb_resistor!=-1)
+        R_fb = np.zeros(self.fb_resistor.shape)
+        C_fb = np.zeros(self.fb_resistor.shape)
+        R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
+        C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
         return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
             (self.V_total()/self.V_fb - 1)
         
@@ -982,7 +994,7 @@ class FeedbackResults():
     def capacitance(self):
         return 1.0/(2*math.pi*self.frequency*self.Z_device())
     
-    def dxdt(self):
+    def dxdt(self, ind=None):
         """
         # remove outliers
         ind = np.nonzero(abs(Z-smooth(Z))/Z>10)[0]
@@ -990,11 +1002,15 @@ class FeedbackResults():
             Z = np.concatenate([Z[:ind[j]],Z[ind[j]+1:]])
             t = np.concatenate([t[:ind[j]],t[ind[j]+1:]])
         """
+        if ind is None:
+            ind = range(len(self.time))
         window_len = 9
-        dt = np.diff(self.time)*1./1000
-        dZdt = self.smooth(np.diff(self.Z_device()), window_len) / dt
-        return -dZdt / self.Z_device()[:-1]**2/(2*np.pi*self.frequency* \
-               self.capacitance()[-1]/np.sqrt(self.area))
+        dt = np.diff(self.time[ind])/1000.0
+        Z = self.Z_device()[ind]
+        C = self.capacitance()[ind]
+        dZdt = self.smooth(np.diff(Z), window_len) / dt
+        return -dZdt / Z[:-1]**2/(2*np.pi*self.frequency* \
+               C[-1]/np.sqrt(self.area))
 
     def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
@@ -1088,6 +1104,13 @@ class SweepFrequencyResults():
 
     def __setstate__(self, state):
         self.__dict__ = state
+        for k, v in self.__dict__.items():
+            if isinstance(v, list) and len(v) and isinstance(v[0], list):
+                for i in range(len(v)):
+                    if isinstance(self.__dict__[k][i], list):
+                        self.__dict__[k][i] = np.array(self.__dict__[k][i])
+            elif isinstance(v, list):
+                self.__dict__[k] = np.array(v)
         self._upgrade()
 
     def __getstate__(self):
@@ -1114,9 +1137,13 @@ class SweepFrequencyResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([self.calibration.C_hv[self.hv_resistor[i]],
-                                 self.calibration.R_hv[self.hv_resistor[i]]],
-                                self.frequency[i], 10e6)
+            hv_resistor = self.hv_resistor[i]        
+            ind = mlab.find(hv_resistor!=-1)
+            R_hv = np.zeros(hv_resistor.shape)
+            C_hv = np.zeros(hv_resistor.shape)
+            R_hv[ind] = self.calibration.R_hv[hv_resistor[ind]]
+            C_hv[ind] = self.calibration.C_hv[hv_resistor[ind]]
+            T = feedback_signal([C_hv, R_hv], self.frequency[i], 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -1124,9 +1151,13 @@ class SweepFrequencyResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            R_fb = self.calibration.R_fb[self.fb_resistor[i]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb* \
-                     self.calibration.C_fb[self.fb_resistor[i]]* \
+            fb_resistor = self.fb_resistor[i]            
+            ind = mlab.find(fb_resistor!=-1)
+            R_fb = np.zeros(fb_resistor.shape)
+            C_fb = np.zeros(fb_resistor.shape)
+            R_fb[ind] = self.calibration.R_fb[fb_resistor[ind]]
+            C_fb[ind] = self.calibration.C_fb[fb_resistor[ind]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
                      self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
         return Z
     
@@ -1184,6 +1215,13 @@ class SweepVoltageResults():
 
     def __setstate__(self, state):
         self.__dict__ = state
+        for k, v in self.__dict__.items():
+            if isinstance(v, list) and len(v) and isinstance(v[0], list):
+                for i in range(len(v)):
+                    if isinstance(self.__dict__[k][i], list):
+                        self.__dict__[k][i] = np.array(self.__dict__[k][i])
+            elif isinstance(v, list):
+                self.__dict__[k] = np.array(v)
         self._upgrade()
 
     def __getstate__(self):
@@ -1210,9 +1248,13 @@ class SweepVoltageResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            T = feedback_signal([self.calibration.C_hv[self.hv_resistor[i]],
-                                 self.calibration.R_hv[self.hv_resistor[i]]],
-                                self.frequency, 10e6)
+            hv_resistor = self.hv_resistor[i]        
+            ind = mlab.find(hv_resistor!=-1)
+            R_hv = np.zeros(hv_resistor.shape)
+            C_hv = np.zeros(hv_resistor.shape)
+            R_hv[ind] = self.calibration.R_hv[hv_resistor[ind]]
+            C_hv[ind] = self.calibration.C_hv[hv_resistor[ind]]
+            T = feedback_signal([C_hv, R_hv], self.frequency, 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
@@ -1220,9 +1262,13 @@ class SweepVoltageResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            R_fb = self.calibration.R_fb[self.fb_resistor[i]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb* \
-                     self.calibration.C_fb[self.fb_resistor[i]]* \
+            fb_resistor = self.fb_resistor[i]            
+            ind = mlab.find(fb_resistor!=-1)
+            R_fb = np.zeros(fb_resistor.shape)
+            C_fb = np.zeros(fb_resistor.shape)
+            R_fb[ind] = self.calibration.R_fb[fb_resistor[ind]]
+            C_fb[ind] = self.calibration.C_fb[fb_resistor[ind]]
+            Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
                      self.frequency*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
         return Z
 
@@ -1346,13 +1392,18 @@ class FeedbackResultsController():
                     results = row[self.plugin.name]["FeedbackResults"]
                     self.export_data.append('step:, %d' % (row['core']["step"]+1))
                     self.export_data.append('step time (s):, %f' % (row['core']["time"]))
+
+                    # only plot values that have a valid fb and hv resistor
+                    ind = mlab.find(np.logical_and(results.fb_resistor!=-1,
+                                    results.hv_resistor!=-1))
+                    
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
                         self.axis.set_ylabel(
                             "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
                             results.frequency)
-                        self.axis.plot(results.time,
-                                       results.Z_device())
+                        self.axis.plot(results.time[ind],
+                                       results.Z_device()[ind])
                         self.axis.set_yscale('log')
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in results.time]))
@@ -1361,20 +1412,20 @@ class FeedbackResultsController():
                     elif y_axis=="Capacitance":
                         self.axis.set_title("Capacitance/Area")
                         self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
-                        self.axis.plot(results.time,
-                                       results.capacitance()/results.area)
+                        self.axis.plot(results.time[ind],
+                                       results.capacitance()[ind]/results.area)
                         legend_loc = "lower right"
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in results.time]))
                         self.export_data.append('capacitance/area (F/mm^2):,' + 
                             ", ".join([str(x) for x in results.capacitance()]))
                     elif y_axis=="Velocity":
-                        dxdt = results.dxdt()
+                        dxdt = results.dxdt(ind)
+                        t = (np.array(results.time[:-1]) + \
+                             np.array(results.time[1:]))[ind[:-1]]/2
                         self.axis.set_title("Instantaneous velocity")
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        self.axis.plot((np.array(results.time[:-1]) + \
-                                        np.array(results.time[1:]))/2,
-                                       dxdt)
+                        self.axis.plot(t, dxdt)
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in (
                                 np.array(results.time[:-1])+
@@ -1543,7 +1594,7 @@ class FeedbackCalibrationController():
             if response == gtk.RESPONSE_OK:
                 filename = path(dialog.get_filename())
                 with open(filename.abspath(), 'wb') as f:
-                    yaml.dump(results, f)
+                    pickle.dump(results, f)
             dialog.destroy()
             self.process_hv_calibration(results)
 
@@ -1578,15 +1629,27 @@ class FeedbackCalibrationController():
     def calibrate_feedback_resistors(self):
         app = get_app()
         options = app.dmf_device_controller.get_step_options()
-        state_of_all_channels = options.state_of_channels
-        if len(mlab.find(state_of_all_channels>0))==0:
+        state = options.state_of_channels
+        if len(mlab.find(state>0))==0:
             logging.error("Can't calibrate feedback resistors because no "
                 "electrodes are on.")
             return
+        else:
+            max_channels = self.plugin.control_board.number_of_channels() 
+            if len(state) >  max_channels:
+                state = state[0:max_channels]
+            elif len(state) < max_channels:
+                state = np.concatenate([state,
+                        np.zeros(max_channels - len(state), int)])
+            else:
+                assert(len(state) == max_channels)
+            self.plugin.control_board.set_state_of_all_channels(state)
+            # TODO: we should probably turn the electrode(s) off after
+            # calibration?
         
         frequencies = self.prompt_for_frequency_range()
         n_samples = 1000
-        voltages = np.array([10, 50, 100]) 
+        voltages = np.array([25, 50, 75]) 
         calibration = self.plugin.control_board.calibration
         hv_measurements = np.zeros([len(frequencies),
                                     len(voltages),
@@ -1599,10 +1662,16 @@ class FeedbackCalibrationController():
 
         for i, frequency in enumerate(frequencies):
             for j, voltage in enumerate(voltages):
+                gain = self.plugin.gain(frequency)
+                print "voltage/gain=", voltage/gain
+                if voltage/gain>1.4:
+                    print "voltage exceeds maximum"
+                    continue
                 emit_signal("set_frequency", frequency,
                     interface=IWaveformGenerator)
                 emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
+                
                 # wait for ths signal to settle
                 time.sleep(.1)
 
@@ -1633,8 +1702,9 @@ class FeedbackCalibrationController():
             if response == gtk.RESPONSE_OK:
                 filename = path(dialog.get_filename())
                 with open(filename.abspath(), 'wb') as f:
-                    yaml.dump(results, f)
+                    pickle.dump(results, f)
             dialog.destroy()
+            self.process_fb_calibration(results)
 
     def sweep_frequencies(self,
                           frequencies,
@@ -1762,40 +1832,143 @@ class FeedbackCalibrationController():
         hv_measurements = np.array(results['hv_measurements'])
         hv_rms = (np.max(hv_measurements, 3)-\
                   np.min(hv_measurements, 3))/2./np.sqrt(2)
-
         fb_measurements = np.array(results['fb_measurements'])
-        V_fb = (np.max(fb_measurements, 3)-\
-                np.min(fb_measurements, 3))/2./np.sqrt(2)
+        fb_rms = (np.max(fb_measurements, 3)-\
+                  np.min(fb_measurements, 3))/2./np.sqrt(2)
+
+        voltage_filter = [.1, 1.7] 
+        # only include data points where the voltage falls within a specified
+        # range
+        V_fb = np.zeros(fb_measurements.shape[0:3])
+        for i in range(0, np.size(fb_rms, 2)):
+            data = fb_rms[:, :, i]
+            x,y = np.nonzero(np.logical_and(data>voltage_filter[0],
+                                            data<voltage_filter[1]))
+            V_fb[x, y, i] = data[x, y]
 
         # correct V_hv values
-        
         # p[0]=C, p[1]=R2
         R1=10e6
         f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
         V_hv = np.zeros([len(frequencies),
                          len(voltages)])
-        for i in range(0, np.size(hv_rms,2)):
-            # only include data points where .1<Vrms<1.7
-            data = hv_rms[:,:,i]
-            x,y = np.nonzero(np.logical_and(data>.1, data<1.7))
-            V_hv[x,y] = data[x,y]/f([calibration.C_hv[i], calibration.R_hv[i]], frequencies, R1)
-        
-        V_hv = np.tile(V_hv, [1, 1, len(calibration(R_fb))])
+        # only include data points where the voltage falls within a specified
+        # range
+        for i in range(0, np.size(hv_rms, 2)):
+            data = hv_rms[:, :, i]
+            x,y = np.nonzero(np.logical_and(data>voltage_filter[0],
+                                            data<voltage_filter[1]))
+            data /= f([calibration.C_hv[i], calibration.R_hv[i]],
+                      np.tile(np.reshape(frequencies,
+                                         [frequencies.shape[0], 1]),
+                      [1, data.shape[1]]), R1) 
+            V_hv[x, y, :] = data[x, y]
+        V_hv = np.tile(np.reshape(V_hv, (V_hv.shape[0], V_hv.shape[1], 1)),
+                       (1, 1, len(calibration.R_fb)))
 
         # fit parameters
-        p0 = [ calibration.R_fb[0],
-               calibration.R_fb[1],
-               calibration.R_fb[2],
-               calibration.R_fb[3],
-               calibration.C_fb[0],
-               calibration.C_fb[1],
-               calibration.C_fb[2],
-               calibration.C_fb[3],
-        ]
-    
-        print self.device_capacitance(p0, V_hv, V_fb, frequencies)
-    
-    def device_capacitance(self, p0, V_hv, V_fb, frequencies):
+        C_device = 2.52e-12
+        p0 = np.array([calibration.R_fb[0],
+                       calibration.R_fb[1],
+                       calibration.R_fb[2],
+                       calibration.R_fb[3],
+                       calibration.C_fb[0],
+                       calibration.C_fb[1],
+                       calibration.C_fb[2],
+                       calibration.C_fb[3],
+        ])
+
+        Z = self.device_impedance(p0, V_hv, V_fb, frequencies)
+        canvas, a = self.create_plot('Device impedance')
+        legend = []
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                if len(ind):
+                    legend.append("V$_{input}$=%.1f, R$_{fb,%d}$" % (voltages[i], j))
+                    a.loglog(frequencies[ind], Z[ind, i, j], 'o')
+        a.plot(frequencies, 1/(2*np.pi*C_device*frequencies), 'k--')
+        a.legend(legend)
+        canvas.draw()
+
+        canvas, a = self.create_plot('Vhv')
+        legend = []
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                if len(ind):
+                    legend.append("V$_{input}$=%.1f, R$_{fb,%d}$" % (voltages[i], j))
+                    a.semilogx(frequencies[ind], V_hv[ind, i, j], 'o')
+        a.legend(legend)
+        canvas.draw()
+
+        canvas, a = self.create_plot('Device capacitance')
+        legend = []
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                if len(ind):
+                    legend.append("V$_{input}$=%.1f, R$_{fb,%d}$" % (voltages[i], j))
+                    a.semilogx(frequencies[ind], 1/(Z[ind, i, j]*frequencies[ind]*2*np.pi), 'o')
+        a.plot(frequencies, C_device*np.ones(frequencies.shape), 'k--')
+        a.legend(legend)
+        canvas.draw()
+
+        print "p0=", p0
+        print "SOS before=", np.sum(self.e_capacitance(p0, V_hv, V_fb, frequencies, C_device)**2)
+        p1, cov_x, infodict, mesg, ier = optimize.leastsq(
+            self.e_capacitance,
+            p0,
+            args=(V_hv, V_fb, frequencies, C_device),
+            full_output=True
+        )
+
+        print p1, mesg, ier
+        print "SOS after=", np.sum(self.e_capacitance(p1, V_hv, V_fb, frequencies, C_device)**2)
+        print "diff=", p1-p0
+
+        Z = self.device_impedance(p1, V_hv, V_fb, frequencies)
+
+        canvas, a = self.create_plot('Device impedance (after fit)')
+        legend = []
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                if len(ind):
+                    legend.append("V$_{input}$=%.1f, R$_{fb,%d}$" % (voltages[i], j))
+                    a.loglog(frequencies[ind], Z[ind, i, j], 'o')
+        a.plot(frequencies, 1/(2*np.pi*C_device*frequencies), 'k--')
+        a.legend(legend)
+        canvas.draw()
+        
+        canvas, a = self.create_plot('Device capacitance (after fit)')
+        legend = []
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                if len(ind):
+                    legend.append("V$_{input}$=%.1f, R$_{fb,%d}$" % (voltages[i], j))
+                    a.semilogx(frequencies[ind], 1/(Z[ind, i, j]*frequencies[ind]*2*np.pi), 'o')
+        a.plot(frequencies, C_device*np.ones(frequencies.shape), 'k--')
+        a.legend(legend)
+        canvas.draw()
+
+        # write new calibration parameters to the control board
+        for i in range(0, len(calibration.R_fb)):
+            self.plugin.control_board.set_series_resistor_index(1,i)
+            self.plugin.control_board.set_series_resistance(1, p1[i])
+            self.plugin.control_board.set_series_capacitance(1, p1[4+i])
+        
+    def e_capacitance(self, p0, V_hv, V_fb, frequencies, C):
+        e = np.array([])
+        Z = self.device_impedance(p0, V_hv, V_fb, frequencies)
+        for i in range(Z.shape[1]):
+            for j in range(Z.shape[2]):
+                ind = mlab.find(np.logical_and(V_hv[:, i, j], V_fb[:, i, j]))
+                e = np.concatenate((e, C-1/(Z[ind, i, j]*frequencies[ind]*2*np.pi)))
+        return e*1e12
+
+    def device_impedance(self, p0, V_hv, V_fb, frequencies):
         R_fb = np.concatenate((p0[0]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
                                p0[1]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
                                p0[2]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
@@ -1807,8 +1980,8 @@ class FeedbackCalibrationController():
                                p0[6]*np.ones([V_fb.shape[0], V_fb.shape[1], 1]),
                                p0[7]*np.ones([V_fb.shape[0], V_fb.shape[1], 1])
                                ),2)
-        f = np.tile(np.reshape(frequencies, [len(frequencies), 1]),
-                    [1, V_fb.shape[1], 4])
+        f = np.tile(np.reshape(frequencies, (len(frequencies), 1, 1)),
+                    (1, V_fb.shape[1], V_fb.shape[2]))
 
         return R_fb/(1+2*np.pi*R_fb*C_fb*f)*(V_hv/V_fb-1)
 

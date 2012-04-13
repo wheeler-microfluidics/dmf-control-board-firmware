@@ -193,8 +193,8 @@ class DmfControlBoard(Base, SerialDevice):
         for i in range(0, len(state)):
             state_.append(int(state[i]))
         impedance = np.array(Base.measure_impedance(self,
-                                sampling_time_ms, n_samples,
-                                delay_between_samples_ms, state_))
+                             sampling_time_ms, n_samples,
+                             delay_between_samples_ms, state_))
         
         V_hv = impedance[0::4]*5.0/1024/np.sqrt(2)/2
         hv_resistor = impedance[1::4]
