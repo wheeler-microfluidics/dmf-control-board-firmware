@@ -27,24 +27,23 @@ import numpy as np
 import utility
 try:
     from ...dmf_control_board import *
-    from ...dmf_control_board.microdrop.feedback import *
+    from ..microdrop.feedback import *
 except:
     # Raise the exception(s) if we're running the program (these exceptions
     # are expected when generating documentation with doxygen, so in that case
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
-from flatland import Element, Dict, String, Integer, Boolean, Float, Form
+from flatland import Element, Dict, List, String, Integer, Boolean, Float, Form
 from flatland.validation import ValueAtLeast, ValueAtMost
-
 
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import StepOptionsController
-from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
+from plugin_helpers import StepOptionsController, AppDataController
+from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
-            get_service_instance
+    ExtensionPoint, get_service_instance
 from app_context import get_app
 from utility.gui import yesno
 
@@ -92,12 +91,21 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin, StepOptionsController):
+class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
     """
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
+    implements(IAmplifier)    
+
+    AppFields = Form.of(
+        Dict.named('amplifier_gain').using(optional=True,
+            properties=dict(show_in_gui=False)).of(
+                List.named('frequency').of(Float),
+                List.named('gain').of(Float),
+        ),
+    )
 
     StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
@@ -140,6 +148,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         self.current_state = FeedbackOptions()
         self.feedback_options_controller = None
         self.feedback_results_controller = None
+        self.feedback_calibration_controller = None
         self.initialized = False
 
     def on_plugin_enable(self):
@@ -148,6 +157,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
+        super(DmfControlBoardPlugin, self).on_plugin_enable()
 
     def on_plugin_disable(self):
         if get_app().protocol:
@@ -160,14 +170,37 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         Handler called once when the Microdrop application starts.
         """
         if not self.initialized:
-            app = get_app()
-            menu_item = gtk.MenuItem("Flash DMF control board firmware")
-            app.main_window_controller.menu_tools.append(menu_item)
-            menu_item.connect("activate", self.on_flash_firmware)
-            menu_item.show()
-            
             self.feedback_options_controller = FeedbackOptionsController(self)
             self.feedback_results_controller = FeedbackResultsController(self)
+            self.feedback_calibration_controller = \
+                FeedbackCalibrationController(self)
+
+            app = get_app()
+            menu_item = gtk.MenuItem("DMF control board")
+            app.main_window_controller.menu_tools.append(menu_item)
+            menu_item.show()
+            control_board_menu = gtk.Menu()
+            control_board_menu.show()
+            menu_item.set_submenu(control_board_menu)
+            
+            menu_item = gtk.MenuItem("Flash firmware")
+            menu_item.connect("activate", self.on_flash_firmware)
+            menu_item.show()
+            control_board_menu.append(menu_item)
+            
+            menu_item = gtk.MenuItem("Perform calibration")
+            menu_item.connect("activate",
+                self.feedback_calibration_controller.on_perform_calibration)
+            control_board_menu.append(menu_item)
+            menu_item.show()
+            
+            menu_item = gtk.MenuItem("Load calibration from file")
+            menu_item.connect("activate",
+                              self.feedback_calibration_controller. \
+                                  on_load_calibration_from_file)
+            control_board_menu.append(menu_item)
+            menu_item.show()
+            
             self.initialized = True
             self.check_device_name_and_version()
 
@@ -208,13 +241,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         app = get_app()
         try:
             self.control_board.flash_firmware()
-            logger.info("Firmware updated "
-                                                 "successfully.",
-                                                 "Firmware update")
+            app.main_window_controller.info("Firmware updated successfully.",
+                                            "Firmware update")
         except Exception, why:
-            logger.error("Problem flashing firmware. "
-                                                  "%s" % why,
-                                                  "Firmware update")
+            logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
 
     def update_connection_status(self):
@@ -278,7 +308,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
 
             if feedback_options.feedback_enabled:
                 # calculate the total area of actuated electrodes
-                area =  self.get_actuated_area()
+                area = self.get_actuated_area()
                 
                 if feedback_options.action.__class__ == RetryAction:
                     if 'attempt' not in app.experiment_log.data[-1]['core'].keys():
@@ -289,8 +319,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                     if attempt <= feedback_options.action.max_repeats:
                         voltage = float(options.voltage +\
                             feedback_options.action.increase_voltage * attempt)
-                        frequency = \
-                            float(options.frequency)
+                        frequency = float(options.frequency)
                         emit_signal("set_frequency", frequency,
                                     interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
@@ -298,11 +327,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
                         results = FeedbackResults(feedback_options,
-                            V_hv, hv_resistor,
-                            V_fb, fb_resistor,
+                            V_hv,
+                            hv_resistor,
+                            V_fb,
+                            fb_resistor,
                             area,
                             frequency,
-                            voltage)
+                            voltage,
+                            self.control_board.calibration)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
                         app.experiment_log.add_data({"FeedbackResults":results},
@@ -331,8 +363,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
                     results = SweepFrequencyResults(feedback_options,
-                                                    area,
-                                                    voltage)
+                        area,
+                        voltage,
+                        self.control_board.calibration)
                     for frequency in frequencies:
                         emit_signal("set_frequency",
                                     float(frequency),
@@ -349,11 +382,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                     voltages = np.linspace(feedback_options.action.start_voltage,
                                            feedback_options.action.end_voltage,
                                            feedback_options.action.n_voltage_steps)
-                    frequency = float(app.protocol.current_step(). \
-                        frequency)
+                    frequency = float(options.frequency)
                     emit_signal("set_frequency", frequency,
                                 interface=IWaveformGenerator)
-                    results = SweepVoltageResults(feedback_options, area, frequency)
+                    results = SweepVoltageResults(feedback_options,
+                        area,
+                        frequency,
+                        self.control_board.calibration)
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                                     interface=IWaveformGenerator)
@@ -368,10 +403,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             else:
                 voltage = float(options.voltage)
                 frequency = float(options.frequency)
-                emit_signal("set_voltage", voltage,
-                            interface=IWaveformGenerator)
                 emit_signal("set_frequency",
                             frequency,
+                            interface=IWaveformGenerator)
+                emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
                 self.control_board.state_of_all_channels = state
 
@@ -421,8 +456,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         Parameters:
             voltage : RMS voltage
         """
-        # TODO: get gain from amplifier object
-        gain = 200.0
+        logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
+        gain = self.gain(self.control_board.waveform_frequency())
+        logger.info("[DmfControlBoardPlugin] voltage/gain=%.1f" % (voltage/gain))
         self.control_board.set_waveform_voltage(voltage/gain)
         
     def set_frequency(self, frequency):
@@ -432,7 +468,52 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         Parameters:
             frequency : frequency in Hz
         """
+        logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
+
+        # get the current voltage
+        gain = self.gain(self.control_board.waveform_frequency())
+        voltage = self.control_board.waveform_voltage()*gain
+
+        # update the frequency
         self.control_board.set_waveform_frequency(frequency)
+
+        # adjust the voltage
+        self.set_voltage(voltage)
+
+    def gain(self, frequency):
+        """
+        Get the gain of an amplifier for a given frequency/frequencies.
+        
+        Parameters:
+            frequency : frequency or list of frequencies
+            
+        Returns:
+            gain or list of gain terms corresponding to the input
+        """
+        values_dict = self.get_app_values()
+        try:
+            frequencies = values_dict['amplifier_gain']['frequency']
+            gain = values_dict['amplifier_gain']['gain']
+            return np.interp(frequency,
+                             frequencies,
+                             gain)
+        except Exception:
+            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
+
+    def frequency_range(self):
+        """
+        Get the range of frequencies over which the amplifier has been
+        calibrated.
+        
+        Returns:
+            Two element list [min_frequency, max_frequency]
+        """
+        values_dict = self.get_app_values()
+        try:
+            frequencies = values_dict['amplifier_gain']['frequency']
+            return [frequencies[0], frequencies[-1]]
+        except Exception:
+            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()

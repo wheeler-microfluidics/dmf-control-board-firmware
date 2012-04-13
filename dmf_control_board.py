@@ -21,6 +21,7 @@ import time
 import sys
 import math
 import re
+import copy
 
 from path import path
 import numpy as np
@@ -33,14 +34,46 @@ from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
 
 
+class FeedbackCalibration():
+    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None):
+        if R_hv:
+            self.R_hv = np.array(R_hv)
+        else:
+            self.R_hv = np.array([8.7e4, 6.4e5])
+        if C_hv:
+            self.C_hv = np.array(C_hv)
+        else:
+            self.C_hv = np.array([1.4e-10, 1.69e-10])
+        if R_fb:
+            self.R_fb = np.array(R_fb)
+        else:
+            self.R_fb = np.array([1.14e3, 1e4, 9.3e4, 6.5e5])
+        if C_fb:
+            self.C_fb = np.array(C_fb)
+        else:
+            self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])      
+
+    def __getstate__(self):
+        """Convert numpy arrays to lists for serialization"""
+        out = copy.deepcopy(self.__dict__)
+        for k, v in out.items():
+            if isinstance(v, np.ndarray):
+                out[k] = v.tolist()
+        return out
+
+    def __setstate__(self, state):
+        """Convert lists to numpy arrays after loading serialized object"""
+        self.__dict__ = state
+        for k, v in self.__dict__.items():
+            if k=='R_hv' or k=='C_hv' or k=='R_fb' or k=='C_fb':
+                self.__dict__[k] = np.array(v)
+
+
 class DmfControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
         SerialDevice.__init__(self)
-        self.R_hv = []
-        self.C_hv = []
-        self.R_fb = []
-        self.C_fb = []
+        self.calibration = None
                 
     def connect(self, port=None):
         if port:
@@ -50,35 +83,32 @@ class DmfControlBoard(Base, SerialDevice):
             self.get_port()
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")            
-        
-        self.R_hv = []
-        self.C_hv = []
-        self.R_fb = []
-        self.C_fb = []
+
+        R_hv = []
+        C_hv = []
+        R_fb = []
+        C_fb = []        
         try:
             i=0
             while True:
                 self.set_series_resistor_index(0, i)
-                self.R_hv.append(
-                    self.series_resistance(0))
-                self.C_hv.append(
-                    self.series_capacitance(0))
+                R_hv.append(self.series_resistance(0))
+                C_hv.append(self.series_capacitance(0))
                 i+=1
         except:
-            logger.info("HV series resistors=%s" % self.R_hv)
-            logger.info("HV series capacitance=%s" % self.C_hv)
+            logger.info("HV series resistors=%s" % R_hv)
+            logger.info("HV series capacitance=%s" % C_hv)
         try:
             i=0
             while True:
                 self.set_series_resistor_index(1, i)
-                self.R_fb.append(
-                    self.series_resistance(1))
-                self.C_fb.append(
-                    self.series_capacitance(1))
+                R_fb.append(self.series_resistance(1))
+                C_fb.append(self.series_capacitance(1))
                 i+=1
         except:
-            logger.info("Feedback series resistors=%s" % self.R_fb)
-            logger.info("Feedback series capacitance=%s" % self.C_fb)
+            logger.info("Feedback series resistors=%s" % R_fb)
+            logger.info("Feedback series capacitance=%s" % C_fb)
+        self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb)
         self.set_series_resistor_index(0,0)
         self.set_series_resistor_index(1,0)
         return self.RETURN_OK
@@ -86,6 +116,9 @@ class DmfControlBoard(Base, SerialDevice):
     @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
+
+    def set_state_of_all_channels(self, state):
+        self.state_of_all_channels = state
 
     @state_of_all_channels.setter
     def state_of_all_channels(self, state):
@@ -103,6 +136,9 @@ class DmfControlBoard(Base, SerialDevice):
                 if i*8+j<=53:
                     pin_modes.append(~mode>>j&0x01)
         return pin_modes
+
+    def set_default_pin_modes(self, pin_modes):
+        self.default_pin_modes = pin_modes
         
     @default_pin_modes.setter
     def default_pin_modes(self, pin_modes):
@@ -122,6 +158,9 @@ class DmfControlBoard(Base, SerialDevice):
                 if i*8+j<=53:
                     pin_states.append(~state>>j&0x01)
         return pin_states
+
+    def set_default_pin_states(self, pin_states):
+        self.default_pin_states = pin_states
         
     @default_pin_states.setter
     def default_pin_states(self, pin_states):
@@ -154,8 +193,8 @@ class DmfControlBoard(Base, SerialDevice):
         for i in range(0, len(state)):
             state_.append(int(state[i]))
         impedance = np.array(Base.measure_impedance(self,
-                                sampling_time_ms, n_samples,
-                                delay_between_samples_ms, state_))
+                             sampling_time_ms, n_samples,
+                             delay_between_samples_ms, state_))
         
         V_hv = impedance[0::4]*5.0/1024/np.sqrt(2)/2
         hv_resistor = impedance[1::4]

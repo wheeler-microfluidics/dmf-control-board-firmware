@@ -236,6 +236,10 @@ uint8_t RemoteObject::ReadUint8() {
   return *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t));
 }
 
+int8_t RemoteObject::ReadInt8() {
+	return (int8_t)ReadUint8();
+}
+
 uint16_t RemoteObject::ReadUint16() {
   // TODO check that we're not reading past the end of the buffer
   bytes_read_ += sizeof(uint16_t);
@@ -248,6 +252,10 @@ uint16_t RemoteObject::ReadUint16() {
   LogMessage(log_message_string_, function_name);
 #endif
   return *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t));
+}
+
+int16_t RemoteObject::ReadInt16() {
+	return (int16_t)ReadUint16();
 }
 
 float RemoteObject::ReadFloat() {

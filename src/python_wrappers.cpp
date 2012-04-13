@@ -50,8 +50,16 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
     .def(vector_indexing_suite<std::vector<uint8_t> >())
   ;
 
+  class_<std::vector<int8_t> >("int8_tVector")
+    .def(vector_indexing_suite<std::vector<int8_t> >())
+  ;
+
   class_<std::vector<uint16_t> >("uint16_tVector")
     .def(vector_indexing_suite<std::vector<uint16_t> >())
+  ;
+
+  class_<std::vector<int16_t> >("int16_tVector")
+    .def(vector_indexing_suite<std::vector<int16_t> >())
   ;
 
   class_<std::vector<float> >("floatVector")
