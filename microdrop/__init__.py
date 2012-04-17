@@ -152,23 +152,10 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         self.initialized = False
 
     def on_plugin_enable(self):
-        self.on_app_init()
         if get_app().protocol:
             self.on_step_run()
-            pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_grid()
         super(DmfControlBoardPlugin, self).on_plugin_enable()
 
-    def on_plugin_disable(self):
-        if get_app().protocol:
-            self.on_step_run()
-            pgc = get_service_instance(ProtocolGridController, env='microdrop')
-            pgc.update_grid()
-
-    def on_app_init(self):
-        """
-        Handler called once when the Microdrop application starts.
-        """
         if not self.initialized:
             self.feedback_options_controller = FeedbackOptionsController(self)
             self.feedback_results_controller = FeedbackResultsController(self)
@@ -203,6 +190,16 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             
             self.initialized = True
             self.check_device_name_and_version()
+        if get_app().protocol:
+            self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_grid()
+
+    def on_plugin_disable(self):
+        if get_app().protocol:
+            self.on_step_run()
+            pgc = get_service_instance(ProtocolGridController, env='microdrop')
+            pgc.update_grid()
 
     def check_device_name_and_version(self):
         try:
@@ -542,9 +539,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             step_number = app.protocol.current_step_number
         step = app.protocol.steps[step_number]
 
-        options = step.get_data(self.name)
-        if options is None:
-            return None
+        options = self.get_step_options(step_number)
 
         values = {}
         for name in self.StepFields.field_schema_mapping:
@@ -563,9 +558,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             step_number = app.protocol.current_step_number
         step = app.protocol.steps[step_number]
 
-        options = step.get_data(self.name)
-        if options is None:
-            return None
+        options = self.get_step_options(step_number)
         try:
             return getattr(options, name)
         except AttributeError:
@@ -599,7 +592,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         Returns a list of scheduling requests (i.e., ScheduleRequest
         instances) for the function specified by function_name.
         """
-        if function_name == 'on_app_init' or function_name == 'on_plugin_enable':
+        if function_name == 'on_plugin_enable':
             return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
                     ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
         elif function_name in ['on_step_options_changed']:
