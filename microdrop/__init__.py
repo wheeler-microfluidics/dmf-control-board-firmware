@@ -40,7 +40,8 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import StepOptionsController, AppDataController
+from plugin_helpers import StepOptionsController, AppDataController, \
+    get_plugin_version
 from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
@@ -136,13 +137,13 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
     )
     _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
                             'delay_between_samples_ms'])
-    plugin_name = 'wheelerlab.dmf_control_board_'
-
+    plugin_name = 'wheelerlab.dmf_control_board'
+    version = get_plugin_version(path(__file__).parent.parent)
+    
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = self.plugin_name +\
+        self.name = self.plugin_name + '_' + \
                 self.control_board.host_hardware_version()
-        self.version = self.control_board.host_software_version()
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
         self.current_state = FeedbackOptions()
