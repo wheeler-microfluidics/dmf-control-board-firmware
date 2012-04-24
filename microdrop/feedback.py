@@ -216,15 +216,25 @@ class FeedbackOptionsController():
         self.window = self.builder.get_object("window")
         self.builder.connect_signals(self)
         self.window.set_title("Feedback Options")
-        menu_item = gtk.MenuItem("Feedback Options")
-        app.main_window_controller.menu_tools.append(menu_item)
-        menu_item.connect("activate", self.on_window_show)
-        menu_item.show()
-        
-        menu_item = gtk.MenuItem("Measure device capacitance")
-        app.dmf_device_controller.popup.append(menu_item)
-        menu_item.connect("activate", self.on_measure_device_capacitance)
-        menu_item.show()
+        self.initialized = False
+
+    def on_plugin_enable(self):
+        if not self.initialized:
+            app = get_app()
+            menu_item = gtk.MenuItem("Feedback Options")
+            self.plugin.control_board_menu.append(menu_item)
+            menu_item.connect("activate", self.on_window_show)
+            menu_item.show()
+            
+            self.measure_cap_menu_item = gtk.MenuItem("Measure device capacitance")
+            app.dmf_device_controller.popup.append(self.measure_cap_menu_item)
+            self.measure_cap_menu_item.connect("activate",
+                                               self.on_measure_device_capacitance)
+            self.initialized = True
+        self.measure_cap_menu_item.show()
+
+    def on_plugin_disable(self):
+        self.measure_cap_menu_item.hide()
 
     def on_window_show(self, widget, data=None):
         """

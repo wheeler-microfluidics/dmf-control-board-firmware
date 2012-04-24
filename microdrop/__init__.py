@@ -164,39 +164,44 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
                 FeedbackCalibrationController(self)
 
             app = get_app()
-            menu_item = gtk.MenuItem("DMF control board")
-            app.main_window_controller.menu_tools.append(menu_item)
-            menu_item.show()
-            control_board_menu = gtk.Menu()
-            control_board_menu.show()
-            menu_item.set_submenu(control_board_menu)
-            
+            self.control_board_menu_item = gtk.MenuItem("DMF control board")
+            app.main_window_controller.menu_tools.append(
+                self.control_board_menu_item)
+
+            self.control_board_menu = gtk.Menu()
+            self.control_board_menu.show()
+            self.control_board_menu_item.set_submenu(self.control_board_menu)
             menu_item = gtk.MenuItem("Flash firmware")
             menu_item.connect("activate", self.on_flash_firmware)
             menu_item.show()
-            control_board_menu.append(menu_item)
+            self.control_board_menu.append(menu_item)
             
             menu_item = gtk.MenuItem("Perform calibration")
             menu_item.connect("activate",
                 self.feedback_calibration_controller.on_perform_calibration)
-            control_board_menu.append(menu_item)
+            self.control_board_menu.append(menu_item)
             menu_item.show()
             
             menu_item = gtk.MenuItem("Load calibration from file")
             menu_item.connect("activate",
                               self.feedback_calibration_controller. \
                                   on_load_calibration_from_file)
-            control_board_menu.append(menu_item)
+            self.control_board_menu.append(menu_item)
             menu_item.show()
-            
             self.initialized = True
-            self.check_device_name_and_version()
+
+        self.feedback_options_controller.on_plugin_enable()
+        self.control_board_menu_item.show()
+        self.check_device_name_and_version()
+        
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
 
     def on_plugin_disable(self):
+        self.feedback_options_controller.on_plugin_disable()
+        self.control_board_menu_item.hide()
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
