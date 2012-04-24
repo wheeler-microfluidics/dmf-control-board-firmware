@@ -34,12 +34,18 @@ public:
   static const uint8_t SINE = 0;
   static const uint8_t SQUARE = 1;
 
-  /**\brief When the byte stored at this address is set to 0, configuration
-  settings are loaded from the EEPROM. If this byte is set to 0xFF
-  (default), the EEPROM is ignored and default values are used.*/
-  static const uint16_t EEPROM_INIT =                        100;
+  /**\brief EEPROM address of config settings.*/
+  static const uint16_t EEPROM_CONFIG_SETTINGS = 100;
+
+  struct version_t {
+    uint16_t major;
+    uint16_t minor;
+    uint16_t micro;
+  };
 
   struct config_settings_t {
+    version_t version;
+
     /**\brief This byte sets the maximum output voltage for the waveform
     generator. It should be trimmed so that the output waveform is 4Vp-p when
     POT_WAVEOUT_GAIN_2 is set to 255.*/
@@ -239,6 +245,7 @@ private:
   float GetPeakVoltage(const uint8_t interrupt, const uint16_t sample_time_ms);
   void LoadConfig();
   void SaveConfig();
+  version_t ConfigVersion();
 #else
   uint8_t SendCommand(const uint8_t cmd);
   float MillisecondsSinceLastCheck();

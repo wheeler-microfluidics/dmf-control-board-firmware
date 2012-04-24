@@ -635,13 +635,13 @@ void DmfControlBoard::begin() {
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
 
-  if(EEPROM.read(EEPROM_INIT)==0) {
-    Serial.println("Using configuration settings from EEPROM.");
-  } else { // use defaults
-    Serial.println("Using default configuration settings.");
-  }
   LoadConfig();
-
+  Serial.print("Configuration version=");
+  Serial.print(config_settings_.version.major, DEC);
+  Serial.print(".");
+  Serial.print(config_settings_.version.minor, DEC);
+  Serial.print(".");
+  Serial.println(config_settings_.version.micro, DEC);
   Serial.print("waveout_gain_1=");
   Serial.println(config_settings_.waveout_gain_1, DEC);
   Serial.print("aref=");
@@ -866,15 +866,33 @@ uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
   }
 }
 
+DmfControlBoard::version_t DmfControlBoard::ConfigVersion() {
+  version_t config_version;
+  uint8_t* p = (uint8_t*)&config_version;
+  for(uint16_t i = 0; i<sizeof(version_t); i++) {
+    p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
+  }
+  return config_version;
+}
+
 void DmfControlBoard::LoadConfig() {
-  // if the EEPROM_INIT flag has been set, load configuration settings from
-  // EEPROM
-  if(EEPROM.read(EEPROM_INIT)==0) {
+  version_t config_version = ConfigVersion();
+
+  // if the configuration settings version matches what we expect, load
+  // settings from EEPROM
+  if(config_version.major==0 &&
+     config_version.minor==0 &&
+     config_version.micro==0) {
     uint8_t* p = (uint8_t*)&config_settings_;
     for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-      p[i] = EEPROM.read(EEPROM_INIT+i+1);
+      p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
     }
   } else {
+    config_settings_.version.major = 0;
+    config_settings_.version.minor = 0;
+    config_settings_.version.micro = 0;
+    config_settings_.aref = 255;
+    config_settings_.vgnd = 124;
     config_settings_.waveout_gain_1 = 112;
     config_settings_.aref = 255;
     config_settings_.vgnd = 124;
@@ -896,9 +914,8 @@ void DmfControlBoard::LoadConfig() {
 void DmfControlBoard::SaveConfig() {
   uint8_t* p = (uint8_t*)&config_settings_;
   for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-    EEPROM.write(EEPROM_INIT+i+1, p[i]);
+    EEPROM.write(EEPROM_CONFIG_SETTINGS+i, p[i]);
   }
-  EEPROM.write(EEPROM_INIT, 0);
 }
 
 #else

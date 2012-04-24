@@ -35,7 +35,7 @@ const uint8_t RemoteObject::RETURN_BAD_PACKET_SIZE;
 const uint8_t RemoteObject::RETURN_BAD_CRC;
 const uint8_t DmfControlBoard::SINE;
 const uint8_t DmfControlBoard::SQUARE;
-const uint16_t DmfControlBoard::EEPROM_INIT;
+const uint16_t DmfControlBoard::EEPROM_CONFIG_SETTINGS;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
@@ -138,5 +138,5 @@ DmfControlBoard_class.attr("RETURN_NOT_CONNECTED") = DmfControlBoard::RETURN_NOT
 DmfControlBoard_class.attr("RETURN_BAD_INDEX") = DmfControlBoard::RETURN_BAD_INDEX;
 DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_BAD_PACKET_SIZE;
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
-DmfControlBoard_class.attr("EEPROM_INIT") = DmfControlBoard::EEPROM_INIT;
+DmfControlBoard_class.attr("EEPROM_CONFIG_SETTINGS") = DmfControlBoard::EEPROM_CONFIG_SETTINGS;
 }
