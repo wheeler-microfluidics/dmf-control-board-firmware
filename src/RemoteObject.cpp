@@ -782,7 +782,9 @@ uint8_t RemoteObject::Connect(const char* port) {
     }
     // flush the serial buffer to clear startup message
     while(Serial.available()) {
-      boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+      // This delay needs to be >=500 ms for R2 and R3 boards. Use 1000 ms to
+      // be safe.
+      boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
       Serial.flush();
     }
   }
