@@ -43,7 +43,10 @@ public:
     uint16_t micro;
   };
 
+#ifdef AVR
   struct config_settings_t {
+    /**\brief This is the software version that the EEPROM configuration data
+    was written with.*/
     version_t version;
 
     /**\brief This byte sets the maximum output voltage for the waveform
@@ -51,19 +54,26 @@ public:
     POT_WAVEOUT_GAIN_2 is set to 255.*/
     uint8_t waveout_gain_1;
 
-    /**\brief This byte sets the value of the analog reference (between 0 and
-    ~5V).*/
-    uint8_t aref;
+    #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+      /**\brief This byte sets the value of the analog reference (between 0 and
+      ~5V).*/
+      uint8_t aref;
+    #endif
 
     /**\brief This byte sets the value of the virtual ground reference (between
     0 and 5V).*/
     uint8_t vgnd;
 
+    /**\brief Series resistor values for channel 0.*/
     float A0_series_resistance[2];
+    /**\brief Series capacitance values for channel 0.*/
     float A0_series_capacitance[2];
+    /**\brief Series resistor values for channel 1.*/
     float A1_series_resistance[4];
+    /**\brief Series capacitance values for channel 1.*/
     float A1_series_capacitance[4];
   };
+#endif
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
@@ -102,7 +112,6 @@ public:
   static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
   static const uint8_t CMD_SAMPLE_VOLTAGE =                 0xF4;
   static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF5;
-  static const uint8_t CMD_GET_PEAK_VOLTAGE =               0xF6;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -164,12 +173,10 @@ public:
   void LogExperiment(const char* message);
   std::string host_name() { return NAME_; }
   std::string host_manufacturer() { return MANUFACTURER_; }
-  std::string host_hardware_version() { return HARDWARE_VERSION_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
   std::string host_url() { return URL_; }
 #else
   void begin();
-  void PeakExceeded();
 
   // local accessors
   const char* protocol_name() { return PROTOCOL_NAME_; }
@@ -177,7 +184,7 @@ public:
   const char* name() { return NAME_; } //device name
   const char* manufacturer() { return MANUFACTURER_; }
   const char* software_version() { return SOFTWARE_VERSION_; }
-  const char* hardware_version() { return HARDWARE_VERSION_; }
+  const char* hardware_version();
   const char* url() { return URL_; }
 #endif
 
@@ -193,23 +200,25 @@ private:
   static const char PROTOCOL_VERSION_[];
 
   static const uint8_t AD5204_SLAVE_SELECT_PIN_ = 53; // digital pot
-  static const uint8_t POT_INDEX_AREF_ = 0;
+
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+    static const uint8_t POT_INDEX_AREF_ = 0;
+  #endif
+
   static const uint8_t POT_INDEX_VGND_ = 1;
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
   static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
-  static const uint8_t HV_PEAK_ = 3;
-  static const uint8_t FB_PEAK_ = 2;
 
-  static const uint8_t PWR_SUPPLY_ON_ = 8;
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
+    static const uint8_t PWR_SUPPLY_ON_ = 8;
+  #endif
+
   static const uint8_t WAVEFORM_SELECT_ = 9;
 
   static const uint8_t A0_SERIES_RESISTOR_0_ = 13;
   static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
   static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
   static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
-
-  static const uint8_t HV_PEAK_INTERRUPT_ = 1;
-  static const uint8_t FB_PEAK_INTERRUPT_ = 0;
 
   static const float SAMPLING_RATES_[];
 

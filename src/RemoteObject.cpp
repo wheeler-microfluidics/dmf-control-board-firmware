@@ -809,14 +809,12 @@ uint8_t RemoteObject::Connect(const char* port) {
     msg << "name()=\"" << remote_name.c_str() << "\", hardware_version()=\""
       << remote_hardware_version.c_str() << "\"";
     LogMessage(msg.str().c_str(), function_name);
-    if(remote_name==host_name() &&
-      remote_hardware_version==host_hardware_version()) {
+    if(remote_name==host_name()) {
       return RETURN_OK;
     } else {
       Serial.end();
       msg.str("");
-      msg << "Remote device is not a " << host_name() << " version "
-          << host_hardware_version();
+      msg << "Remote device is not a " << host_name();
       throw runtime_error(msg.str().c_str());
     }
   }
