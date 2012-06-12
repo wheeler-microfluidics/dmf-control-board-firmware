@@ -260,8 +260,9 @@ private:
   uint8_t A0_series_resistor_index_;
   uint8_t A1_series_resistor_index_;
   uint8_t peak_;
-  uint8_t waveform_voltage_;
+  float waveform_voltage_;
   float waveform_frequency_;
+  float amplifier_gain_;
   config_settings_t config_settings_;
   #else
   std::string experiment_log_file_name_;

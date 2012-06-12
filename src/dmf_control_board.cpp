@@ -193,9 +193,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
-      if(payload_length()==sizeof(uint8_t)) {
-        waveform_voltage_ = ReadUint8();
-        SetPot(POT_INDEX_WAVEOUT_GAIN_2_, waveform_voltage_);
+      if(payload_length()==sizeof(float)) {
+        waveform_voltage_ = ReadFloat();
+        SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
+               waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -213,7 +214,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if(payload_length()==sizeof(float)) {
         // the frequency of the LTC6904 oscillator needs to be set to 50x
         // the fundamental frequency
-    	waveform_frequency_ = ReadFloat();
+    	  waveform_frequency_ = ReadFloat();
         float freq = waveform_frequency_*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
@@ -516,6 +517,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 impedance_buffer[4*i+1] = -1;
               } else {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
+
+                // adjust amplifier gain
+                float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
+                float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                amplifier_gain_ =
+                    float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2/ // measured Vrms /
+                    (R/sqrt(pow(10e6+R, 2)+           // transfer function /
+                        pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
+                    (waveform_voltage_/               // (set voltage /
+                    amplifier_gain_);                 // previous gain setting)
+                // update output voltage
+                SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
+                    waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
               }
 
               // if we didn't get a valid sample during the sampling time,
@@ -682,6 +696,8 @@ void DmfControlBoard::begin() {
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
   SetAdcPrescaler(4);
+
+  amplifier_gain_ = 184;
 }
 
 void DmfControlBoard::PeakExceeded() {
@@ -1143,10 +1159,10 @@ float DmfControlBoard::waveform_voltage() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_WAVEFORM_VOLTAGE)==RETURN_OK) {
     LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
-    if(payload_length()==sizeof(uint8_t)) {
-      float v_rms = (float)ReadUint8()/255.0*4.0/2*sqrt(0.5);
+    if(payload_length()==sizeof(float)) {
+      float v_rms = ReadFloat();
       std::ostringstream msg;
-      msg << "waveform_voltage=" << v_rms;
+      msg << "waveform_voltage=" << (float)v_rms;
       LogMessage(msg.str().c_str(), function_name);
       return v_rms;
     } else {
@@ -1269,22 +1285,14 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
   std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
-  // max voltage is 4 Vpk-pk (1.414 Vrms)
-  if(v_rms>=0 && v_rms<=sqrt(2)) {
-    uint8_t data = v_rms*sqrt(.5)*255;
-    Serialize(&data,sizeof(data));
-    msg << "data=" << (int)data;
-    LogMessage(msg.str().c_str(), function_name);
-    if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
-      LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
-      LogMessage("volage set successfully", function_name);
-      msg.str("");
-      msg << "set_actuation_voltage," << v_rms << ",Vrms" << endl;
-      LogExperiment(msg.str().c_str());
-    }
-  } else {
-    return_code_ = RETURN_BAD_VALUE;
-    throw runtime_error("Value out of bounds.");
+  Serialize(&v_rms,sizeof(v_rms));
+  LogMessage(msg.str().c_str(), function_name);
+  if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
+    LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
+    LogMessage("volage set successfully", function_name);
+    msg.str("");
+    msg << "set_waveform_voltage," << v_rms << ",Vrms" << endl;
+    LogExperiment(msg.str().c_str());
   }
   return return_code();
 }

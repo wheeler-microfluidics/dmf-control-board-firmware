@@ -983,7 +983,7 @@ class FeedbackResults():
 
     def V_total(self):
         ind = mlab.find(self.hv_resistor!=-1)
-        T = np.zeros(self.hv_resistor.shape)
+        T = np.zeros(np.array(self.hv_resistor).shape)
         T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
                              self.calibration.R_hv[self.hv_resistor[ind]]],
                             self.frequency, 10e6)
@@ -1316,7 +1316,8 @@ class FeedbackResultsController():
         combobox_set_model_from_list(self.combobox_x_axis,
                                      ["Time", "Frequency", "Voltage"])
         combobox_set_model_from_list(self.combobox_y_axis,
-                                     ["Impedance", "Capacitance", "Velocity"])
+                                     ["Impedance", "Capacitance", "Velocity",
+                                      "Voltage"])
         self.combobox_x_axis.set_active(0)
         self.combobox_y_axis.set_active(0)
 
@@ -1340,10 +1341,11 @@ class FeedbackResultsController():
         if x_axis=="Time":
             combobox_set_model_from_list(self.combobox_y_axis,
                                          ["Impedance", "Capacitance",
-                                          "Velocity"])
+                                          "Velocity", "Voltage"])
         else:
             combobox_set_model_from_list(self.combobox_y_axis,
-                                         ["Impedance", "Capacitance"])
+                                         ["Impedance", "Capacitance",
+                                          "Voltage"])
         self.combobox_y_axis.set_active(0)
         self.update_plot()
 
@@ -1442,6 +1444,16 @@ class FeedbackResultsController():
                                 np.array(results.time[1:]))/2]))
                         self.export_data.append('velocity (mm/s):,' + 
                             ", ".join([str(x) for x in dxdt]))
+                    elif y_axis=="Voltage":
+                        self.axis.set_title("Actuation voltage")
+                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.plot(results.time[ind],
+                                       results.V_total()[ind])
+                        legend_loc = "lower right"
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in results.time]))
+                        self.export_data.append('V_hv (V_RMS):,' + 
+                            ", ".join([str(x) for x in results.V_total()]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
                                                         row['core']["time"]))
         elif x_axis=="Frequency":
@@ -1487,6 +1499,21 @@ class FeedbackResultsController():
                         self.export_data.append('std(capacitance/area) '
                             '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
                             results.Z_device(), 1)]))
+                    elif y_axis=="Voltage":
+                        self.axis.set_title("Actuation voltage")
+                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.errorbar(results.frequency,
+                                           np.mean(results.V_total(), 1),
+                                           np.std(results.V_total(), 1),
+                                           fmt='.')
+                        self.axis.set_xscale('log')
+                        legend_loc = "lower right"
+                        self.export_data.append('mean(V_total) '
+                            '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
+                            results.V_total(), 1)]))
+                        self.export_data.append('std(V_total) '
+                            '(Vrms):, ' + ", ".join([str(x) for x in np.std(
+                            results.V_total(), 1)]))
                     legend.append("Step %d (%.3f s)" % \
                                   (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
@@ -1530,7 +1557,23 @@ class FeedbackResultsController():
                         self.export_data.append('std(capacitance/area) '
                             '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
                             results.Z_device(), 1)]))
-                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1, row['core']["time"]))
+                    elif y_axis=="Voltage":
+                        self.axis.set_title("Actuation voltage")
+                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.errorbar(results.frequency,
+                                           np.mean(results.V_total(), 1),
+                                           np.std(results.V_total(), 1),
+                                           fmt='.')
+                        self.axis.set_xscale('log')
+                        legend_loc = "lower right"
+                        self.export_data.append('mean(V_total) '
+                            '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
+                            results.V_total(), 1)]))
+                        self.export_data.append('std(V_total) '
+                            '(Vrms):, ' + ", ".join([str(x) for x in np.std(
+                            results.V_total(), 1)]))
+                    legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
+                                                        row['core']["time"]))
         if len(legend):
             self.axis.legend(legend, loc=legend_loc)
         self.figure.subplots_adjust(left=0.17, bottom=0.15)
@@ -1546,26 +1589,11 @@ class FeedbackCalibrationController():
             logging.error("A control board must be connected in order to "
                           "perform calibration.")
             return
-
-        try:
-            self.plugin.gain(0)
-        except AmplifierGainNotCalibrated:
-            logging.warning("Amplifier not calibrated. Setting initial gain to unity.")
-            # set initial gain to 1
-            self.plugin.set_app_values(dict(amplifier_gain=dict(
-                frequency=[0],
-                gain=[1],
-            )))
             
         response = yesno("Would you like to calibrate the high voltage "
                          "attenuators? Click no to keep current values")
         if response == gtk.RESPONSE_YES:
             self.calibrate_attenuators()
-
-        response = yesno("Would you like to calibrate the amplifier gain? "
-                         "Click no to keep current values.")
-        if response == gtk.RESPONSE_YES:
-            self.calibrate_amplifier_gain()
 
         response = yesno("Would you like to calibrate the feedback resistors? "
                          "Please note that you must have an electrode covered "
