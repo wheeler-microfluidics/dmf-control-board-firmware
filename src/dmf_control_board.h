@@ -93,6 +93,8 @@ public:
   static const uint8_t CMD_SET_SERIES_RESISTANCE =          0xB0;
   static const uint8_t CMD_GET_SERIES_CAPACITANCE =         0xB1;
   static const uint8_t CMD_SET_SERIES_CAPACITANCE =         0xB2;
+  static const uint8_t CMD_GET_AMPLIFIER_GAIN =             0xB3;
+  static const uint8_t CMD_SET_AMPLIFIER_GAIN =             0xB4;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -127,6 +129,7 @@ public:
   std::string waveform();
   float waveform_frequency();
   float waveform_voltage();
+  float amplifier_gain();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -141,6 +144,7 @@ public:
                                 float resistance);
   uint8_t set_series_capacitance(const uint8_t channel,
                                  float capacitance);
+  uint8_t set_amplifier_gain(float gain);
 
   // other functions
   std::vector<float> SampleVoltage(

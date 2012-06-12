@@ -365,6 +365,22 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_GET_AMPLIFIER_GAIN:
+      if(payload_length()==0) {
+        return_code_ = RETURN_OK;
+        Serialize(&amplifier_gain_,sizeof(amplifier_gain_));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_AMPLIFIER_GAIN:
+      if(payload_length()==sizeof(float)) {
+        amplifier_gain_ = ReadFloat();
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
     case CMD_SAMPLE_VOLTAGE:
       if(payload_length()<2*sizeof(uint8_t)+3*sizeof(uint16_t)) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -697,7 +713,7 @@ void DmfControlBoard::begin() {
   SetSeriesResistor(1, 0);
   SetAdcPrescaler(4);
 
-  amplifier_gain_ = 184;
+  amplifier_gain_ = 1;
 }
 
 void DmfControlBoard::PeakExceeded() {
@@ -1120,6 +1136,27 @@ float DmfControlBoard::series_capacitance(const uint8_t channel) {
   return 0;
 }
 
+float DmfControlBoard::amplifier_gain() {
+  const char* function_name = "amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_GET_AMPLIFIER_GAIN", function_name);
+    if(payload_length()==sizeof(float)) {
+      float gain = ReadFloat();
+      sprintf(log_message_string_,
+              "amplifier_gain=%.1e",gain);
+      LogMessage(log_message_string_, function_name);
+      return gain;
+    } else {
+      LogMessage("CMD_GET_AMPLIFIER_GAIN, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
 std::string DmfControlBoard::waveform() {
   const char* function_name = "waveform()";
   LogSeparator();
@@ -1237,6 +1274,18 @@ uint8_t DmfControlBoard::set_series_capacitance(const uint8_t channel,
   if(SendCommand(CMD_SET_SERIES_CAPACITANCE)==RETURN_OK) {
     LogMessage("CMD_SET_SERIES_CAPACITANCE", function_name);
     LogMessage("series capacitance set successfully", function_name);
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_amplifier_gain(float gain) {
+  const char* function_name = "set_amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&gain,sizeof(gain));
+  if(SendCommand(CMD_SET_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_SET_AMPLIFIER_GAIN", function_name);
+    LogMessage("amplifier gain set successfully", function_name);
   }
   return return_code();
 }
