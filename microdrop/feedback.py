@@ -1636,15 +1636,6 @@ class FeedbackCalibrationController():
             dialog.destroy()
             self.process_hv_calibration(results)
 
-    def calibrate_amplifier_gain(self):
-        frequencies = self.prompt_for_frequency_range()
-        results = self.sweep_frequencies(frequencies,
-                                         input_voltage=None,
-                                         measure_with_scope=False,
-                                         autoscale_voltage=True)
-        if results:
-            self.process_hv_calibration(results)
-
     def prompt_for_frequency_range(self, title="Perform calibration"):
         form = Form.of(
             Integer.named('start_frequency').using(default=1e2, optional=True,
@@ -1700,8 +1691,7 @@ class FeedbackCalibrationController():
 
         for i, frequency in enumerate(frequencies):
             for j, voltage in enumerate(voltages):
-                gain = self.plugin.gain(frequency)
-                print "voltage/gain=", voltage/gain
+                print "voltage=", voltage/gain
                 if voltage/gain>1.4:
                     print "voltage exceeds maximum"
                     continue
@@ -1765,10 +1755,11 @@ class FeedbackCalibrationController():
                                     len(frequencies),                                    
                                     n_samples])
         
+        self.plugin.control_board.set_amplifier_gain(1.0)        
+
         for i in range(0, n_attenuation_steps):
             self.plugin.control_board.set_series_resistor_index(0,i)
             for j, frequency in enumerate(frequencies):
-                gain = self.plugin.gain(frequency)
                 emit_signal("set_voltage", input_voltage[i, j],
                             interface=IWaveformGenerator)
                 emit_signal("set_frequency", frequency,
@@ -1790,7 +1781,7 @@ class FeedbackCalibrationController():
                             logging.info("divide input voltage by 2")
                             input_voltage[i, j] /= 2
                         # maximum of waveform generator is ~4Vpp = sqrt(2) Vrms
-                        elif V_rms <.5 and input_voltage[i, j]/gain < np.sqrt(.5):
+                        elif V_rms <.5 and input_voltage[i, j] < np.sqrt(2)/2:
                             logging.info("multiply input voltage by 2")
                             input_voltage[i, j] *= 2
                         else:
@@ -2090,13 +2081,9 @@ class FeedbackCalibrationController():
             gain = voltages[i, :]/input_voltage[i, :]
             a.semilogx(frequencies, gain, 'bo')
             legend.append('Ch%d, scope' % i)
-        else:
-            # adjust the gain
-            gain = self.plugin.gain(frequencies)* \
-                hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/ \
-                input_voltage[i, :]
-        a.semilogx(frequencies, gain/gain[0], 'bo')
-        legend.append('No feedback')
+        
+        #a.semilogx(frequencies, gain/gain[0], 'bo')
+        #legend.append('No feedback')
         a.semilogx(frequencies,
                    hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/input_voltage[i, :],
                    'ro')
@@ -2106,12 +2093,6 @@ class FeedbackCalibrationController():
         a.set_title("V$_o$/V$_{in}$")
         a.legend(legend, loc="upper left")
         canvas.draw()
-
-        # adjust the amplifier gain
-        self.plugin.set_app_values(dict(amplifier_gain=dict(
-            frequency=frequencies,
-            gain=gain
-        )))
 
     def create_plot(self, title):
         win = gtk.Window()

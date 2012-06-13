@@ -133,8 +133,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
     
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = self.plugin_name + '_' + \
-                self.control_board.host_hardware_version()
+        self.name = self.plugin_name
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
         self.current_state = FeedbackOptions()
@@ -201,17 +200,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         try:
             self.control_board.connect()
             name = self.control_board.name()
-            hardware_version = self.control_board.hardware_version()
-            host_hardware_version = self.control_board.host_hardware_version()
+            hardware_version = utility.Version.fromstring(
+                self.control_board.hardware_version()
+            )
 
             if name != "Arduino DMF Controller":
                 raise Exception("Device is not an Arduino DMF Controller")
             
-            if hardware_version != host_hardware_version:
+            if hardware_version.major != 1:
                 raise Exception("The currently installed DMF control board "
-                                "plugin is designed for hardware version %s, "
+                                "plugin is designed for hardware version 1.x, "
                                 "however the connected device is version %s."
-                                % (host_hardware_version, hardware_version))
+                                % (str(hardware_version)))
             
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
