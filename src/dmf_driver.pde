@@ -27,12 +27,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 DmfControlBoard dmf_control_board;
 
-extern "C" {
-  void PeakExceededWrapper() {
-    dmf_control_board.PeakExceeded();
-  }
-}
-
 void setup() {
   dmf_control_board.begin();
   Serial.print("ram="); Serial.println(ram_size(), DEC);

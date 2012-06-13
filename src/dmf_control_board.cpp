@@ -20,44 +20,44 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdint.h>
 #include "dmf_control_board.h"
 #ifndef AVR
-using namespace std;
-#include <boost/date_time/posix_time/posix_time_types.hpp>
+  using namespace std;
+  #include <boost/date_time/posix_time/posix_time_types.hpp>
 #else
-#include "WProgram.h"
-#include <Wire.h>
-#include <SPI.h>
-#include <EEPROM.h>
-#include <math.h>
+  #include "WProgram.h"
+  #include <Wire.h>
+  #include <SPI.h>
+  #include <EEPROM.h>
+  #include <math.h>
+
+  // macros for converting hardware major/minor versions to a version string
+  #define STR_VALUE(arg) #arg
+  #define DEFINE_TO_STRING(name) STR_VALUE(name)
+  #define ___HARDWARE_VERSION___ DEFINE_TO_STRING(___HARDWARE_MAJOR_VERSION___.___HARDWARE_MINOR_VERSION___)
 #endif
 
 #ifdef AVR
-extern "C" {
-  void PeakExceededWrapper();
-}
+  const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
+                                                     68191, 90293, 105263 };
+  const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
+  const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
 
-const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
-                                                   68191, 90293, 105263 };
-const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
-const char DmfControlBoard::PROTOCOL_VERSION_[] = "0.1";
+  void printe(float number) {
+    int8_t exp = floor(log10(number));
+    Serial.print(number/pow(10, exp));
+    Serial.print("E");
+    Serial.print(exp, DEC);
+  }
 
-void printe(float number) {
-  int8_t exp = floor(log10(number));
-  Serial.print(number/pow(10, exp));
-  Serial.print("E");
-  Serial.print(exp, DEC);
-}
-
-void printlne(float number) {
-  printe(number);
-  Serial.println();
-}
-
+  void printlne(float number) {
+    printe(number);
+    Serial.println();
+  }
 #else
-const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
+  const char DmfControlBoard::CSV_INDENT_[] = ",,,,,,,,";
 #endif
+
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
-const char DmfControlBoard::HARDWARE_VERSION_[] = "1.2";
 const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control_board";
 
@@ -193,9 +193,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
-      if(payload_length()==sizeof(uint8_t)) {
-        waveform_voltage_ = ReadUint8();
-        SetPot(POT_INDEX_WAVEOUT_GAIN_2_, waveform_voltage_);
+      if(payload_length()==sizeof(float)) {
+        waveform_voltage_ = ReadFloat();
+        SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
+               waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -213,7 +214,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if(payload_length()==sizeof(float)) {
         // the frequency of the LTC6904 oscillator needs to be set to 50x
         // the fundamental frequency
-    	waveform_frequency_ = ReadFloat();
+    	  waveform_frequency_ = ReadFloat();
         float freq = waveform_frequency_*50;
         // valid frequencies are 1kHz to 68MHz
         if(freq<1e3 || freq>68e6) {
@@ -360,6 +361,22 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             return_code_ = RETURN_BAD_INDEX;
             break;
         }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_AMPLIFIER_GAIN:
+      if(payload_length()==0) {
+        return_code_ = RETURN_OK;
+        Serialize(&amplifier_gain_,sizeof(amplifier_gain_));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_AMPLIFIER_GAIN:
+      if(payload_length()==sizeof(float)) {
+        amplifier_gain_ = ReadFloat();
+        return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -516,6 +533,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 impedance_buffer[4*i+1] = -1;
               } else {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
+
+                // adjust amplifier gain
+                float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
+                float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                amplifier_gain_ =
+                    float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2/ // measured Vrms /
+                    (R/sqrt(pow(10e6+R, 2)+           // transfer function /
+                        pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
+                    (waveform_voltage_/               // (set voltage /
+                    amplifier_gain_);                 // previous gain setting)
+                // update output voltage
+                SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
+                    waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
               }
 
               // if we didn't get a valid sample during the sampling time,
@@ -540,28 +570,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         }
       }
       break;
-    case CMD_GET_PEAK_VOLTAGE:
-      if(payload_length()<sizeof(uint8_t)+sizeof(uint16_t)) {
-        return_code_ = RETURN_BAD_PACKET_SIZE;
-      } else {
-        uint8_t adc_channel = ReadUint8();
-        uint16_t sampling_time_ms = ReadUint16();
-        if(adc_channel<2) {
-          float peak;
-          uint8_t interrupt;
-          if(adc_channel==0) {
-        	interrupt = HV_PEAK_INTERRUPT_;
-          } else {
-          	interrupt = FB_PEAK_INTERRUPT_;
-          }
-          peak = GetPeakVoltage(interrupt, sampling_time_ms);
-          Serialize(&peak,sizeof(peak));
-          return_code_ = RETURN_OK;
-        } else {
-          return_code_ = RETURN_GENERAL_ERROR;
-        }
-      }
-      break;
 #endif
   }
   RemoteObject::ProcessCommand(cmd);
@@ -582,7 +590,11 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
 void DmfControlBoard::begin() {
   RemoteObject::begin();
-  analogReference(EXTERNAL);
+
+  // Versions < 1.3 use the built in 5V AREF
+  #if ____HARDWARE_MAJOR_VERSION____ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+    analogReference(EXTERNAL);
+  #endif
 
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
   pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
@@ -592,11 +604,13 @@ void DmfControlBoard::begin() {
   pinMode(WAVEFORM_SELECT_, OUTPUT);
 
   // versions > 1.1 need to pull a pin low to turn on the power supply
-  pinMode(PWR_SUPPLY_ON_, OUTPUT);
-  digitalWrite(PWR_SUPPLY_ON_, LOW);
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
+    pinMode(PWR_SUPPLY_ON_, OUTPUT);
+    digitalWrite(PWR_SUPPLY_ON_, LOW);
 
-  // wait for the power supply to turn on
-  delay(500);
+    // wait for the power supply to turn on
+    delay(500);
+  #endif
 
   Serial.begin(DmfControlBoard::BAUD_RATE);
 
@@ -644,8 +658,13 @@ void DmfControlBoard::begin() {
   Serial.println(config_settings_.version.micro, DEC);
   Serial.print("waveout_gain_1=");
   Serial.println(config_settings_.waveout_gain_1, DEC);
-  Serial.print("aref=");
-  Serial.println(config_settings_.aref, DEC);
+
+  // Versions > 1.2 use the built in 5V AREF
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+    Serial.print("aref=");
+    Serial.println(config_settings_.aref, DEC);
+  #endif
+
   Serial.print("vgnd=");
   Serial.println(config_settings_.vgnd, DEC);
   Serial.print("A0_series_resistance[0]=");
@@ -674,7 +693,11 @@ void DmfControlBoard::begin() {
   printlne(config_settings_.A1_series_capacitance[3]);
 
   // set all digital pots
-  SetPot(POT_INDEX_AREF_, config_settings_.aref);
+
+  // Versions > 1.2 use the built in 5V AREF
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+    SetPot(POT_INDEX_AREF_, config_settings_.aref);
+  #endif
   SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
   SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
   SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
@@ -682,11 +705,12 @@ void DmfControlBoard::begin() {
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
   SetAdcPrescaler(4);
+
+  amplifier_gain_ = 1;
 }
 
-void DmfControlBoard::PeakExceeded() {
-  peak_++;
-  SetPot(POT_INDEX_AREF_, peak_);
+const char* DmfControlBoard::hardware_version() {
+  return ___HARDWARE_VERSION___;
 }
 
 // send a command and some data to one of the I2C chips
@@ -809,17 +833,6 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
   return return_code;
 }
 
-float DmfControlBoard::GetPeakVoltage(const uint8_t interrupt,
-                               	   	  const uint16_t sample_time_ms) {
-  peak_ = 128;
-  SetPot(POT_INDEX_AREF_, peak_);
-  attachInterrupt(interrupt, PeakExceededWrapper, RISING);
-  delay(sample_time_ms);
-  detachInterrupt(interrupt);
-  SetPot(POT_INDEX_AREF_, 255);
-  return (float)peak_/255*5.0;
-}
-
 // update the state of all channels
 void DmfControlBoard::UpdateAllChannels() {
   // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
@@ -891,10 +904,12 @@ void DmfControlBoard::LoadConfig() {
     config_settings_.version.major = 0;
     config_settings_.version.minor = 0;
     config_settings_.version.micro = 0;
-    config_settings_.aref = 255;
+    // Versions > 1.2 use the built in 5V AREF
+    #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+      config_settings_.aref = 255;
+    #endif
     config_settings_.vgnd = 124;
     config_settings_.waveout_gain_1 = 112;
-    config_settings_.aref = 255;
     config_settings_.vgnd = 124;
     config_settings_.A0_series_resistance[0] = 8.7e4;
     config_settings_.A0_series_resistance[1] = 6.4e5;
@@ -1104,6 +1119,27 @@ float DmfControlBoard::series_capacitance(const uint8_t channel) {
   return 0;
 }
 
+float DmfControlBoard::amplifier_gain() {
+  const char* function_name = "amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_GET_AMPLIFIER_GAIN", function_name);
+    if(payload_length()==sizeof(float)) {
+      float gain = ReadFloat();
+      sprintf(log_message_string_,
+              "amplifier_gain=%.1e",gain);
+      LogMessage(log_message_string_, function_name);
+      return gain;
+    } else {
+      LogMessage("CMD_GET_AMPLIFIER_GAIN, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
 std::string DmfControlBoard::waveform() {
   const char* function_name = "waveform()";
   LogSeparator();
@@ -1143,10 +1179,10 @@ float DmfControlBoard::waveform_voltage() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_WAVEFORM_VOLTAGE)==RETURN_OK) {
     LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
-    if(payload_length()==sizeof(uint8_t)) {
-      float v_rms = (float)ReadUint8()/255.0*4.0/2*sqrt(0.5);
+    if(payload_length()==sizeof(float)) {
+      float v_rms = ReadFloat();
       std::ostringstream msg;
-      msg << "waveform_voltage=" << v_rms;
+      msg << "waveform_voltage=" << (float)v_rms;
       LogMessage(msg.str().c_str(), function_name);
       return v_rms;
     } else {
@@ -1225,6 +1261,18 @@ uint8_t DmfControlBoard::set_series_capacitance(const uint8_t channel,
   return return_code();
 }
 
+uint8_t DmfControlBoard::set_amplifier_gain(float gain) {
+  const char* function_name = "set_amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  Serialize(&gain,sizeof(gain));
+  if(SendCommand(CMD_SET_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_SET_AMPLIFIER_GAIN", function_name);
+    LogMessage("amplifier gain set successfully", function_name);
+  }
+  return return_code();
+}
+
 uint8_t DmfControlBoard::set_state_of_all_channels(const vector<uint8_t> state) {
   const char* function_name = "set_state_of_all_channels()";
   LogSeparator();
@@ -1269,22 +1317,14 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
   std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
-  // max voltage is 4 Vpk-pk (1.414 Vrms)
-  if(v_rms>=0 && v_rms<=sqrt(2)) {
-    uint8_t data = v_rms*sqrt(.5)*255;
-    Serialize(&data,sizeof(data));
-    msg << "data=" << (int)data;
-    LogMessage(msg.str().c_str(), function_name);
-    if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
-      LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
-      LogMessage("volage set successfully", function_name);
-      msg.str("");
-      msg << "set_actuation_voltage," << v_rms << ",Vrms" << endl;
-      LogExperiment(msg.str().c_str());
-    }
-  } else {
-    return_code_ = RETURN_BAD_VALUE;
-    throw runtime_error("Value out of bounds.");
+  Serialize(&v_rms,sizeof(v_rms));
+  LogMessage(msg.str().c_str(), function_name);
+  if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
+    LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
+    LogMessage("volage set successfully", function_name);
+    msg.str("");
+    msg << "set_waveform_voltage," << v_rms << ",Vrms" << endl;
+    LogExperiment(msg.str().c_str());
   }
   return return_code();
 }
@@ -1400,24 +1440,6 @@ std::vector<int16_t> DmfControlBoard::MeasureImpedance(
     return impedance_buffer;
   }
   return std::vector<int16_t>(); // return an empty vector
-}
-
-float DmfControlBoard::GetPeakVoltage(uint8_t adc_channel,
-                                      uint16_t sampling_time_ms) {
-  const char* function_name = "GetPeakVoltage()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&adc_channel,sizeof(adc_channel));
-  Serialize(&sampling_time_ms,sizeof(sampling_time_ms));
-  if(SendCommand(CMD_GET_PEAK_VOLTAGE)==RETURN_OK) {
-    if(payload_length()==sizeof(float)) {
-      return ReadFloat();
-    } else {
-      LogError("Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
 }
 
 uint8_t DmfControlBoard::SetExperimentLogFile(const char* file_name) {

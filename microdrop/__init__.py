@@ -40,8 +40,7 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import StepOptionsController, AppDataController, \
-    get_plugin_version
+from plugin_helpers import StepOptionsController, get_plugin_version
 from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
@@ -92,21 +91,13 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
+class DmfControlBoardPlugin(Plugin, StepOptionsController):
     """
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
     implements(IAmplifier)    
-
-    AppFields = Form.of(
-        Dict.named('amplifier_gain').using(optional=True,
-            properties=dict(show_in_gui=False)).of(
-                List.named('frequency').of(Float),
-                List.named('gain').of(Float),
-        ),
-    )
 
     StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
@@ -142,8 +133,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
     
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = self.plugin_name + '_' + \
-                self.control_board.host_hardware_version()
+        self.name = self.plugin_name
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
         self.current_state = FeedbackOptions()
@@ -155,7 +145,6 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
     def on_plugin_enable(self):
         if get_app().protocol:
             self.on_step_run()
-        super(DmfControlBoardPlugin, self).on_plugin_enable()
 
         if not self.initialized:
             self.feedback_options_controller = FeedbackOptionsController(self)
@@ -211,17 +200,18 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         try:
             self.control_board.connect()
             name = self.control_board.name()
-            hardware_version = self.control_board.hardware_version()
-            host_hardware_version = self.control_board.host_hardware_version()
+            hardware_version = utility.Version.fromstring(
+                self.control_board.hardware_version()
+            )
 
             if name != "Arduino DMF Controller":
                 raise Exception("Device is not an Arduino DMF Controller")
             
-            if hardware_version != host_hardware_version:
+            if hardware_version.major != 1:
                 raise Exception("The currently installed DMF control board "
-                                "plugin is designed for hardware version %s, "
+                                "plugin is designed for hardware version 1.x, "
                                 "however the connected device is version %s."
-                                % (host_hardware_version, hardware_version))
+                                % (str(hardware_version)))
             
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
@@ -460,9 +450,7 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
             voltage : RMS voltage
         """
         logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
-        gain = self.gain(self.control_board.waveform_frequency())
-        logger.info("[DmfControlBoardPlugin] voltage/gain=%.1f" % (voltage/gain))
-        self.control_board.set_waveform_voltage(voltage/gain)
+        self.control_board.set_waveform_voltage(voltage)
         
     def set_frequency(self, frequency):
         """
@@ -473,50 +461,8 @@ class DmfControlBoardPlugin(Plugin, AppDataController, StepOptionsController):
         """
         logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
 
-        # get the current voltage
-        gain = self.gain(self.control_board.waveform_frequency())
-        voltage = self.control_board.waveform_voltage()*gain
-
         # update the frequency
         self.control_board.set_waveform_frequency(frequency)
-
-        # adjust the voltage
-        self.set_voltage(voltage)
-
-    def gain(self, frequency):
-        """
-        Get the gain of an amplifier for a given frequency/frequencies.
-        
-        Parameters:
-            frequency : frequency or list of frequencies
-            
-        Returns:
-            gain or list of gain terms corresponding to the input
-        """
-        values_dict = self.get_app_values()
-        try:
-            frequencies = values_dict['amplifier_gain']['frequency']
-            gain = values_dict['amplifier_gain']['gain']
-            return np.interp(frequency,
-                             frequencies,
-                             gain)
-        except Exception:
-            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
-
-    def frequency_range(self):
-        """
-        Get the range of frequencies over which the amplifier has been
-        calibrated.
-        
-        Returns:
-            Two element list [min_frequency, max_frequency]
-        """
-        values_dict = self.get_app_values()
-        try:
-            frequencies = values_dict['amplifier_gain']['frequency']
-            return [frequencies[0], frequencies[-1]]
-        except Exception:
-            raise AmplifierGainNotCalibrated("Amplifier gain not calibrated.")
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()
