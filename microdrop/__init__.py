@@ -141,6 +141,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         self.feedback_results_controller = None
         self.feedback_calibration_controller = None
         self.initialized = False
+        self.connection_status = "Not connected"
 
     def on_plugin_enable(self):
         if get_app().protocol:
@@ -250,18 +251,23 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
 
     def update_connection_status(self):
         app = get_app()
-        connection_status = "Not connected"
         if self.control_board.connected():
             try:
                 name = self.control_board.name()
                 version = self.control_board.hardware_version()
                 firmware = self.control_board.software_version()
-                connection_status = name + " v" + version + "\n\tFirmware: " + str(firmware)
+                n_channels = self.control_board.number_of_channels()
+                self.connection_status = name + " v" + version + \
+                    " (Firmware: " + str(firmware) + ")\n" + \
+                    str(n_channels) + " channels"
             except:
                 pass
+        app.main_window_controller.label_control_board_status. \
+            set_text(self.connection_status)
 
-        app.main_window_controller.label_connection_status. \
-            set_text(connection_status)
+    def on_actuation_voltage_changed(self, voltage):
+        get_app().main_window_controller.label_control_board_status. \
+            set_text(self.connection_status + ", Voltage: %.1f V" % voltage)
 
     def get_actuated_area(self):
         area = 0
