@@ -33,6 +33,7 @@ const uint8_t RemoteObject::RETURN_NOT_CONNECTED;
 const uint8_t RemoteObject::RETURN_BAD_INDEX;
 const uint8_t RemoteObject::RETURN_BAD_PACKET_SIZE;
 const uint8_t RemoteObject::RETURN_BAD_CRC;
+const uint8_t RemoteObject::RETURN_BAD_VALUE;
 const uint8_t DmfControlBoard::SINE;
 const uint8_t DmfControlBoard::SQUARE;
 const uint16_t DmfControlBoard::EEPROM_CONFIG_SETTINGS;
@@ -105,6 +106,7 @@ object DmfControlBoard_class
     .def("series_resistance",&DmfControlBoard::series_resistance)
     .def("series_capacitance",&DmfControlBoard::series_capacitance)
     .def("amplifier_gain",&DmfControlBoard::amplifier_gain)
+    .def("auto_adjust_amplifier_gain",&DmfControlBoard::auto_adjust_amplifier_gain)
     .def("waveform",&DmfControlBoard::waveform)
     .def("waveform_voltage",&DmfControlBoard::waveform_voltage)
     .def("waveform_frequency",&DmfControlBoard::waveform_frequency)
@@ -118,6 +120,7 @@ object DmfControlBoard_class
     .def("set_series_resistance",&DmfControlBoard::set_series_resistance)
     .def("set_series_capacitance",&DmfControlBoard::set_series_capacitance)
     .def("set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
+    .def("set_auto_adjust_amplifier_gain",&DmfControlBoard::set_auto_adjust_amplifier_gain)
     .def("sample_voltage",&DmfControlBoard::SampleVoltage)
     .def("set_experiment_log_file",&DmfControlBoard::SetExperimentLogFile)
     .def("log_experiment",&DmfControlBoard::LogExperiment)
@@ -138,5 +141,6 @@ DmfControlBoard_class.attr("RETURN_NOT_CONNECTED") = DmfControlBoard::RETURN_NOT
 DmfControlBoard_class.attr("RETURN_BAD_INDEX") = DmfControlBoard::RETURN_BAD_INDEX;
 DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_BAD_PACKET_SIZE;
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
+DmfControlBoard_class.attr("RETURN_BAD_VALUE") = DmfControlBoard::RETURN_BAD_VALUE;
 DmfControlBoard_class.attr("EEPROM_CONFIG_SETTINGS") = DmfControlBoard::EEPROM_CONFIG_SETTINGS;
 }

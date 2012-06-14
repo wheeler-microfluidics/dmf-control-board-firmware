@@ -72,6 +72,10 @@ public:
     float A1_series_resistance[4];
     /**\brief Series capacitance values for channel 1.*/
     float A1_series_capacitance[4];
+
+    /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
+    adjusted based on the measured voltage from the amplifier.*/
+    float amplifier_gain;
   };
 #endif
 
@@ -105,6 +109,8 @@ public:
   static const uint8_t CMD_SET_SERIES_CAPACITANCE =         0xB2;
   static const uint8_t CMD_GET_AMPLIFIER_GAIN =             0xB3;
   static const uint8_t CMD_SET_AMPLIFIER_GAIN =             0xB4;
+  static const uint8_t CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB5;
+  static const uint8_t CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB6;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -139,6 +145,7 @@ public:
   float waveform_frequency();
   float waveform_voltage();
   float amplifier_gain();
+  bool auto_adjust_amplifier_gain();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -154,6 +161,7 @@ public:
   uint8_t set_series_capacitance(const uint8_t channel,
                                  float capacitance);
   uint8_t set_amplifier_gain(float gain);
+  uint8_t set_auto_adjust_amplifier_gain(bool on);
 
   // other functions
   std::vector<float> SampleVoltage(
@@ -276,8 +284,9 @@ private:
   float waveform_voltage_;
   float waveform_frequency_;
   float amplifier_gain_;
+  bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;
-  #else
+#else
   std::string experiment_log_file_name_;
   std::ofstream experiment_log_file_;
   boost::posix_time::ptime t_last_check_;

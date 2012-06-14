@@ -375,7 +375,42 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SET_AMPLIFIER_GAIN:
       if(payload_length()==sizeof(float)) {
-        amplifier_gain_ = ReadFloat();
+        float value = ReadFloat();
+        if(value>0) {
+          config_settings_.amplifier_gain = value;
+          SaveConfig();
+          // Reload the config so that we are using the updated value (this
+          // automatically updates amplifier_gain_ and auto_adjust_amplifier_gain_
+          // members.
+          LoadConfig();
+          return_code_ = RETURN_OK;
+        } else {
+          return_code_ = RETURN_BAD_VALUE;
+        }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN:
+      if(payload_length()==0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = config_settings_.amplifier_gain<=0;
+        Serialize(&value,sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN:
+      if(payload_length()==sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if(value>0) {
+          config_settings_.amplifier_gain = 0;
+        }
+        SaveConfig();
+        // Reload the config so that we are using the updated value (this
+        // automatically updates amplifier_gain_ and auto_adjust_amplifier_gain_
+        // members.
+        LoadConfig();
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -535,17 +570,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
 
                 // adjust amplifier gain
-                float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
-                float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
-                amplifier_gain_ =
-                    float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2/ // measured Vrms /
-                    (R/sqrt(pow(10e6+R, 2)+           // transfer function /
-                        pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
-                    (waveform_voltage_/               // (set voltage /
-                    amplifier_gain_);                 // previous gain setting)
-                // update output voltage
-                SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
-                    waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
+                if(auto_adjust_amplifier_gain_) {
+                  float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
+                  float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                  amplifier_gain_ =
+                      float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2/ // measured Vrms /
+                      (R/sqrt(pow(10e6+R, 2)+           // transfer function /
+                          pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
+                      (waveform_voltage_/               // (set voltage /
+                      amplifier_gain_);                 // previous gain setting)
+                  // update output voltage
+                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
+                      waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
+                }
               }
 
               // if we didn't get a valid sample during the sampling time,
@@ -649,6 +686,9 @@ void DmfControlBoard::begin() {
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
 
+  // default amplifier gain
+  amplifier_gain_ = 100;
+
   LoadConfig();
   Serial.print("Configuration version=");
   Serial.print(config_settings_.version.major, DEC);
@@ -691,6 +731,8 @@ void DmfControlBoard::begin() {
   printlne(config_settings_.A1_series_capacitance[2]);
   Serial.print("A1_series_capacitance[3]=");
   printlne(config_settings_.A1_series_capacitance[3]);
+  Serial.print("amplifier_gain=");
+  printlne(config_settings_.amplifier_gain);
 
   // set all digital pots
 
@@ -705,8 +747,6 @@ void DmfControlBoard::begin() {
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
   SetAdcPrescaler(4);
-
-  amplifier_gain_ = 1;
 }
 
 const char* DmfControlBoard::hardware_version() {
@@ -889,25 +929,35 @@ DmfControlBoard::version_t DmfControlBoard::ConfigVersion() {
 }
 
 void DmfControlBoard::LoadConfig() {
-  version_t config_version = ConfigVersion();
+  uint8_t* p = (uint8_t*)&config_settings_;
+  for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
+    p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
+  }
 
-  // if the configuration settings version matches what we expect, load
-  // settings from EEPROM
-  if(config_version.major==0 &&
-     config_version.minor==0 &&
-     config_version.micro==0) {
-    uint8_t* p = (uint8_t*)&config_settings_;
-    for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
-      p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
-    }
-  } else {
-    config_settings_.version.major = 0;
-    config_settings_.version.minor = 0;
-    config_settings_.version.micro = 0;
+  // Upgrade config settings if necessary
+  if(config_settings_.version.major==0 &&
+     config_settings_.version.minor==0 &&
+     config_settings_.version.micro==0) {
+      config_settings_.amplifier_gain = amplifier_gain_;
+      config_settings_.version.micro = 1;
+      SaveConfig();
+  }
+
+  // If we're not at the expected version by the end of the upgrade path,
+  // set everything to default values.
+  if(!(config_settings_.version.major==0 &&
+     config_settings_.version.minor==0 &&
+     config_settings_.version.micro==1)) {
+
+    config_settings_.version.major=0;
+    config_settings_.version.minor=0;
+    config_settings_.version.micro=1;
+
     // Versions > 1.2 use the built in 5V AREF
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
       config_settings_.aref = 255;
     #endif
+
     config_settings_.vgnd = 124;
     config_settings_.waveout_gain_1 = 112;
     config_settings_.vgnd = 124;
@@ -923,6 +973,16 @@ void DmfControlBoard::LoadConfig() {
     config_settings_.A1_series_capacitance[1] = 3.2e-10;
     config_settings_.A1_series_capacitance[2] = 3.2e-10;
     config_settings_.A1_series_capacitance[3] = 3.2e-10;
+    config_settings_.amplifier_gain = amplifier_gain_;
+  }
+
+  // An amplifier gain<=0 means that we should be doing an automatic
+  // adjustment of the gain based on measurements from the amplifier output.
+  if(config_settings_.amplifier_gain<=0) {
+    auto_adjust_amplifier_gain_ = true;
+  } else {
+    amplifier_gain_ = config_settings_.amplifier_gain;
+    auto_adjust_amplifier_gain_ = false;
   }
 }
 
@@ -1140,6 +1200,27 @@ float DmfControlBoard::amplifier_gain() {
   return 0;
 }
 
+bool DmfControlBoard::auto_adjust_amplifier_gain() {
+  const char* function_name = "auto_adjust_amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
+    if(payload_length()==sizeof(uint8_t)) {
+      uint8_t value = ReadUint8();
+      sprintf(log_message_string_,
+              "auto_adjust_amplifier_gain=%d", value);
+      LogMessage(log_message_string_, function_name);
+      return value>0;
+    } else {
+      LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, Bad packet size",
+                 function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return false;
+}
+
 std::string DmfControlBoard::waveform() {
   const char* function_name = "waveform()";
   LogSeparator();
@@ -1269,6 +1350,19 @@ uint8_t DmfControlBoard::set_amplifier_gain(float gain) {
   if(SendCommand(CMD_SET_AMPLIFIER_GAIN)==RETURN_OK) {
     LogMessage("CMD_SET_AMPLIFIER_GAIN", function_name);
     LogMessage("amplifier gain set successfully", function_name);
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_auto_adjust_amplifier_gain(bool on) {
+  const char* function_name = "set_auto_adjust_amplifier_gain()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  uint8_t value = on;
+  Serialize(&value,sizeof(value));
+  if(SendCommand(CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN)==RETURN_OK) {
+    LogMessage("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
+    LogMessage("auto adjust amplifier gain set successfully", function_name);
   }
   return return_code();
 }
