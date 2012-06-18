@@ -41,6 +41,7 @@ from path import path
 import sys
 import re
 import os
+import platform
 from itertools import chain
 
 from find_avrdude import get_arduino_paths
@@ -51,22 +52,40 @@ Import('HARDWARE_MAJOR_VERSION')
 Import('HARDWARE_MINOR_VERSION')
 
 
-pathJoin = os.path.join
-
-env = Environment()
-platform = env['PLATFORM']
-
-
 def getUsbTty(rx):
     usb_ttys = glob(rx)
     if len(usb_ttys) == 1: return usb_ttys[0]
     else: return None
 
 
+def gather_sources(source_root):
+    source_root = path(source_root)
+    return source_root.files('*.c') + source_root.files('*.cpp') +\
+                    source_root.files('*.S')
+
+
+def get_lib_candidate_list(pde_path, arduino_version):
+    '''
+    Scan the .pde file to generate a list of included libraries.
+    '''
+    # Generate list of library headers included in .pde file
+    lib_candidates = []
+    ptn_lib = re.compile(r'^[ ]*#[ ]*include [<"](.*)\.h[>"]')
+    for line in open(pde_path):
+        result = ptn_lib.findall(line)
+        if result:
+            lib_candidates += result
+
+    # Hack. In version 20 of the Arduino IDE, the Ethernet library depends
+    # implicitly on the SPI library.
+    if arduino_version >= 20 and 'Ethernet' in lib_candidates:
+        lib_candidates += ['SPI']
+    return lib_candidates
+
+
 class ArduinoBuildContext(object):
-    def __init__(self):
+    def __init__(self, build_root=None):
         AVR_BIN_PREFIX = None
-        AVRDUDE_PREFIX = None
         ARDUINO_HOME, AVRDUDE_BIN, AVRDUDE_CONF = get_arduino_paths()
         print 'found arduino path:', ARDUINO_HOME
         print 'using newest avrdude:', AVRDUDE_BIN
@@ -74,12 +93,12 @@ class ArduinoBuildContext(object):
         self.AVRDUDE_BIN = AVRDUDE_BIN
         self.AVRDUDE_CONF = AVRDUDE_CONF
 
-        if platform == 'darwin':
+        if platform.system == 'Darwin':
             # For MacOS X, pick up the AVR tools from within Arduino.app
             ARDUINO_HOME_DEFAULT = '/Applications/Arduino.app/Contents/Resources/Java'
             ARDUINO_HOME    = ARGUMENTS.get('ARDUINO_HOME', ARDUINO_HOME_DEFAULT)
             ARDUINO_PORT_DEFAULT = getUsbTty('/dev/tty.usbserial*')
-        elif platform == 'win32':
+        elif platform.system == 'Windows':
             # For Windows, use environment variables.
             #ARDUINO_PORT_DEFAULT = os.environ.get('ARDUINO_PORT')
             ARDUINO_PORT_DEFAULT = 'COM3'
@@ -87,18 +106,17 @@ class ArduinoBuildContext(object):
             # For Ubuntu Linux (9.10 or higher)
             ARDUINO_PORT_DEFAULT = getUsbTty('/dev/ttyUSB*')
             AVR_BIN_PREFIX = 'avr-'
-            AVRDUDE_PREFIX = path(ARDUINO_HOME) / path('hardware/tools/')
 
         ARDUINO_BOARD_DEFAULT = os.environ.get('ARDUINO_BOARD', 'mega2560')
 
-        ARDUINO_PORT    = ARGUMENTS.get('ARDUINO_PORT', ARDUINO_PORT_DEFAULT)
+        ARDUINO_PORT = ARGUMENTS.get('ARDUINO_PORT', ARDUINO_PORT_DEFAULT)
         self.ARDUINO_PORT = ARDUINO_PORT
-        ARDUINO_BOARD   = ARGUMENTS.get('ARDUINO_BOARD', ARDUINO_BOARD_DEFAULT)
+        ARDUINO_BOARD = ARGUMENTS.get('ARDUINO_BOARD', ARDUINO_BOARD_DEFAULT)
         self.ARDUINO_BOARD = ARDUINO_BOARD
-        ARDUINO_VER     = ARGUMENTS.get('ARDUINO_VER', 22) # Arduino 0022
-        #RST_TRIGGER     = ARGUMENTS.get('RST_TRIGGER', 'stty hupcl -F ') # use built-in pulseDTR() by default
-        RST_TRIGGER     = ARGUMENTS.get('RST_TRIGGER', None) # use built-in pulseDTR() by default
-        EXTRA_LIB       = ARGUMENTS.get('EXTRA_LIB', None) # handy for adding another arduino-lib dir
+        ARDUINO_VER = ARGUMENTS.get('ARDUINO_VER', 22) # Arduino 0022
+        #RST_TRIGGER = ARGUMENTS.get('RST_TRIGGER', 'stty hupcl -F ') # use built-in pulseDTR() by default
+        RST_TRIGGER = ARGUMENTS.get('RST_TRIGGER', None) # use built-in pulseDTR() by default
+        EXTRA_LIB = ARGUMENTS.get('EXTRA_LIB', None) # handy for adding another arduino-lib dir
 
         print 'ARDUINO_PORT:', ARDUINO_PORT
 
@@ -106,21 +124,24 @@ class ArduinoBuildContext(object):
             print 'ARDUINO_HOME must be defined.'
             raise KeyError('ARDUINO_HOME')
 
-        ARDUINO_CORE = pathJoin(ARDUINO_HOME, 'hardware/arduino/cores/arduino')
+        ARDUINO_CORE = path(ARDUINO_HOME).joinpath('hardware', 'arduino',
+                'cores', 'arduino')
         self.ARDUINO_VER = ARDUINO_VER
         self.ARDUINO_CORE = ARDUINO_CORE
-        ARDUINO_SKEL = pathJoin(ARDUINO_CORE, 'main.cpp')
+        ARDUINO_SKEL = path(ARDUINO_CORE).joinpath('main.cpp')
         self.ARDUINO_SKEL = ARDUINO_SKEL
-        ARDUINO_CONF = pathJoin(ARDUINO_HOME, 'hardware/arduino/boards.txt')
+        ARDUINO_CONF = path(ARDUINO_HOME).joinpath('hardware', 'arduino',
+                'boards.txt')
 
         # Some OSs need bundle with IDE tool-chain
         if platform == 'darwin' or platform == 'win32': 
-            AVR_BIN_PREFIX = pathJoin(ARDUINO_HOME, 'hardware/tools/avr/bin', 'avr-')
+            AVR_BIN_PREFIX = path(ARDUINO_HOME).joinpath('hardware', 'tools',
+                    'avr', 'bin', 'avr-')
 
         ARDUINO_LIBS = []
         if EXTRA_LIB != None:
             ARDUINO_LIBS += [EXTRA_LIB]
-        ARDUINO_LIBS += [pathJoin(ARDUINO_HOME, 'libraries'), ]
+        ARDUINO_LIBS += [path(ARDUINO_HOME).joinpath('libraries'), ]
         self.ARDUINO_LIBS = ARDUINO_LIBS
 
         # check given board name, ARDUINO_BOARD is valid one
@@ -165,6 +186,11 @@ class ArduinoBuildContext(object):
         self.pde_path = pde_path
 
         self.AVR_BIN_PREFIX = AVR_BIN_PREFIX
+        if build_root is None:
+            self.build_root = path('build')
+        else:
+            self.build_root = path(build_root)
+        self.core_root = self.build_root.joinpath('core')
 
     def get_board_conf(self, pattern_string):
         cre_board_config = re.compile(pattern_string)
@@ -174,19 +200,35 @@ class ArduinoBuildContext(object):
                 return result[0]
         assert(False)
 
-    def get_env(self):
+    def get_env(self, **kwargs):
         cFlags = ['-ffunction-sections', '-fdata-sections', '-fno-exceptions',
                 '-funsigned-char', '-funsigned-bitfields', '-fpack-struct',
                         '-fshort-enums', '-Os', '-mmcu=%s' % self.MCU]
-        envArduino = Environment(CC='"%s"' % (self.AVR_BIN_PREFIX + 'gcc'),
+        env_defaults = dict(CC='"%s"' % (self.AVR_BIN_PREFIX + 'gcc'),
                 CXX='"%s"' % (self.AVR_BIN_PREFIX + 'g++'),
-                CPPPATH=['build/core'], CPPDEFINES={'F_CPU': self.F_CPU,
-                        'ARDUINO': self.ARDUINO_VER, 'AVR': None,
-                        '___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION,
-                        '___HARDWARE_MAJOR_VERSION___': HARDWARE_MAJOR_VERSION,
-                        '___HARDWARE_MINOR_VERSION___': HARDWARE_MINOR_VERSION},
+                CPPPATH=[self.core_root], CPPDEFINES={'F_CPU': self.F_CPU,
+                        'ARDUINO': self.ARDUINO_VER, 'AVR': None, },
                 CFLAGS=cFlags + ['-std=gnu99'], CCFLAGS=cFlags,
                 TOOLS=['gcc','g++'])
+        for k, v in kwargs.iteritems():
+            print 'processing kwarg: %s->%s' % (k, v)
+            if k in env_defaults and isinstance(env_defaults[k], dict)\
+                    and isinstance(v, dict):
+                env_defaults[k].update(v)
+                print '  update dict'
+            elif k in env_defaults and isinstance(env_defaults[k], list):
+                env_defaults[k].append(v)
+                print '  append to list'
+            else:
+                env_defaults[k] = v
+                print '  set value'
+        print 'kwargs:', kwargs
+        print 'env_defaults:', env_defaults
+        envArduino = Environment(**env_defaults)
+        # Add Arduino Processing, Elf, and Hex builders to environment
+        for builder_name in ['Processing', 'Elf', 'Hex']:
+            envArduino.Append(BUILDERS={builder_name: getattr(self,
+                    'get_%s_builder' % builder_name.lower())()})
         return envArduino
 
     def get_processing_builder(self):
@@ -210,139 +252,139 @@ class ArduinoBuildContext(object):
         return Builder(action='"%s"' % (self.AVR_BIN_PREFIX + 'objcopy') +\
                 ' -O ihex -R .eeprom $SOURCES $TARGET')
 
+    def get_avrdude_options(self):
+        UPLOAD_PROTOCOL = self.get_board_conf(r'^%s\.upload\.protocol=(.*)' % (
+                self.ARDUINO_BOARD))
+        UPLOAD_SPEED = self.get_board_conf(r'^%s\.upload\.speed=(.*)' % (
+                self.ARDUINO_BOARD))
 
-context = ArduinoBuildContext()
+        avrdudeOpts = ['-V', '-F', '-c %s' % UPLOAD_PROTOCOL, '-b %s' % UPLOAD_SPEED,
+            '-p %s' % self.MCU, '-P %s' % self.ARDUINO_PORT, '-U flash:w:$SOURCES']
 
-envArduino = context.get_env()
+        if self.AVRDUDE_CONF:
+            avrdudeOpts += ['-C "%s"' % self.AVRDUDE_CONF]
+        return avrdudeOpts
 
-# Add Arduino Processing, Elf, and Hex builders to environment
-for builder_name in ['Processing', 'Elf', 'Hex']:
-    envArduino.Append(BUILDERS={builder_name: getattr(context,
-            'get_%s_builder' % builder_name.lower())()})
+    def get_core_sources(self):
+        # Generate list of Arduino core source files
+        core_sources = gather_sources(self.ARDUINO_CORE)
+        core_sources = [x for x in core_sources
+                if not (x.name == 'main.cpp')]
+        core_sources = [x.replace(self.ARDUINO_CORE, self.core_root)
+                for x in core_sources]
+        return core_sources
+
+    def get_lib_candidate_list(self, arduino_version):
+        return get_lib_candidate_list(self.pde_path, arduino_version)
+
+    def get_lib_sources(self, lib_candidates, arduino_libs, env):
+        '''
+        Add VariantDir references for all libraries in lib_candidates to the
+        corresponding paths in arduino_libs.
+        
+        Return the combined list of source files for all libraries, relative
+        to the respective VariantDir.
+        '''
+        all_libs_sources = []
+        all_lib_names = set()
+        index = 0
+        for orig_lib_dir in arduino_libs:
+            lib_sources = []
+            lib_dir = self.build_root.joinpath('lib_%02d' % index)
+            print 'build_root: %s' % self.build_root
+            env.VariantDir(lib_dir, orig_lib_dir)
+            for libPath in path(orig_lib_dir).dirs():
+                libName = libPath.name
+                if not libName in lib_candidates:
+                    # This library is not included in the .pde file, so skip it
+                    continue
+                elif libName in all_lib_names:
+                    # This library has already been processed, so skip it
+                    continue
+                all_lib_names.add(libName)
+                env.Append(CPPPATH=libPath.replace(orig_lib_dir, lib_dir))
+                lib_sources = gather_sources(libPath)
+                utilDir = path(libPath).joinpath('utility')
+                if os.path.exists(utilDir) and os.path.isdir(utilDir):
+                    lib_sources += gather_sources(utilDir)
+                    env.Append(CPPPATH=utilDir.replace(orig_lib_dir, lib_dir))
+                lib_sources = [x.replace(orig_lib_dir, lib_dir) for x in lib_sources]
+                all_libs_sources += lib_sources
+            index += 1
+        return all_libs_sources
+
+    def build(self, hex_root=None, env_dict=None, extra_sources=None):
+        if hex_root is None:
+            hex_root = self.build_root.joinpath('hex')
+        else:
+            hex_root = path(hex_root)
+            if not hex_root.isabs():
+                hex_root = self.build_root.joinpath(hex_root)
+        hex_path = hex_root.joinpath(self.TARGET + '.hex')
+
+        if env_dict is None:
+            env_dict = {}
+        env = context.get_env(**env_dict)
+        print env['CPPDEFINES']
+
+        # Convert sketch(.pde) to cpp
+        env.Processing(hex_root.joinpath(self.TARGET+'.cpp'), hex_root.joinpath(
+                self.pde_path))
+
+        sources = [hex_root.joinpath(self.TARGET+'.cpp')]
+        sources += self.get_lib_sources(self.get_lib_candidate_list(
+                self.ARDUINO_VER), self.ARDUINO_LIBS, env)
+        sources += self.get_core_sources()
+        if extra_sources:
+            sources += [hex_root.joinpath(s) for s in extra_sources]
+
+        # Finally Build!!
+        objs = env.Object(sources) #, LIBS=libs, LIBPATH='.')
+        #objs_1 = env.Object(sources, CPPDEFINES={'___HARDWARE_MINOR_VERSION___': 1})
+        elf_path = hex_root.joinpath(self.TARGET + '.elf')
+        env.Elf(elf_path, objs)
+        arduino_hex = env.Hex(hex_path, hex_root.joinpath(self.TARGET + '.elf'))
+
+        # Print Size
+        # TODO: check binary size
+        MAX_SIZE = self.get_board_conf(
+                r'^%s\.upload.maximum_size=(.*)' % self.ARDUINO_BOARD)
+        print ("maximum size for hex file: %s bytes" % MAX_SIZE)
+        env.Command(None, hex_path, '"%s"' % (self.AVR_BIN_PREFIX + 'size'
+                ) + ' --target=ihex $SOURCE')
+
+        fuse_cmd = '"%s" %s' % (self.AVRDUDE_BIN, ' '.join(
+                self.get_avrdude_options()))
+
+        upload = env.Alias('upload', hex_path, [fuse_cmd]);
+        AlwaysBuild(upload)
+
+        # Clean build directory
+        env.Clean('all', 'build/')
+
+        env.VariantDir(self.core_root, self.ARDUINO_CORE)
+        env.VariantDir(hex_root, '.')
+        return arduino_hex
 
 
-def gatherSources(source_root):
-    return glob(pathJoin(source_root, '*.c')) +\
-            glob(pathJoin(source_root, '*.cpp'))+\
-                    glob(pathJoin(source_root, '*.S'))
-
-
-# Generate list of Arduino core source files
-core_sources = gatherSources(context.ARDUINO_CORE)
-core_sources = [x for x in core_sources
-        if not (os.path.basename(x) == 'main.cpp')]
-core_sources = [x.replace(context.ARDUINO_CORE, 'build/core/')
-        for x in core_sources]
-
-VariantDir('build/core', context.ARDUINO_CORE)
-
-def get_lib_candidate_list(pde_path, arduino_version):
-    '''
-    Scan the .pde file to generate a list of included libraries.
-    '''
-    # Generate list of library headers included in .pde file
-    libCandidates = []
-    ptnLib = re.compile(r'^[ ]*#[ ]*include [<"](.*)\.h[>"]')
-    for line in open(pde_path):
-        result = ptnLib.findall(line)
-        if result:
-            libCandidates += result
-
-    # Hack. In version 20 of the Arduino IDE, the Ethernet library depends
-    # implicitly on the SPI library.
-    if arduino_version >= 20 and 'Ethernet' in libCandidates:
-        libCandidates += ['SPI']
-    return libCandidates
-
-
-def get_lib_sources(libCandidates, arduino_libs):
-    '''
-    Add VariantDir references for all libraries in libCandidates to the
-    corresponding paths in arduino_libs.
-    
-    Return the combined list of source files for all libraries, relative
-    to the respective VariantDir.
-    '''
-    all_libs_sources = []
-    all_lib_names = set()
-    index = 0
-    for orig_lib_dir in arduino_libs:
-        lib_sources = []
-        lib_dir = 'build/lib_%02d' % index
-        VariantDir(lib_dir, orig_lib_dir)
-        for libPath in path(orig_lib_dir).dirs():
-            libName = libPath.name
-            if not libName in libCandidates:
-                # This library is not included in the .pde file, so skip it
-                continue
-            elif libName in all_lib_names:
-                # This library has already been processed, so skip it
-                continue
-            all_lib_names.add(libName)
-            envArduino.Append(CPPPATH=libPath.replace(orig_lib_dir, lib_dir))
-            lib_sources = gatherSources(libPath)
-            utilDir = pathJoin(libPath, 'utility')
-            if os.path.exists(utilDir) and os.path.isdir(utilDir):
-                lib_sources += gatherSources(utilDir)
-                envArduino.Append(CPPPATH=utilDir.replace(orig_lib_dir, lib_dir))
-            lib_sources = [x.replace(orig_lib_dir, lib_dir) for x in lib_sources]
-            all_libs_sources += lib_sources
-        index += 1
-    return all_libs_sources
-
-
-hex_root = path('build').joinpath('hex')
-VariantDir(hex_root, '.')
-hex_path = hex_root.joinpath(context.TARGET + '.hex')
-
-# Convert sketch(.pde) to cpp
-envArduino.Processing(hex_root.joinpath(context.TARGET+'.cpp'),
-        hex_root.joinpath(context.pde_path))
-
-sources = [hex_root.joinpath(context.TARGET+'.cpp')]
-sources += get_lib_sources(get_lib_candidate_list(context.pde_path,
-        context.ARDUINO_VER), context.ARDUINO_LIBS)
-sources += core_sources
+minor_versions = range(4)
 hybrid_sources = re.split(r'\s+', 'dmf_control_board.cpp RemoteObject.cpp')
 print hybrid_sources
-sources += [hex_root.joinpath(s) for s in hybrid_sources]
-# Add raw sources which live in sketch dir.
-# sources += gatherSources('.')
 
-# Finally Build!!
-objs = envArduino.Object(sources) #, LIBS=libs, LIBPATH='.')
-#objs_1 = envArduino.Object(sources, CPPDEFINES={'___HARDWARE_MINOR_VERSION___': 1})
-envArduino.Elf(context.TARGET+'.elf', objs)
-arduino_hex = envArduino.Hex(hex_path,
-        hex_root.joinpath(context.TARGET+'.elf'))
+arduino_hexes = {}
+for version in minor_versions:
+    version_str = '%s_%s' % (HARDWARE_MAJOR_VERSION, version)
+    context = ArduinoBuildContext('../build/arduino__%s' % version_str)
+    arduino_hex = context.build(env_dict={'CPPDEFINES': {
+            '___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION,
+            '___HARDWARE_MAJOR_VERSION___': HARDWARE_MAJOR_VERSION,
+            '___HARDWARE_MINOR_VERSION___': version}}, 
+            extra_sources=hybrid_sources)
+    arduino_hexes[version_str] = arduino_hex
+
+arduino_hex = sorted([(k, v) for k, v in arduino_hexes.items()])[-1][1]
+
 Export('arduino_hex')
-
-# Print Size
-# TODO: check binary size
-#MAX_SIZE = context.get_board_conf(
-        #r'^%s\.upload.maximum_size=(.*)' % ARDUINO_BOARD)
-#print ("maximum size for hex file: %s bytes" % MAX_SIZE)
-envArduino.Command(None, hex_path, '"%s"' % (context.AVR_BIN_PREFIX + 'size'
-        ) + ' --target=ihex $SOURCE')
-
-# Upload
-UPLOAD_PROTOCOL = context.get_board_conf(r'^%s\.upload\.protocol=(.*)' % (
-        context.ARDUINO_BOARD))
-UPLOAD_SPEED = context.get_board_conf(r'^%s\.upload\.speed=(.*)' % (
-        context.ARDUINO_BOARD))
-
-avrdudeOpts = ['-V', '-F', '-c %s' % UPLOAD_PROTOCOL, '-b %s' % UPLOAD_SPEED,
-    '-p %s' % context.MCU, '-P %s' % context.ARDUINO_PORT, '-U flash:w:$SOURCES']
-if context.AVRDUDE_CONF:
-    avrdudeOpts += ['-C "%s"' % context.AVRDUDE_CONF]
-
-fuse_cmd = '"%s" %s'%(context.AVRDUDE_BIN, ' '.join(avrdudeOpts))
-
-#upload = envArduino.Alias('upload', TARGET+'.hex', [reset_cmd, fuse_cmd]);
-upload = envArduino.Alias('upload', hex_path, [fuse_cmd]);
-AlwaysBuild(upload)
-
-# Clean build directory
-envArduino.Clean('all', 'build/')
+Export('arduino_hexes')
 
 # vim: et sw=4 fenc=utf-8:
