@@ -217,35 +217,40 @@ for orig_lib_dir in ARDUINO_LIBS:
         utilDir = pathJoin(libPath, 'utility')
         if os.path.exists(utilDir) and os.path.isdir(utilDir):
             lib_sources += gatherSources(utilDir)
-            envArduino.Append(CPPPATH = utilDir.replace(orig_lib_dir, lib_dir))
+            envArduino.Append(CPPPATH=utilDir.replace(orig_lib_dir, lib_dir))
         lib_sources = map(lambda x: x.replace(orig_lib_dir, lib_dir), lib_sources)
         all_libs_sources += lib_sources
     index += 1
 
 # Convert sketch(.pde) to cpp
-envArduino.Processing('build/'+TARGET+'.cpp', 'build/'+TARGET+'.pde')
-VariantDir('build', '.')
+hex_root = path('build').joinpath('hex')
+hex_path = hex_root.joinpath(TARGET + '.hex')
+envArduino.Processing(hex_root.joinpath(TARGET+'.cpp'),
+        hex_root.joinpath(TARGET+'.pde'))
+VariantDir(hex_root, '.')
 
-sources = ['build/'+TARGET+'.cpp']
+sources = [hex_root.joinpath(TARGET+'.cpp')]
 sources += all_libs_sources
 sources += core_sources
-hybrid_sources = re.split(r'\s+', 'dmf_control_board.cpp  RemoteObject.cpp')
+hybrid_sources = re.split(r'\s+', 'dmf_control_board.cpp RemoteObject.cpp')
 print hybrid_sources
-sources += hybrid_sources
+sources += [hex_root.joinpath(s) for s in hybrid_sources]
 # Add raw sources which live in sketch dir.
 # sources += gatherSources('.')
 
 # Finally Build!!
 objs = envArduino.Object(sources) #, LIBS=libs, LIBPATH='.')
+#objs_1 = envArduino.Object(sources, CPPDEFINES={'___HARDWARE_MINOR_VERSION___': 1})
 envArduino.Elf(TARGET+'.elf', objs)
-arduino_hex = envArduino.Hex(TARGET+'.hex', TARGET+'.elf')
+arduino_hex = envArduino.Hex(hex_path,
+        hex_root.joinpath(TARGET+'.elf'))
 Export('arduino_hex')
 
 # Print Size
 # TODO: check binary size
 MAX_SIZE = getBoardConf(r'^%s\.upload.maximum_size=(.*)'%ARDUINO_BOARD)
 print ("maximum size for hex file: %s bytes"%MAX_SIZE)
-envArduino.Command(None, TARGET+'.hex', '"%s"' % (AVR_BIN_PREFIX + 'size') + ' --target=ihex $SOURCE')
+envArduino.Command(None, hex_path, '"%s"' % (AVR_BIN_PREFIX + 'size') + ' --target=ihex $SOURCE')
 
 # Reset
 def pulseDTR(target, source, env):
@@ -275,7 +280,7 @@ if AVRDUDE_CONF:
 fuse_cmd = '"%s" %s'%(AVRDUDE_BIN, ' '.join(avrdudeOpts))
 
 #upload = envArduino.Alias('upload', TARGET+'.hex', [reset_cmd, fuse_cmd]);
-upload = envArduino.Alias('upload', TARGET+'.hex', [fuse_cmd]);
+upload = envArduino.Alias('upload', hex_path, [fuse_cmd]);
 AlwaysBuild(upload)
 
 # Clean build directory

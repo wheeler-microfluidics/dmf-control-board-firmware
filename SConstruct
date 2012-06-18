@@ -94,7 +94,8 @@ if os.name == 'nt':
         extra_files.append(lib.name)
 
     # Build Arduino binaries
-    SConscript('src/SConscript.arduino')
+    VariantDir('build/arduino', 'src', duplicate=0)
+    SConscript('build/arduino/SConscript.arduino')
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
                     'libboost_thread-mt.so',
