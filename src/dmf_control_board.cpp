@@ -592,7 +592,7 @@ void DmfControlBoard::begin() {
   RemoteObject::begin();
 
   // Versions < 1.3 use the built in 5V AREF
-  #if ____HARDWARE_MAJOR_VERSION____ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
     analogReference(EXTERNAL);
   #endif
 
