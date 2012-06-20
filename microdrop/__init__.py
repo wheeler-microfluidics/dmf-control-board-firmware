@@ -233,7 +233,15 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
     def on_flash_firmware(self, widget=None, data=None):
         app = get_app()
         try:
-            self.control_board.flash_firmware()
+            connected = self.control_board.connected()
+            if not connected:
+                self.control_board.connect()
+            hardware_version = utility.Version.fromstring(
+                self.control_board.hardware_version()
+            )
+            if not connected:
+                self.control_board.disconnect()
+            self.control_board.flash_firmware(hardware_version)
             app.main_window_controller.info("Firmware updated successfully.",
                                             "Firmware update")
         except Exception, why:

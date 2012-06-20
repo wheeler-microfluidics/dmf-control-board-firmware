@@ -224,19 +224,22 @@ class DmfControlBoard(Base, SerialDevice):
                 logger.warning('On port %s, %s' % (port, why))
         return False
     
-    def flash_firmware(self):
+    def flash_firmware(self, hardware_version):
         logger.info("[DmfControlBoard].flash_firmware()")
-        reconnect = self.connected()  
+        reconnect = self.connected()
         if reconnect:
             self.disconnect()
         try:
-            hex_path = package_path() / path("dmf_driver.hex")
+            hex_path = package_path().joinpath('firmware', '%s_%s' % (
+                    hardware_version.major, hardware_version.minor),
+                            'dmf_driver.hex')
             logger.info("hex_path=%s" % hex_path)
 
             logger.info("initializing avrdude")
             avrdude = AvrDude(self.port)
 
-            logger.info("flashing firmware")
+            logger.info("flashing firmware: hardware version %s" % (
+                    hardware_version))
             stdout, stderr = avrdude.flash(hex_path.abspath())
 
             if stdout:

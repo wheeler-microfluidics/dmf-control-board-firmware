@@ -94,7 +94,8 @@ if os.name == 'nt':
         extra_files.append(lib.name)
 
     # Build Arduino binaries
-    SConscript('src/SConscript.arduino')
+    VariantDir('build/arduino', 'src', duplicate=0)
+    SConscript('build/arduino/SConscript.arduino')
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
                     'libboost_thread-mt.so',
@@ -113,8 +114,13 @@ else:
     SConscript('src/SConscript.arduino')
 
 Import('arduino_hex')
+Import('arduino_hexes')
 Import('pyext')
-package_hex = Install('.', arduino_hex)
+#package_hex = Install('.', arduino_hex)
+package_hexes = []
+for k, v in arduino_hexes.iteritems():
+    firmware_path = path('firmware').joinpath(k)
+    package_hexes.append(env.Install(firmware_path, v)[0])
 package_pyext = Install('.', pyext)
 
 # Build documentation
@@ -141,7 +147,7 @@ archive_name = '%s-%s.tar.gz' % (properties['name'], SOFTWARE_VERSION)
 tar = tar_env.DistTar('%s' % properties['name'], [tar_env.Dir('#')])
 renamed_tar = tar_env.Command(tar_env.File(archive_name), None,
         Move(archive_name, tar[0]))
-Depends(tar, [package_hex, package_pyext, version_target] + extra_files)
+Depends(tar, package_hexes + [package_pyext, version_target] + extra_files)
 Depends(renamed_tar, tar)
 Clean(renamed_tar, tar)
 

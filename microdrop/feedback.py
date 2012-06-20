@@ -228,7 +228,7 @@ class FeedbackOptionsController():
             
             self.measure_cap_menu_item = gtk.MenuItem(
                     "Measure device capacitance")
-            app.dmf_device_controller.view.popup.append(
+            app.dmf_device_controller.view.popup.add_item(
                     self.measure_cap_menu_item)
             self.measure_cap_menu_item.connect("activate",
                     self.on_measure_device_capacitance)
