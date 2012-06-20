@@ -91,12 +91,12 @@ class ArduinoBuildContext(object):
         self.AVRDUDE_BIN = AVRDUDE_BIN
         self.AVRDUDE_CONF = AVRDUDE_CONF
 
-        if platform.system == 'Darwin':
+        if platform.system() == 'Darwin':
             # For MacOS X, pick up the AVR tools from within Arduino.app
             ARDUINO_HOME_DEFAULT = '/Applications/Arduino.app/Contents/Resources/Java'
             ARDUINO_HOME = scons_arguments.get('ARDUINO_HOME', ARDUINO_HOME_DEFAULT)
             ARDUINO_PORT_DEFAULT = getUsbTty('/dev/tty.usbserial*')
-        elif platform.system == 'Windows':
+        elif platform.system() == 'Windows':
             # For Windows, use environment variables.
             #ARDUINO_PORT_DEFAULT = os.environ.get('ARDUINO_PORT')
             ARDUINO_PORT_DEFAULT = 'COM3'
@@ -132,7 +132,7 @@ class ArduinoBuildContext(object):
                 'boards.txt')
 
         # Some OSs need bundle with IDE tool-chain
-        if platform == 'darwin' or platform == 'win32': 
+        if platform.system() == 'Darwin' or platform.system() == 'Windows':
             AVR_BIN_PREFIX = path(ARDUINO_HOME).joinpath('hardware', 'tools',
                     'avr', 'bin', 'avr-')
 

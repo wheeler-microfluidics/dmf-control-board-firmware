@@ -102,9 +102,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
     StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
-        Integer.named('voltage').using(default=100, optional=True,
+        Float.named('voltage').using(default=100, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
-        Integer.named('frequency').using(default=1e3, optional=True,
+        Float.named('frequency').using(default=1e3, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
         Boolean.named('feedback_enabled').using(default=False, optional=True),
         Integer.named('sampling_time_ms').using(default=10, optional=True,
@@ -428,6 +428,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                 gtk.main_iteration()
         return thread.results
 
+    #def on_protocol_run(self, start_time):
     def on_protocol_run(self):
         """
         Handler called when a protocol starts running.
