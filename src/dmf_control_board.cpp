@@ -591,7 +591,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 void DmfControlBoard::begin() {
   RemoteObject::begin();
 
-  // Versions < 1.3 use the built in 5V AREF
+  // Versions > 1.2 use the built in 5V AREF (default)
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
     analogReference(EXTERNAL);
   #endif
