@@ -311,7 +311,7 @@ class ArduinoBuildContext(object):
             index += 1
         return all_libs_sources
 
-    def build(self, hex_root=None, env_dict=None, extra_sources=None):
+    def build(self, hex_root=None, env_dict=None, extra_sources=None, register_upload=False):
         if hex_root is None:
             hex_root = self.build_root.joinpath('hex')
         else:
@@ -351,11 +351,12 @@ class ArduinoBuildContext(object):
         env.Command(None, hex_path, '"%s"' % (self.AVR_BIN_PREFIX + 'size'
                 ) + ' --target=ihex $SOURCE')
 
-        fuse_cmd = '"%s" %s' % (self.AVRDUDE_BIN, ' '.join(
-                self.get_avrdude_options()))
+        if register_upload:
+            fuse_cmd = '"%s" %s' % (self.AVRDUDE_BIN, ' '.join(
+                    self.get_avrdude_options()))
 
-        upload = env.Alias('upload', hex_path, [fuse_cmd]);
-        env.AlwaysBuild(upload)
+            upload = env.Alias('upload', hex_path, [fuse_cmd]);
+            env.AlwaysBuild(upload)
 
         # Clean build directory
         env.Clean('all', 'build/')
