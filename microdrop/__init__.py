@@ -45,7 +45,7 @@ from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
 from app_context import get_app
-from utility.gui import yesno
+from utility.gui import yesno, FormViewDialog
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
@@ -161,15 +161,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             self.control_board_menu = gtk.Menu()
             self.control_board_menu.show()
             self.control_board_menu_item.set_submenu(self.control_board_menu)
-            menu_item = gtk.MenuItem("Flash firmware")
-            menu_item.connect("activate", self.on_flash_firmware)
-            menu_item.show()
-            self.control_board_menu.append(menu_item)
+
+            self.feedback_options_controller.on_plugin_enable()
             
             menu_item = gtk.MenuItem("Perform calibration")
             menu_item.connect("activate",
                 self.feedback_calibration_controller.on_perform_calibration)
             self.control_board_menu.append(menu_item)
+            self.perform_calibration_menu_item = menu_item
             menu_item.show()
             
             menu_item = gtk.MenuItem("Load calibration from file")
@@ -177,10 +176,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                               self.feedback_calibration_controller. \
                                   on_load_calibration_from_file)
             self.control_board_menu.append(menu_item)
+            self.load_calibration_from_file_menu_item = menu_item
             menu_item.show()
+                        
+            menu_item = gtk.MenuItem("Edit calibration settings")
+            menu_item.connect("activate",
+                              self.on_edit_calibration_settings)
+            self.control_board_menu.append(menu_item)
+            self.edit_calibration_settings_menu_item = menu_item
+            menu_item.show()
+                        
             self.initialized = True
 
-        self.feedback_options_controller.on_plugin_enable()
         self.control_board_menu_item.show()
         self.check_device_name_and_version()
         
@@ -249,9 +256,63 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
 
+    def on_edit_calibration_settings(self, widget=None, data=None):
+        if not self.control_board.connected():
+            logging.error("A control board must be connected in order to "
+                          "edit calibration settings.")
+            return
+
+        schema_entries = []
+        settings = {}
+        settings['amplifier_gain'] = self.control_board.amplifier_gain()
+        schema_entries.append(
+            Float.named('amplifier_gain').using(
+                default=settings['amplifier_gain'],
+                optional=True, validators=[ValueAtLeast(minimum=1), ]),
+        )
+        settings['auto_adjust_amplifier_gain'] = self.control_board \
+            .auto_adjust_amplifier_gain()
+        schema_entries.append(
+            Boolean.named('auto_adjust_amplifier_gain').using(
+                default=settings['auto_adjust_amplifier_gain'], optional=True),
+        )
+        settings['WAVEOUT_GAIN_1'] = self.control_board \
+            .eeprom_read(self.control_board.EEPROM_WAVEOUT_GAIN_1_ADDRESS)
+        schema_entries.append(
+            Integer.named('WAVEOUT_GAIN_1').using(
+                default=settings['WAVEOUT_GAIN_1'], optional=True,
+                validators=[ValueAtLeast(minimum=0),
+                            ValueAtMost(maximum=255),]),
+        )
+        settings['VGND'] = self.control_board \
+            .eeprom_read(self.control_board.EEPROM_VGND_ADDRESS)
+        schema_entries.append(
+            Integer.named('VGND').using(
+                default=settings['VGND'], optional=True,
+                validators=[ValueAtLeast(minimum=0),
+                            ValueAtMost(maximum=255),]),
+        )
+        form = Form.of(*schema_entries)
+        dialog = FormViewDialog('Edit calibration settings')
+        valid, response =  dialog.run(form)
+        if valid:
+            for k, v in response.items():
+                if settings[k] != v:
+                    if k=='amplifier_gain':
+                        self.control_board.set_amplifier_gain(v)
+                    elif k=='auto_adjust_amplifier_gain':
+                        self.control_board.set_auto_adjust_amplifier_gain(v)
+                    elif k=='WAVEOUT_GAIN_1':
+                        self.control_board.eeprom_write(
+                            self.control_board.EEPROM_WAVEOUT_GAIN_1_ADDRESS, v)
+                    elif k=='VGND':
+                        self.control_board.eeprom_write(
+                            self.control_board.EEPROM_VGND_ADDRESS, v)
+
     def update_connection_status(self):
         app = get_app()
-        if self.control_board.connected():
+        connected = self.control_board.connected()
+        if connected:
             try:
                 name = self.control_board.name()
                 version = self.control_board.hardware_version()
@@ -262,6 +323,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                     str(n_channels) + " channels"
             except:
                 pass
+        self.perform_calibration_menu_item.set_sensitive(connected)
+        self.load_calibration_from_file_menu_item.set_sensitive(connected)
+        self.edit_calibration_settings_menu_item.set_sensitive(connected)
         app.main_window_controller.label_control_board_status. \
             set_text(self.connection_status)
 
@@ -434,7 +498,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                 gtk.main_iteration()
         return thread.results
 
-    #def on_protocol_run(self, start_time):
     def on_protocol_run(self):
         """
         Handler called when a protocol starts running.

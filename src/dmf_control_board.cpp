@@ -377,12 +377,16 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if(payload_length()==sizeof(float)) {
         float value = ReadFloat();
         if(value>0) {
-          config_settings_.amplifier_gain = value;
-          SaveConfig();
-          // Reload the config so that we are using the updated value (this
-          // automatically updates amplifier_gain_ and auto_adjust_amplifier_gain_
-          // members.
-          LoadConfig();
+          if(auto_adjust_amplifier_gain_) {
+            amplifier_gain_ = value;
+          } else {
+            config_settings_.amplifier_gain = value;
+            SaveConfig();
+            // Reload the config so that we are using the updated value (this
+            // automatically updates amplifier_gain_ and auto_adjust_amplifier_gain_
+            // members.
+            LoadConfig();
+          }
           return_code_ = RETURN_OK;
         } else {
           return_code_ = RETURN_BAD_VALUE;
@@ -405,6 +409,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint8_t value = ReadUint8();
         if(value>0) {
           config_settings_.amplifier_gain = 0;
+        } else {
+          config_settings_.amplifier_gain = amplifier_gain_;
         }
         SaveConfig();
         // Reload the config so that we are using the updated value (this
@@ -570,7 +576,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
 
                 // adjust amplifier gain
-                if(auto_adjust_amplifier_gain_) {
+                if(auto_adjust_amplifier_gain_ && waveform_voltage_ > 0) {
                   float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
                   float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
                   amplifier_gain_ =
@@ -974,6 +980,7 @@ void DmfControlBoard::LoadConfig() {
     config_settings_.A1_series_capacitance[2] = 3.2e-10;
     config_settings_.A1_series_capacitance[3] = 3.2e-10;
     config_settings_.amplifier_gain = amplifier_gain_;
+    SaveConfig();
   }
 
   // An amplifier gain<=0 means that we should be doing an automatic

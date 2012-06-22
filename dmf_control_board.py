@@ -34,6 +34,10 @@ from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
 
 
+class EepromSettingDoesNotExist(Exception):
+    pass
+
+
 class FeedbackCalibration():
     def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None):
         if R_hv:
@@ -255,3 +259,27 @@ class DmfControlBoard(Base, SerialDevice):
             if reconnect:
                 self.connect(self.port)
             raise
+
+    @property
+    def EEPROM_WAVEOUT_GAIN_1_ADDRESS(self):
+        return self.EEPROM_CONFIG_SETTINGS+6
+
+    @property
+    def EEPROM_AREF_ADDRESS(self):
+        hardware_version = self.hardware_version()
+        if hardware_version == '1.0' or \
+            hardware_version == '1.1' or \
+            hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+7
+        else:
+            raise EepromSettingDoesNotExist()
+
+    @property
+    def EEPROM_VGND_ADDRESS(self):
+        hardware_version = self.hardware_version()
+        if hardware_version == '1.0' or \
+            hardware_version == '1.1' or \
+            hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+8
+        else:
+            return self.EEPROM_CONFIG_SETTINGS+7
