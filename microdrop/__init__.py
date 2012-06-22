@@ -623,12 +623,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
         instances) for the function specified by function_name.
         """
         if function_name == 'on_plugin_enable':
-            return [ScheduleRequest('microdrop.gui.main_window_controller', 'wheelerlab.dmf_control_board_1.2'),
-                    ScheduleRequest('microdrop.gui.dmf_device_controller', 'wheelerlab.dmf_control_board_1.2')]
+            return [ScheduleRequest('microdrop.gui.main_window_controller', self.name),
+                    ScheduleRequest('microdrop.gui.dmf_device_controller', self.name)]
         elif function_name in ['on_step_options_changed']:
             return [ScheduleRequest(self.name, 'microdrop.gui.protocol_grid_controller')]
         elif function_name in ['on_dmf_device_changed']:
-            return [ScheduleRequest('wheelerlab.dmf_control_board_1.2', 'microdrop.gui.dmf_device_controller')]
+            return [ScheduleRequest(self.name, 'microdrop.gui.dmf_device_controller')]
         return []
 
     def on_experiment_log_created(self, log):
