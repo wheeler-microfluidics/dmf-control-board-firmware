@@ -177,19 +177,6 @@ class DmfControlBoard(Base, SerialDevice):
 
     def analog_reads(self, pin, n_samples):
         return np.array(Base.analog_reads(self, pin, n_samples))
-
-    def sample_voltage(self, adc_channel, n_samples, n_sets,
-                       delay_between_sets_ms, state):
-        state_ = uint8_tVector()
-        for i in range(0, len(state)):
-            state_.append(int(state[i]))
-        adc_channel_ = uint8_tVector()
-        for i in range(0, len(adc_channel)):
-            adc_channel_.append(int(adc_channel[i]))
-        return np.array(Base.sample_voltage(self,
-                        adc_channel_, n_samples, n_sets,
-                        delay_between_sets_ms,
-                        state_))
     
     def measure_impedance(self, sampling_time_ms, n_samples,
                           delay_between_samples_ms, state):

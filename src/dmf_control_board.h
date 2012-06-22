@@ -116,8 +116,7 @@ public:
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
   static const uint8_t CMD_DEBUG_MESSAGE =                  0xF2; //TODO
   static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
-  static const uint8_t CMD_SAMPLE_VOLTAGE =                 0xF4;
-  static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF5;
+  static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF4;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -164,21 +163,11 @@ public:
   uint8_t set_auto_adjust_amplifier_gain(bool on);
 
   // other functions
-  std::vector<float> SampleVoltage(
-                          std::vector<uint8_t> ad_channel,
-                          uint16_t n_samples,
-                          uint16_t n_sets,
-                          uint16_t delay_between_sets_ms,
-                          const std::vector<uint8_t> state);
   std::vector<int16_t> MeasureImpedance(
                           uint16_t sampling_time_ms,
                           uint16_t n_samples,
                           uint16_t delay_between_samples_ms,
                           const std::vector<uint8_t> state);
-  float GetPeakVoltage(uint8_t adc_channel,
-		  	  	  	   uint16_t sampling_time_ms);
-  uint8_t SetExperimentLogFile(const char* file_name);
-  void LogExperiment(const char* message);
   std::string host_name() { return NAME_; }
   std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
@@ -263,7 +252,6 @@ private:
   uint8_t SetSeriesResistor(const uint8_t channel,
                             const uint8_t index);
   uint8_t SetAdcPrescaler(const uint8_t index);
-  float GetPeakVoltage(const uint8_t interrupt, const uint16_t sample_time_ms);
   void LoadConfig();
   void SaveConfig();
   version_t ConfigVersion();
