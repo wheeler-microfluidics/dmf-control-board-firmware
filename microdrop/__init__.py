@@ -40,7 +40,8 @@ from flatland.validation import ValueAtLeast, ValueAtMost
 from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import StepOptionsController, get_plugin_version
+from plugin_helpers import StepOptionsController, AppDataController, \
+    get_plugin_version
 from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
@@ -57,10 +58,12 @@ class WaitForFeedbackMeasurement(threading.Thread):
         threading.Thread.__init__(self)
   
     def run(self):
+        app_values = self.get_app_values()
         self.results = self.control_board.measure_impedance(
-                            self.feedback_options.sampling_time_ms,
-                            self.feedback_options.n_samples,
-                            self.feedback_options.delay_between_samples_ms,
+                            app_values['sampling_time_ms'],
+                            math.ceil(self.feedback_options.duration/ 
+                                      app_values['sampling_time_ms']),
+                            app_values['delay_between_samples_ms'],
                             self.state)
 
 PluginGlobals.push_env('microdrop.managed')
@@ -91,13 +94,20 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin, StepOptionsController):
+class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     """
     This class is automatically registered with the PluginManager.
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
     implements(IAmplifier)    
+
+    AppFields = Form.of(
+        Integer.named('sampling_time_ms').using(default=10, optional=True,
+            validators=[ValueAtLeast(minimum=0), ],),
+        Integer.named('delay_between_samples_ms').using(default=0, optional=True,
+            validators=[ValueAtLeast(minimum=0), ],),
+    )
 
     StepFields = Form.of(
         Integer.named('duration').using(default=100, optional=True,
@@ -106,28 +116,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             validators=[ValueAtLeast(minimum=0), ]),
         Float.named('frequency').using(default=1e3, optional=True,
             validators=[ValueAtLeast(minimum=0), ]),
-        Boolean.named('feedback_enabled').using(default=False, optional=True),
-        Integer.named('sampling_time_ms').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ],
-            properties={'mappers': [PropertyMapper('sensitive',
-                    attr='feedback_enabled'), PropertyMapper('editable',
-                            attr='feedback_enabled'), ],
-            }),
-        Integer.named('n_samples').using(default=10, optional=True,
-            validators=[ValueAtLeast(minimum=0), ],
-            properties={'mappers': [PropertyMapper('sensitive',
-                    attr='feedback_enabled'), PropertyMapper('editable',
-                            attr='feedback_enabled'), ],
-            }),
-        Integer.named('delay_between_samples_ms').using(default=0, optional=True,
-            validators=[ValueAtLeast(minimum=0), ],
-            properties={'mappers': [PropertyMapper('sensitive',
-                    attr='feedback_enabled'), PropertyMapper('editable',
-                            attr='feedback_enabled'), ],
-            }),
+        Boolean.named('feedback_enabled').using(default=True, optional=True),
     )
-    _feedback_fields = set(['feedback_enabled', 'sampling_time_ms', 'n_samples',
-                            'delay_between_samples_ms'])
+    _feedback_fields = set(['feedback_enabled'])
     plugin_name = 'wheelerlab.dmf_control_board'
     version = get_plugin_version(path(__file__).parent.parent)
     
@@ -195,6 +186,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
+        
+        super(DmfControlBoardPlugin, self).on_plugin_enable()
 
     def on_plugin_disable(self):
         self.feedback_options_controller.on_plugin_disable()
@@ -397,14 +390,21 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController):
                                     interface=IWaveformGenerator)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, feedback_options)
+
+                        app_values = self.get_app_values()
+                        t = np.array(range(0,
+                                     math.ceil(feedback_options.duration/ 
+                                               app_values['sampling_time_ms']))
+                                     ) *(app_values['sampling_time_ms'] + \
+                                         app_values['delay_between_samples_ms'])
                         results = FeedbackResults(feedback_options,
+                            t,
                             V_hv,
                             hv_resistor,
                             V_fb,
                             fb_resistor,
                             area,
                             frequency,
-                            voltage,
                             self.control_board.calibration)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        

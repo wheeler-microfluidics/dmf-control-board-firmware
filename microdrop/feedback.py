@@ -178,31 +178,46 @@ class FeedbackOptions():
     """
     This class stores the feedback options for a single step in the protocol.
     """
+    class_version = str(Version(0,1))
+        
     def __init__(self, feedback_enabled=None,
-                 sampling_time_ms=None,
-                 n_samples=None,
-                 delay_between_samples_ms=None,
                  action=None):
         if feedback_enabled:
             self.feedback_enabled = feedback_enabled
         else:
-            self.feedback_enabled = False
-        if sampling_time_ms:
-            self.sampling_time_ms = sampling_time_ms
-        else:
-            self.sampling_time_ms = 10
-        if n_samples:
-            self.n_samples = n_samples
-        else:
-            self.n_samples = 10
-        if delay_between_samples_ms:
-            self.delay_between_samples_ms = delay_between_samples_ms
-        else:
-            self.delay_between_samples_ms = 0
+            self.feedback_enabled = True
         if action:
             self.action = action
         else:
             self.action = RetryAction()
+        self.version = self.class_version
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug('[FeedbackOptions]._upgrade()')
+        if hasattr(self, 'version'):
+            version = Version.fromstring(self.version)
+        else:
+            version = Version(0)
+        logging.debug('[FeedbackOptions] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[FeedbackOptions] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                del self.sampling_time_ms
+                del self.n_samples
+                del self.delay_between_samples_ms
+            self.version = self.class_version
+        # else the versions are equal and don't need to be upgraded
 
 
 class FeedbackOptionsController():
@@ -270,9 +285,6 @@ class FeedbackOptionsController():
 
             state[electrode.channels]=1
             options = FeedbackOptions(feedback_enabled=True,
-                                      sampling_time_ms=10,
-                                      n_samples=1,
-                                      delay_between_samples_ms=0,
                                       action=RetryAction())
             step = app.protocol.current_step()
             dmf_options = step.get_data(self.plugin.name)
@@ -283,11 +295,14 @@ class FeedbackOptionsController():
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                 self.plugin.measure_impedance(state, options)
-            results = FeedbackResults(options,
+            app_values = self.plugin.get_app_values()
+            t = np.array(range(0, 10)) * \
+                (app_values['sampling_time_ms'] + \
+                 app_values['delay_between_samples_ms'])
+            results = FeedbackResults(options, t,
                 V_hv, hv_resistor,
                 V_fb, fb_resistor,
                 area, frequency,
-                voltage,
                 self.plugin.control_board.calibration)
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.state_of_all_channels = current_state
@@ -400,27 +415,8 @@ class FeedbackOptionsController():
             button.handler_block_by_func(self.on_radiobutton_sweep_electrodes_toggled)
             button.set_active(sweep_electrodes)
             button.handler_unblock_by_func(self.on_radiobutton_sweep_electrodes_toggled)
-        
-        # on_textentry_sampling_time_ms_changed
-        self.builder.get_object("textentry_sampling_time_ms").set_text(
-            str(options.sampling_time_ms))
-
-        # on_textentry_n_samples_changed
-        self.builder.get_object("textentry_n_samples").set_text(
-            str(options.n_samples))
-
-        # on_textentry_delay_between_samples_ms_changed
-        self.builder.get_object("textentry_delay_between_samples_ms")\
-            .set_text(str(options.delay_between_samples_ms))
 
     def _set_gui_sensitive(self, options):
-        self.builder.get_object("textentry_sampling_time_ms")\
-            .set_sensitive(options.feedback_enabled)
-        self.builder.get_object("textentry_n_samples")\
-            .set_sensitive(options.feedback_enabled)
-
-        self.builder.get_object("textentry_delay_between_samples_ms")\
-            .set_sensitive(options.feedback_enabled)
         self.builder.get_object("radiobutton_retry")\
             .set_sensitive(options.feedback_enabled)
         self.builder.get_object("radiobutton_sweep_frequency")\
@@ -557,65 +553,6 @@ class FeedbackOptionsController():
         options.sampling_time_ms = textentry_validate(widget,
                             options.sampling_time_ms, int)
         app = get_app()
-        emit_signal('on_step_options_changed',
-                    [self.plugin.name, app.protocol.current_step_number],
-                    interface=IPlugin)
-
-    def on_textentry_n_samples_focus_out_event(self, widget, event):
-        """
-        Handler called when the "number of samples" text box loses focus. 
-        """
-        self.on_textentry_n_samples_changed(widget)
-        return False
-    
-    def on_textentry_n_samples_key_press_event(self, widget, event):
-        """
-        Handler called when the user presses a key within the "number of
-        samples" text box. 
-        """
-        if event.keyval == 65293: # user pressed enter
-            self.on_textentry_n_samples_changed(widget)
-    
-    def on_textentry_n_samples_changed(self, widget):
-        """
-        Update the number of samples value for the current step. 
-        """
-        app = get_app()
-        all_options = self.plugin.get_step_options()
-        options = all_options.feedback_options
-        options.n_samples = textentry_validate(widget, options.n_samples, int)
-        emit_signal('on_step_options_changed',
-                    [self.plugin.name, app.protocol.current_step_number],
-                    interface=IPlugin)
-
-    def on_textentry_delay_between_samples_ms_focus_out_event(self,
-                                                              widget,
-                                                              event):
-        """
-        Handler called when the "delay between samples" text box loses focus. 
-        """
-        self.on_textentry_delay_between_samples_ms_changed(widget)
-        return False
-    
-    def on_textentry_delay_between_samples_ms_key_press_event(self,
-                                                              widget,
-                                                              event):
-        """
-        Handler called when the user presses a key within the "delay between
-        samples" text box. 
-        """
-        if event.keyval == 65293: # user pressed enter
-            self.on_textentry_delay_between_samples_ms_changed(widget)
-    
-    def on_textentry_delay_between_samples_ms_changed(self, widget):
-        """
-        Update the delay between samples value for the current step. 
-        """
-        app = get_app()
-        all_options = self.plugin.get_step_options()
-        options = all_options.feedback_options
-        options.delay_between_samples_ms = textentry_validate(widget,
-                            options.delay_between_samples_ms, int)
         emit_signal('on_step_options_changed',
                     [self.plugin.name, app.protocol.current_step_number],
                     interface=IPlugin)
@@ -917,13 +854,13 @@ class FeedbackResults():
     
     def __init__(self,
                  options,
+                 time,
                  V_hv,
                  hv_resistor,
                  V_fb,
                  fb_resistor,
                  area,
                  frequency,
-                 V_total,
                  calibration):
         self.options = options
         self.area = area
@@ -932,10 +869,7 @@ class FeedbackResults():
         self.hv_resistor = hv_resistor
         self.V_fb = V_fb
         self.fb_resistor = fb_resistor
-        self.time = np.array(range(0,self.options.n_samples)) * \
-            (self.options.sampling_time_ms + \
-            self.options.delay_between_samples_ms)
-        self._V_total = V_total
+        self.time = time
         self.calibration = calibration
         self.version = self.class_version
 
@@ -1075,10 +1009,9 @@ class SweepFrequencyResults():
     """
     class_version = str(Version(0,1))
     
-    def __init__(self, options, area, V_total, calibration):
+    def __init__(self, options, area, calibration):
         self.options = options
         self.area = area
-        self._V_total = V_total
         self.calibration = calibration
         self.frequency = []
         self.V_hv = []
