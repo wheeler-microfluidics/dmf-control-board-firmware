@@ -1471,7 +1471,7 @@ class FeedbackResultsController():
                     legend.append("Step %d (%.3f s)" % \
                                   (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
-            self.axis.set_xlabel("Voltage (V$_{rms}$)")
+            self.axis.set_xlabel("Actuation Voltage (V$_{RMS}$)")
             for row in self.data:
                 if self.plugin.name in row.keys() and \
                 "SweepVoltageResults" in row[self.plugin.name].keys():

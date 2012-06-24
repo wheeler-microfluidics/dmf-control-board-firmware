@@ -526,14 +526,14 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(auto_adjust_amplifier_gain_ && waveform_voltage_ > 0) {
                   float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
                   float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
-                  float fb_rms = (fb_max-fb_min)*5.0/1024/sqrt(2)/2;
+                  float V_fb = (fb_max-fb_min)*5.0/1024/sqrt(2)/2;
 
                   amplifier_gain_ =
-                      (float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2
-                          -fb_rms) /                // (measured Vrms -fb_rms) /
+                      float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2 /
+                                                    // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
                           pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
-                      ((waveform_voltage_)/         // (set voltage /
+                      ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
                       amplifier_gain_);             // previous gain setting)
 
                   // enforce minimum gain of 1 because if gain goes to zero,
@@ -545,7 +545,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   // update output voltage (accounting for amplifier gain and
                   // for the voltage drop across the feedback resistor)
                   SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
-                    (waveform_voltage_+fb_rms)/amplifier_gain_
+                    (waveform_voltage_+V_fb)/amplifier_gain_
                     * 2*sqrt(2)/4 * 255);
                 }
               }
