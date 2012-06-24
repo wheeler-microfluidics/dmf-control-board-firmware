@@ -112,6 +112,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             validators=[ValueAtLeast(minimum=0), ],),
         Integer.named('delay_between_samples_ms').using(default=0, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
+        Float.named('voltage_tolerance').using(default=2, optional=True,
+            validators=[ValueAtLeast(minimum=0), ],),
     )
 
     StepFields = Form.of(
@@ -338,11 +340,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 (voltage, impedance.V_total()[-1],
                  100*(impedance.V_total()[-1]-voltage)/voltage))
             
-            # want the signal to be within +/- 2% or 2 V
-            if abs(impedance.V_total()[-1]-voltage)/voltage <.02 or \
-                abs(impedance.V_total()[-1]-voltage)<2:
-                pass
-            else:
+            app_values = self.get_app_values()            
+            
+            # check that the signal is within tolerance
+            if abs(impedance.V_total()[-1]-voltage) > \
+                app_values['voltage_tolerance']:
                 # allow maximum of 5 adjustment attempts
                 if self.n_voltage_adjustments<5:
                     emit_signal("set_voltage", voltage,
