@@ -935,6 +935,9 @@ class FeedbackResults():
                             self.frequency, 10e6)
         return self.V_hv/T
 
+    def V_actuation(self):
+        return self.V_total()-np.array(self.V_fb)
+
     def Z_device(self):
         ind = mlab.find(self.fb_resistor!=-1)
         R_fb = np.zeros(self.fb_resistor.shape)
@@ -1102,6 +1105,9 @@ class SweepFrequencyResults():
             V.append(np.array(self.V_hv[i])/T)
         return V
 
+    def V_actuation(self):
+        return self.V_total()-np.array(self.V_fb)
+
     def Z_device(self):
         Z = []
         V_total = self.V_total()
@@ -1212,6 +1218,9 @@ class SweepVoltageResults():
             T = feedback_signal([C_hv, R_hv], self.frequency, 10e6)
             V.append(np.array(self.V_hv[i])/T)
         return V
+
+    def V_actuation(self):
+        return self.V_total()-np.array(self.V_fb)
 
     def Z_device(self):
         Z = []
@@ -1391,14 +1400,14 @@ class FeedbackResultsController():
                             ", ".join([str(x) for x in dxdt]))
                     elif y_axis=="Voltage":
                         self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.plot(results.time[ind],
-                                       results.V_total()[ind])
+                                       results.V_actuation()[ind])
                         legend_loc = "lower right"
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in results.time]))
-                        self.export_data.append('V_hv (V_RMS):,' + 
-                            ", ".join([str(x) for x in results.V_total()]))
+                        self.export_data.append('V_actuation (V_RMS):,' + 
+                            ", ".join([str(x) for x in results.V_actuation()]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
                                                         row['core']["time"]))
         elif x_axis=="Frequency":
@@ -1446,19 +1455,19 @@ class FeedbackResultsController():
                             results.Z_device(), 1)]))
                     elif y_axis=="Voltage":
                         self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.V_total(), 1),
-                                           np.std(results.V_total(), 1),
+                                           np.mean(results.V_actuation(), 1),
+                                           np.std(results.V_actuation(), 1),
                                            fmt='.')
                         self.axis.set_xscale('log')
                         legend_loc = "lower right"
-                        self.export_data.append('mean(V_total) '
+                        self.export_data.append('mean(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
-                            results.V_total(), 1)]))
-                        self.export_data.append('std(V_total) '
+                            results.V_actuation(), 1)]))
+                        self.export_data.append('std(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.std(
-                            results.V_total(), 1)]))
+                            results.V_actuation(), 1)]))
                     legend.append("Step %d (%.3f s)" % \
                                   (row['core']["step"]+1, row['core']["time"]))
         elif x_axis=="Voltage":
@@ -1504,18 +1513,18 @@ class FeedbackResultsController():
                             results.Z_device(), 1)]))
                     elif y_axis=="Voltage":
                         self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
+                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.errorbar(results.voltage,
-                                           np.mean(results.V_total(), 1),
-                                           np.std(results.V_total(), 1),
+                                           np.mean(results.V_actuation(), 1),
+                                           np.std(results.V_actuation(), 1),
                                            fmt='.')
                         legend_loc = "lower right"
-                        self.export_data.append('mean(V_total) '
+                        self.export_data.append('mean(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
-                            results.V_total(), 1)]))
-                        self.export_data.append('std(V_total) '
+                            results.V_actuation(), 1)]))
+                        self.export_data.append('std(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.std(
-                            results.V_total(), 1)]))
+                            results.V_actuation(), 1)]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
                                                         row['core']["time"]))
         if len(legend):

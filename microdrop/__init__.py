@@ -331,19 +331,19 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_device_impedance_update(self, impedance):
         get_app().main_window_controller.label_control_board_status. \
             set_text(self.connection_status + ", Voltage: %.1f V" % \
-                     impedance.V_total()[-1])
+                     impedance.V_actuation()[-1])
         if self.control_board.auto_adjust_amplifier_gain():
             voltage = self.get_step_options().voltage
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
             logger.info('\tn_voltage_adjustments=%d' % self.n_voltage_adjustments)
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, error=%.1f%%' % \
-                (voltage, impedance.V_total()[-1],
-                 100*(impedance.V_total()[-1]-voltage)/voltage))
+                (voltage, impedance.V_actuation()[-1],
+                 100*(impedance.V_actuation()[-1]-voltage)/voltage))
             
             app_values = self.get_app_values()            
             
             # check that the signal is within tolerance
-            if abs(impedance.V_total()[-1]-voltage) > \
+            if abs(impedance.V_actuation()[-1]-voltage) > \
                 app_values['voltage_tolerance']:
                 # allow maximum of 5 adjustment attempts
                 if self.n_voltage_adjustments<5:
@@ -430,7 +430,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             fb_resistor,
                             area,
                             self.control_board.calibration)
-                        logger.info("V_total=%s" % results.V_total())
+                        logger.info("V_actuation=%s" % results.V_actuation())
                         logger.info("Z_device=%s" % results.Z_device())                        
                         app.experiment_log.add_data({"FeedbackResults":results},
                                                     self.name)
@@ -476,7 +476,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             V_hv, hv_resistor, V_fb, fb_resistor)
                     app.experiment_log.add_data({"SweepFrequencyResults":results},
                                                 self.name)
-                    logger.info("V_total=%s" % results.V_total())
+                    logger.info("V_actuation=%s" % results.V_actuation())
                     logger.info("Z_device=%s" % results.Z_device())                        
                 elif feedback_options.action.__class__==SweepVoltageAction:
                     voltages = np.linspace(feedback_options.action.start_voltage,
@@ -502,7 +502,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             V_hv, hv_resistor, V_fb, fb_resistor)
                     app.experiment_log.add_data({"SweepVoltageResults":results},
                                                 self.name)
-                    logger.info("V_total=%s" % results.V_total())
+                    logger.info("V_actuation=%s" % results.V_actuation())
                     logger.info("Z_device=%s" % results.Z_device())                        
             else:
                 voltage = float(options.voltage)
