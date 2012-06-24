@@ -20,6 +20,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import math
 import time
+from copy import deepcopy
 try:
     import cPickle as pickle
 except ImportError:
@@ -258,6 +259,9 @@ class FeedbackOptionsController():
         Handler called when the user clicks on "Feedback Options" in the "Tools"
         menu.
         """
+        options = self.plugin.get_step_options().feedback_options
+        self._set_gui_sensitive(options)
+        self._update_gui_state(options)        
         self.window.show()
 
     def on_window_delete_event(self, widget, data=None):
@@ -284,8 +288,6 @@ class FeedbackOptionsController():
                 return
 
             state[electrode.channels]=1
-            options = FeedbackOptions(feedback_enabled=True,
-                                      action=RetryAction())
             step = app.protocol.current_step()
             dmf_options = step.get_data(self.plugin.name)
             voltage = dmf_options.voltage
@@ -293,16 +295,22 @@ class FeedbackOptionsController():
             emit_signal("set_frequency", frequency,
                         interface=IWaveformGenerator)
             emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
-            (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                self.plugin.measure_impedance(state, options)
+
             app_values = self.plugin.get_app_values()
-            t = np.array(range(0, 10)) * \
-                (app_values['sampling_time_ms'] + \
-                 app_values['delay_between_samples_ms'])
-            results = FeedbackResults(options, t,
+            test_options = deepcopy(dmf_options)
+            test_options.duration = 10*app_values['sampling_time_ms']
+            test_options.feedback_options = FeedbackOptions(
+                feedback_enabled=True, action=RetryAction())
+            (V_hv, hv_resistor, V_fb, fb_resistor) = \
+                self.plugin.measure_impedance(state, test_options,
+                    app_values['sampling_time_ms'],
+                    app_values['delay_between_samples_ms'])
+            results = FeedbackResults(test_options,
+                app_values['sampling_time_ms'],
+                app_values['delay_between_samples_ms'],
                 V_hv, hv_resistor,
                 V_fb, fb_resistor,
-                area, frequency,
+                area,
                 self.plugin.control_board.calibration)
             logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
             self.plugin.control_board.state_of_all_channels = current_state
@@ -854,22 +862,24 @@ class FeedbackResults():
     
     def __init__(self,
                  options,
-                 time,
+                 sampling_time_ms,
+                 delay_between_samples_ms,                 
                  V_hv,
                  hv_resistor,
                  V_fb,
                  fb_resistor,
                  area,
-                 frequency,
                  calibration):
-        self.options = options
+        self.options = options.feedback_options
         self.area = area
-        self.frequency = frequency
+        self.frequency = options.frequency
         self.V_hv = V_hv
         self.hv_resistor = hv_resistor
         self.V_fb = V_fb
         self.fb_resistor = fb_resistor
-        self.time = time
+        self.time = np.arange(0, math.ceil(options.duration/
+                    (sampling_time_ms+delay_between_samples_ms))+2)* \
+                    (sampling_time_ms+delay_between_samples_ms)
         self.calibration = calibration
         self.version = self.class_version
 
@@ -1009,8 +1019,8 @@ class SweepFrequencyResults():
     """
     class_version = str(Version(0,1))
     
-    def __init__(self, options, area, calibration):
-        self.options = options
+    def __init__(self, feedback_options, area, calibration):
+        self.options = feedback_options
         self.area = area
         self.calibration = calibration
         self.frequency = []
@@ -1119,8 +1129,8 @@ class SweepVoltageResults():
     """
     class_version = str(Version(0,1))
     
-    def __init__(self, options, area, frequency, calibration):
-        self.options = options
+    def __init__(self, feedback_options, area, frequency, calibration):
+        self.options = feedback_options
         self.area = area
         self.frequency = frequency
         self.calibration = calibration
@@ -1495,11 +1505,10 @@ class FeedbackResultsController():
                     elif y_axis=="Voltage":
                         self.axis.set_title("Actuation voltage")
                         self.axis.set_ylabel("V$_{hv}$ (V$_{RMS}$)")
-                        self.axis.errorbar(results.frequency,
+                        self.axis.errorbar(results.voltage,
                                            np.mean(results.V_total(), 1),
                                            np.std(results.V_total(), 1),
                                            fmt='.')
-                        self.axis.set_xscale('log')
                         legend_loc = "lower right"
                         self.export_data.append('mean(V_total) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.mean(

@@ -532,6 +532,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                           pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
                       (waveform_voltage_/               // (set voltage /
                       amplifier_gain_);                 // previous gain setting)
+
+                  // enforce minimum gain of 1 because if gain goes to zero,
+                  // it cannot be adjusted further
+                  if(amplifier_gain_<1) {
+                    amplifier_gain_=1;
+                  }
+
                   // update output voltage
                   SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
                       waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);

@@ -50,21 +50,26 @@ from utility.gui import yesno, FormViewDialog
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
-    def __init__(self, control_board, state, feedback_options):
-        self.control_board = control_board
+    def __init__(self, plugin, state, sampling_time_ms,
+                 delay_between_samples_ms):
+        self.plugin = plugin
         self.state = state
-        self.feedback_options = feedback_options
+        self.sampling_time_ms = sampling_time_ms
+        self.delay_between_samples_ms = delay_between_samples_ms
         self.results = None
         threading.Thread.__init__(self)
-  
+        
     def run(self):
-        app_values = self.get_app_values()
-        self.results = self.control_board.measure_impedance(
-                            app_values['sampling_time_ms'],
-                            math.ceil(self.feedback_options.duration/ 
-                                      app_values['sampling_time_ms']),
-                            app_values['delay_between_samples_ms'],
-                            self.state)
+        options = self.plugin.get_step_options()
+        try:
+            self.results = self.plugin.control_board.measure_impedance(
+                                self.sampling_time_ms,
+                                int(math.ceil(options.duration/ 
+                                          self.sampling_time_ms)),
+                                self.delay_between_samples_ms,
+                                self.state)
+        except:
+            self.results = self.plugin.control_board.return_code()
 
 PluginGlobals.push_env('microdrop.managed')
 
@@ -127,7 +132,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.name = self.plugin_name
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
-        self.current_state = FeedbackOptions()
         self.feedback_options_controller = None
         self.feedback_results_controller = None
         self.feedback_calibration_controller = None
@@ -261,7 +265,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         schema_entries.append(
             Float.named('amplifier_gain').using(
                 default=settings['amplifier_gain'],
-                optional=True, validators=[ValueAtLeast(minimum=1), ]),
+                optional=True, validators=[ValueAtLeast(minimum=0.01), ]),
         )
         settings['auto_adjust_amplifier_gain'] = self.control_board \
             .auto_adjust_amplifier_gain()
@@ -322,9 +326,31 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         app.main_window_controller.label_control_board_status. \
             set_text(self.connection_status)
 
-    def on_actuation_voltage_changed(self, voltage):
+    def on_device_impedance_update(self, impedance):
         get_app().main_window_controller.label_control_board_status. \
-            set_text(self.connection_status + ", Voltage: %.1f V" % voltage)
+            set_text(self.connection_status + ", Voltage: %.1f V" % \
+                     impedance.V_total()[-1])
+        if self.control_board.auto_adjust_amplifier_gain():
+            voltage = self.get_step_options().voltage
+            logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
+            logger.info('\tn_voltage_adjustments=%d' % self.n_voltage_adjustments)
+            logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, error=%.1f%%' % \
+                (voltage, impedance.V_total()[-1],
+                 100*(impedance.V_total()[-1]-voltage)/voltage))
+            
+            # want the signal to be within +/- 2% or 2 V
+            if abs(impedance.V_total()[-1]-voltage)/voltage <.02 or \
+                abs(impedance.V_total()[-1]-voltage)<2:
+                pass
+            else:
+                # allow maximum of 5 adjustment attempts
+                if self.n_voltage_adjustments<5:
+                    emit_signal("set_voltage", voltage,
+                        interface=IWaveformGenerator)
+                    self.check_voltage(self.n_voltage_adjustments+1)
+                else:
+                    self.n_voltage_adjustments = 0
+                    logger.error("Unable to achieve the specified voltage.")
 
     def get_actuated_area(self):
         area = 0
@@ -354,7 +380,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         dmf_options = app.dmf_device_controller.get_step_options()
         logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' % (options, dmf_options))
         feedback_options = options.feedback_options
-        self.current_state.feedback_enabled = feedback_options.feedback_enabled
+        app_values = self.get_app_values()
 
         start_time = time.time()
 
@@ -388,23 +414,19 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                     interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
                                     interface=IWaveformGenerator)
+                        self.check_voltage()
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, feedback_options)
-
-                        app_values = self.get_app_values()
-                        t = np.array(range(0,
-                                     math.ceil(feedback_options.duration/ 
-                                               app_values['sampling_time_ms']))
-                                     ) *(app_values['sampling_time_ms'] + \
-                                         app_values['delay_between_samples_ms'])
-                        results = FeedbackResults(feedback_options,
-                            t,
+                            self.measure_impedance(state, options,
+                                app_values['sampling_time_ms'],
+                                app_values['delay_between_samples_ms'])
+                        results = FeedbackResults(options,
+                            app_values['sampling_time_ms'],
+                            app_values['delay_between_samples_ms'],
                             V_hv,
                             hv_resistor,
                             V_fb,
                             fb_resistor,
                             area,
-                            frequency,
                             self.control_board.calibration)
                         logger.info("V_total=%s" % results.V_total())
                         logger.info("Z_device=%s" % results.Z_device())                        
@@ -431,18 +453,23 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         np.log10(feedback_options.action.end_frequency),
                         int(feedback_options.action.n_frequency_steps))
                     voltage = float(options.voltage)
-                    emit_signal("set_voltage", voltage,
-                                interface=IWaveformGenerator)
                     results = SweepFrequencyResults(feedback_options,
                         area,
-                        voltage,
                         self.control_board.calibration)
+                    emit_signal("set_voltage", voltage,
+                                interface=IWaveformGenerator)
                     for frequency in frequencies:
+                        # need to set this because check_voltage() adjusts
+                        # the voltage based on this frequency
+                        options.frequency = frequency
                         emit_signal("set_frequency",
                                     float(frequency),
                                     interface=IWaveformGenerator)
+                        self.check_voltage()
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, feedback_options)
+                            self.measure_impedance(state, options,
+                                app_values['sampling_time_ms'],
+                                app_values['delay_between_samples_ms'])
                         results.add_frequency_step(frequency,
                             V_hv, hv_resistor, V_fb, fb_resistor)
                     app.experiment_log.add_data({"SweepFrequencyResults":results},
@@ -463,8 +490,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     for voltage in voltages:
                         emit_signal("set_voltage", voltage,
                                     interface=IWaveformGenerator)
+                        options.voltage = voltage
+                        self.check_voltage()
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                            self.measure_impedance(state, feedback_options)
+                            self.measure_impedance(state, options,
+                                app_values['sampling_time_ms'],
+                                app_values['delay_between_samples_ms'])
                         results.add_voltage_step(voltage,
                             V_hv, hv_resistor, V_fb, fb_resistor)
                     app.experiment_log.add_data({"SweepVoltageResults":results},
@@ -479,6 +510,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             interface=IWaveformGenerator)
                 emit_signal("set_voltage", voltage,
                             interface=IWaveformGenerator)
+                self.check_voltage()                
                 self.control_board.state_of_all_channels = state
 
         # if a protocol is running, wait for the specified minimum duration
@@ -490,12 +522,27 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 # (see above for reasoning)
                 time.sleep(0.0001)
 
-    def measure_impedance(self, state, options):
-        thread = WaitForFeedbackMeasurement(self.control_board, state, options)
+    def measure_impedance(self, state, options, sampling_time_ms,
+                          delay_between_samples_ms):
+        thread = WaitForFeedbackMeasurement(self, state,
+                                            sampling_time_ms,
+                                            delay_between_samples_ms)
         thread.start()
         while thread.is_alive():
             while gtk.events_pending():
                 gtk.main_iteration()
+        app_values = self.get_app_values()
+        (V_hv, hv_resistor, V_fb, fb_resistor) = thread.results
+        results = FeedbackResults(options,
+            sampling_time_ms,
+            delay_between_samples_ms,
+            V_hv,
+            hv_resistor,
+            V_fb,
+            fb_resistor,
+            self.get_actuated_area(),
+            self.control_board.calibration)                
+        emit_signal("on_device_impedance_update", results)
         return thread.results
 
     def on_protocol_run(self):
@@ -541,6 +588,23 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
         # update the frequency
         self.control_board.set_waveform_frequency(frequency)
+        
+    def check_voltage(self, n_voltage_adjustments=0):
+        # increment the number of adjustment attempts
+        self.n_voltage_adjustments = n_voltage_adjustments
+        app_values = self.get_app_values()
+        test_options = deepcopy(self.get_step_options())
+        # take 3 samples b/c sometimes the first one is no good (signal hasn't
+        # stabilized yet)
+        test_options.duration = app_values['sampling_time_ms']*3
+        test_options.feedback_options = FeedbackOptions(
+            feedback_enabled=True, action=RetryAction())
+        state = np.zeros(self.control_board.number_of_channels())
+        # this line will automatically trigger an on_device_impedance_update
+        # signal
+        self.measure_impedance(state, test_options,
+            app_values['sampling_time_ms'],
+            app_values['delay_between_samples_ms'])
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()
