@@ -122,6 +122,7 @@ object DmfControlBoard_class
     .def("set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
     .def("set_auto_adjust_amplifier_gain",&DmfControlBoard::set_auto_adjust_amplifier_gain)
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
+    .def("reset_config_to_defaults",&DmfControlBoard::ResetConfigToDefaults)
     .def("flush",&DmfControlBoard::flush)
     .def("host_name",&DmfControlBoard::host_name)
     .def("host_manufacturer",&DmfControlBoard::host_manufacturer)

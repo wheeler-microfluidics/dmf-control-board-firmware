@@ -117,6 +117,7 @@ public:
   static const uint8_t CMD_DEBUG_MESSAGE =                  0xF2; //TODO
   static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
   static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF4;
+  static const uint8_t CMD_RESET_CONFIG_TO_DEFAULTS =       0xF5;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -168,6 +169,7 @@ public:
                           uint16_t n_samples,
                           uint16_t delay_between_samples_ms,
                           const std::vector<uint8_t> state);
+  uint8_t ResetConfigToDefaults();
   std::string host_name() { return NAME_; }
   std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
@@ -252,7 +254,7 @@ private:
   uint8_t SetSeriesResistor(const uint8_t channel,
                             const uint8_t index);
   uint8_t SetAdcPrescaler(const uint8_t index);
-  void LoadConfig();
+  void LoadConfig(bool use_defaults=false);
   void SaveConfig();
   version_t ConfigVersion();
 #else

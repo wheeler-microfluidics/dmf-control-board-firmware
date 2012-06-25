@@ -572,6 +572,14 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         }
       }
       break;
+    case CMD_RESET_CONFIG_TO_DEFAULTS:
+      if(payload_length()==0) {
+        return_code_ = RETURN_OK;
+        LoadConfig(true);
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   RemoteObject::ProcessCommand(cmd);
@@ -893,7 +901,7 @@ DmfControlBoard::version_t DmfControlBoard::ConfigVersion() {
   return config_version;
 }
 
-void DmfControlBoard::LoadConfig() {
+void DmfControlBoard::LoadConfig(bool use_defaults) {
   uint8_t* p = (uint8_t*)&config_settings_;
   for(uint16_t i = 0; i<sizeof(config_settings_t); i++) {
     p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
@@ -912,7 +920,7 @@ void DmfControlBoard::LoadConfig() {
   // set everything to default values.
   if(!(config_settings_.version.major==0 &&
      config_settings_.version.minor==0 &&
-     config_settings_.version.micro==1)) {
+     config_settings_.version.micro==1) || use_defaults) {
 
     config_settings_.version.major=0;
     config_settings_.version.minor=0;
@@ -926,18 +934,18 @@ void DmfControlBoard::LoadConfig() {
     config_settings_.vgnd = 124;
     config_settings_.waveout_gain_1 = 112;
     config_settings_.vgnd = 124;
-    config_settings_.A0_series_resistance[0] = 8.7e4;
-    config_settings_.A0_series_resistance[1] = 6.4e5;
-    config_settings_.A0_series_capacitance[0] = 1.4e-10;
-    config_settings_.A0_series_capacitance[1] = 1.69e-10;
-    config_settings_.A1_series_resistance[0] = 1.14e3;
+    config_settings_.A0_series_resistance[0] = 30e4;
+    config_settings_.A0_series_resistance[1] = 3.3e5;
+    config_settings_.A0_series_capacitance[0] = 0;
+    config_settings_.A0_series_capacitance[1] = 0;
+    config_settings_.A1_series_resistance[0] = 1e3;
     config_settings_.A1_series_resistance[1] = 1e4;
-    config_settings_.A1_series_resistance[2] = 9.27e4;
-    config_settings_.A1_series_resistance[3] = 6.17e5;
-    config_settings_.A1_series_capacitance[0] = 3e-14;
-    config_settings_.A1_series_capacitance[1] = 3.2e-10;
-    config_settings_.A1_series_capacitance[2] = 3.2e-10;
-    config_settings_.A1_series_capacitance[3] = 3.2e-10;
+    config_settings_.A1_series_resistance[2] = 1e5;
+    config_settings_.A1_series_resistance[3] = 1e6;
+    config_settings_.A1_series_capacitance[0] = 0;
+    config_settings_.A1_series_capacitance[1] = 0;
+    config_settings_.A1_series_capacitance[2] = 0;
+    config_settings_.A1_series_capacitance[3] = 0;
     config_settings_.amplifier_gain = amplifier_gain_;
     SaveConfig();
   }
@@ -1411,6 +1419,17 @@ std::vector<int16_t> DmfControlBoard::MeasureImpedance(
     return impedance_buffer;
   }
   return std::vector<int16_t>(); // return an empty vector
+}
+
+uint8_t DmfControlBoard::ResetConfigToDefaults() {
+  const char* function_name = "ResetConfigToDefaults()";
+  LogSeparator();
+  LogMessage(log_message_string_, function_name);
+  if(SendCommand(CMD_RESET_CONFIG_TO_DEFAULTS)==RETURN_OK) {
+    LogMessage("CMD_RESET_CONFIG_TO_DEFAULTS", function_name);
+    LogMessage("config reset successfully", function_name);
+  }
+  return return_code();
 }
 
 float DmfControlBoard::MillisecondsSinceLastCheck() {
