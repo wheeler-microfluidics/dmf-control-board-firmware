@@ -30,15 +30,16 @@
             </child>
             <child>
               <object class="GtkComboBox" id="combobox_y_axis">
-                <property name="width_request">100</property>
+                <property name="width_request">125</property>
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="entry_text_column">0</property>
                 <signal name="changed" handler="on_combobox_y_axis_changed" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">1</property>
+                <property name="position">2</property>
               </packing>
             </child>
             <child>
@@ -51,7 +52,7 @@
                 <property name="expand">False</property>
                 <property name="fill">False</property>
                 <property name="padding">5</property>
-                <property name="position">2</property>
+                <property name="position">3</property>
               </packing>
             </child>
             <child>
@@ -80,7 +81,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">4</property>
+                <property name="position">5</property>
               </packing>
             </child>
             <child>

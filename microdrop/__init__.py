@@ -385,6 +385,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         get_app().main_window_controller.label_control_board_status. \
             set_text(self.connection_status + ", Voltage: %.1f V" % \
                      impedance.V_actuation()[-1])
+
+        """
         if self.control_board.auto_adjust_amplifier_gain():
             voltage = impedance.options.voltage
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
@@ -406,6 +408,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 else:
                     self.n_voltage_adjustments = 0
                     logger.error("Unable to achieve the specified voltage.")
+        """
 
     def get_actuated_area(self):
         area = 0
@@ -469,7 +472,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                     interface=IWaveformGenerator)
                         emit_signal("set_voltage", voltage,
                                     interface=IWaveformGenerator)
-                        self.check_impedance(options)
+                        #self.check_impedance(options)
                         (V_hv, hv_resistor, V_fb, fb_resistor) = \
                             self.measure_impedance(state, options,
                                 app_values['sampling_time_ms'],
