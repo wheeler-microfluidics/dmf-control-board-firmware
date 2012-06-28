@@ -389,14 +389,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             set_text(self.connection_status + ", Voltage: %.1f V" % \
                      impedance.V_actuation()[-1])
 
-        """
         if self.control_board.auto_adjust_amplifier_gain():
             voltage = impedance.options.voltage
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
-            logger.info('\tn_voltage_adjustments=%d' % self.n_voltage_adjustments)
-            logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, error=%.1f%%' % \
-                (voltage, impedance.V_actuation()[-1],
-                 100*(impedance.V_actuation()[-1]-voltage)/voltage))
+            logger.info('\tn_voltage_adjustments=%d' % \
+                        self.n_voltage_adjustments)
+            logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
+                'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
+                100*(impedance.V_actuation()[-1]-voltage)/voltage))
             
             app_values = self.get_app_values()            
             
@@ -407,11 +407,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 if self.n_voltage_adjustments<5:
                     emit_signal("set_voltage", voltage,
                         interface=IWaveformGenerator)
-                    self.check_impedance(impedance.options, self.n_voltage_adjustments+1)
+                    self.check_impedance(impedance.options,
+                                         self.n_voltage_adjustments+1)
                 else:
                     self.n_voltage_adjustments = 0
                     logger.error("Unable to achieve the specified voltage.")
-        """
 
     def get_actuated_area(self):
         app = get_app()
@@ -482,7 +482,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                         interface=IWaveformGenerator)
                             emit_signal("set_voltage", voltage,
                                         interface=IWaveformGenerator)
-                            #self.check_impedance(options)
+                            self.check_impedance(options)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, options,
                                     app_values['sampling_time_ms'],
@@ -669,19 +669,22 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def check_impedance(self, options, n_voltage_adjustments=0):
         # increment the number of adjustment attempts
         self.n_voltage_adjustments = n_voltage_adjustments
-        app_values = self.get_app_values()
-        test_options = deepcopy(options)
-        # take 3 samples b/c sometimes the first one is no good (signal hasn't
-        # stabilized yet)
-        test_options.duration = app_values['sampling_time_ms']*3
-        test_options.feedback_options = FeedbackOptions(
-            feedback_enabled=True, action=RetryAction())
-        state = np.zeros(self.control_board.number_of_channels())
-        # this line will automatically trigger an on_device_impedance_update
-        # signal
-        return self.measure_impedance(state, test_options,
-            app_values['sampling_time_ms'],
-            app_values['delay_between_samples_ms'])
+
+        # if feedback is off, need to check the impedance        
+        if options.feedback_options.feedback_enabled==False:
+            app_values = self.get_app_values()
+            test_options = deepcopy(options)
+            # take 3 samples b/c sometimes the first one is no good (signal hasn't
+            # stabilized yet)
+            test_options.duration = app_values['sampling_time_ms']*3
+            test_options.feedback_options = FeedbackOptions(
+                feedback_enabled=True, action=RetryAction())
+            state = np.zeros(self.control_board.number_of_channels())
+            # this line will automatically trigger an on_device_impedance_update
+            # signal
+            return self.measure_impedance(state, test_options,
+                app_values['sampling_time_ms'],
+                app_values['delay_between_samples_ms'])
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()
