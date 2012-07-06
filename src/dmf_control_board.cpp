@@ -479,7 +479,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
                 // if the ADC is saturated, use a smaller resistor
                 // and reset the peak
-                if(hv>1000) {
+                if(hv>820) {
                   if(A0_series_resistor_index_>0) {
                     SetSeriesResistor(0, \
                       A0_series_resistor_index_-1);
@@ -499,7 +499,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
                 // if the ADC is saturated, use a smaller resistor
                 // and reset the peak
-                if(fb>1000) {
+                if(fb>820) {
                   if(A1_series_resistor_index_>0) {
                     SetSeriesResistor(1,
                       A1_series_resistor_index_-1);
