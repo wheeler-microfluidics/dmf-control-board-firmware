@@ -195,8 +195,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(float)) {
         waveform_voltage_ = ReadFloat();
-        SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
-               waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255);
+        float step = waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255;
+        // 255 is maximum for pot
+        if(step>255) {
+          SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
+        } else {
+          SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
+        }
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -543,9 +548,14 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
                   // update output voltage (accounting for amplifier gain and
                   // for the voltage drop across the feedback resistor)
-                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_,
-                    (waveform_voltage_+V_fb)/amplifier_gain_
-                    * 2*sqrt(2)/4 * 255);
+                  float step = (waveform_voltage_+V_fb)/amplifier_gain_*2*
+                      sqrt(2)/4*255;
+                  // 255 is maximum for pot
+                  if(step>255) {
+                    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
+                  } else {
+                    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
+                  }
                 }
               }
 
