@@ -670,21 +670,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         # increment the number of adjustment attempts
         self.n_voltage_adjustments = n_voltage_adjustments
 
-        # if feedback is off, need to check the impedance        
-        if options.feedback_options.feedback_enabled==False:
-            app_values = self.get_app_values()
-            test_options = deepcopy(options)
-            # take 3 samples b/c sometimes the first one is no good (signal hasn't
-            # stabilized yet)
-            test_options.duration = app_values['sampling_time_ms']*3
-            test_options.feedback_options = FeedbackOptions(
-                feedback_enabled=True, action=RetryAction())
-            state = np.zeros(self.control_board.number_of_channels())
-            # this line will automatically trigger an on_device_impedance_update
-            # signal
-            return self.measure_impedance(state, test_options,
-                app_values['sampling_time_ms'],
-                app_values['delay_between_samples_ms'])
+        app_values = self.get_app_values()
+        test_options = deepcopy(options)
+        # take 5 samples to allow signal/gain to stabilize
+        test_options.duration = app_values['sampling_time_ms']*5
+        test_options.feedback_options = FeedbackOptions(
+            feedback_enabled=True, action=RetryAction())
+        state = np.zeros(self.control_board.number_of_channels())
+        # this line will automatically trigger an on_device_impedance_update
+        # signal
+        return self.measure_impedance(state, test_options,
+            app_values['sampling_time_ms'],
+            app_values['delay_between_samples_ms'])
 
     def get_default_step_options(self):
         return DmfControlBoardOptions()

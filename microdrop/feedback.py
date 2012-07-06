@@ -848,7 +848,7 @@ class FeedbackResults():
         self.V_fb = V_fb
         self.fb_resistor = fb_resistor
         self.time = np.arange(0, math.ceil(options.duration/
-                    (sampling_time_ms+delay_between_samples_ms))+2)* \
+                    (sampling_time_ms+delay_between_samples_ms)))* \
                     (sampling_time_ms+delay_between_samples_ms)
         self.calibration = calibration
         self.version = self.class_version
@@ -1065,7 +1065,7 @@ class SweepFrequencyResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            hv_resistor = self.hv_resistor[i]        
+            hv_resistor = np.array(self.hv_resistor[i])
             ind = mlab.find(hv_resistor!=-1)
             R_hv = np.zeros(hv_resistor.shape)
             C_hv = np.zeros(hv_resistor.shape)
@@ -1082,7 +1082,7 @@ class SweepFrequencyResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            fb_resistor = self.fb_resistor[i]            
+            fb_resistor = np.array(self.fb_resistor[i])
             ind = mlab.find(fb_resistor!=-1)
             R_fb = np.zeros(fb_resistor.shape)
             C_fb = np.zeros(fb_resistor.shape)
@@ -1179,7 +1179,7 @@ class SweepVoltageResults():
     def V_total(self):
         V = []
         for i in range(0, np.size(self.V_hv, 0)):
-            hv_resistor = self.hv_resistor[i]        
+            hv_resistor = np.array(self.hv_resistor[i])
             ind = mlab.find(hv_resistor!=-1)
             R_hv = np.zeros(hv_resistor.shape)
             C_hv = np.zeros(hv_resistor.shape)
@@ -1196,7 +1196,7 @@ class SweepVoltageResults():
         Z = []
         V_total = self.V_total()
         for i in range(0, np.size(self.V_hv, 0)):
-            fb_resistor = self.fb_resistor[i]            
+            fb_resistor = np.array(self.fb_resistor[i])            
             ind = mlab.find(fb_resistor!=-1)
             R_fb = np.zeros(fb_resistor.shape)
             C_fb = np.zeros(fb_resistor.shape)
