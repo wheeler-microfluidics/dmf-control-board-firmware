@@ -1,6 +1,8 @@
+import re
 import sys
 import os
 from itertools import chain
+
 from path import path
 
 home_dir = path('~').expand()
@@ -30,9 +32,12 @@ def get_arduino_paths():
     Searched:
         %s''' % '\n    '.join(ARDUINO_SEARCH_PATHS)
         sys.exit(1)
-    fs.sort(key=lambda x: -x.ctime)
 
-    avrdude = fs[0]
+    # use arduino version 0023 if it exists
+    for avrdude in fs:
+        if get_arduino_version(avrdude)=='0023':
+            break
+
     p = avrdude.parent
     while p and p.name != 'hardware':
         p = p.parent
@@ -51,6 +56,22 @@ def get_arduino_paths():
 
 def get_avrdude_list(p):
     return list(set(chain(*[d.walkfiles(AVRDUDE_NAME) for d in p.dirs('arduino*')])))
+
+
+def get_arduino_version(p):
+    while p and not (p / path('revisions.txt')).exists():
+        p = p.parent
+    if not p:
+        print >> sys.stderr, '''Arduino install path not found.'''
+        sys.exit(1)
+    with open(p / path('revisions.txt'), 'r') as f:
+        version = f.readline()
+    f.close()
+    match = re.search(r'ARDUINO (.*) - .*', version)
+    if match:
+        return match.groups()[0]
+    else:
+        return None
 
 
 if __name__ == '__main__':
