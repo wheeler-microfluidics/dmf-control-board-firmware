@@ -352,6 +352,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         if m.group(1)=='R':
                             self.control_board.set_series_resistance(channel, v)
                         else:
+                            if v is None:
+                                v=0
                             self.control_board.set_series_capacitance(channel,
                                 v/1e12)
             # reconnect to update settings
@@ -634,6 +636,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.warning("Warning: currently "
                 "connected board does not have enough channels for this "
                 "protocol.")
+
+    def on_protocol_pause(self):
+        """
+        Handler called when a protocol is paused.
+        """
+        app = get_app()
+        if self.control_board.connected() and not app.realtime_mode:
+            # turn off all electrodes
+            self.control_board.set_state_of_all_channels(
+                np.zeros(self.control_board.number_of_channels())
+            )
     
     def on_experiment_log_selection_changed(self, data):
         """
