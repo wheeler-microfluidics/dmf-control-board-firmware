@@ -22,6 +22,7 @@ import sys
 import math
 import re
 import copy
+import logging
 
 from path import path
 import numpy as np
@@ -32,6 +33,7 @@ from dmf_control_board_base import DmfControlBoard as Base
 from dmf_control_board_base import uint8_tVector, INPUT, OUTPUT, HIGH, LOW, SINE, SQUARE
 from serial_device import SerialDevice, ConnectionError
 from avr import AvrDude
+from utility import Version, VersionError, FutureVersionError
 
 
 class EepromSettingDoesNotExist(Exception):
@@ -39,7 +41,10 @@ class EepromSettingDoesNotExist(Exception):
 
 
 class FeedbackCalibration():
-    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None):
+    class_version = str(Version(0,1))
+    
+    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None, C_drop=None,
+                 C_filler=None):
         if R_hv:
             self.R_hv = np.array(R_hv)
         else:
@@ -55,8 +60,17 @@ class FeedbackCalibration():
         if C_fb:
             self.C_fb = np.array(C_fb)
         else:
-            self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])      
-
+            self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
+        if C_drop:
+            self.C_drop = C_drop
+        else:
+            self.C_filler = None
+        if C_filler:
+            self.C_filler = C_filler
+        else:
+            self.C_filler = None
+        self.version = self.class_version
+        
     def __getstate__(self):
         """Convert numpy arrays to lists for serialization"""
         out = copy.deepcopy(self.__dict__)
@@ -71,6 +85,35 @@ class FeedbackCalibration():
         for k, v in self.__dict__.items():
             if k=='R_hv' or k=='C_hv' or k=='R_fb' or k=='C_fb':
                 self.__dict__[k] = np.array(v)
+        if 'version' not in self.__dict__:
+            self.version = str(Version(0,0))
+        self._upgrade()
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug("[FeedbackCalibration]._upgrade()")
+        version = Version.fromstring(self.version)
+        logging.debug('[FeedbackCalibration] version=%s, class_version=%s' % \
+                     (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[FeedbackCalibration] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0,1):
+                self.C_filler = None
+                self.C_drop = None
+                self.version = str(Version(0,1))
+                logging.info('[FeedbackCalibration] upgrade to version %s' \
+                             % self.version)
+        # else the versions are equal and don't need to be upgraded
+
 
 
 class DmfControlBoard(Base, SerialDevice):
@@ -187,9 +230,9 @@ class DmfControlBoard(Base, SerialDevice):
                              sampling_time_ms, n_samples,
                              delay_between_samples_ms, state_))
         
-        V_hv = impedance[0::4]*5.0/1024/np.sqrt(2)/2
+        V_hv = impedance[0::4]*5.0/1024.0
         hv_resistor = impedance[1::4]
-        V_fb = impedance[2::4]*5.0/1024/np.sqrt(2)/2
+        V_fb = impedance[2::4]*5.0/1024.0
         fb_resistor = impedance[3::4]
         return (V_hv, hv_resistor, V_fb, fb_resistor)
         

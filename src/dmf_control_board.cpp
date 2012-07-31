@@ -472,6 +472,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               uint16_t fb_max = 0;
               uint16_t fb_min = 1024;
               uint16_t fb = 0;
+
+              uint32_t sum_hv = 0;
+              uint32_t sum_hv2 = 0;
+              uint32_t sum_fb = 0;
+              uint32_t sum_fb2 = 0;
+              uint16_t n_reads = 0;
+
               uint32_t t_sample = millis();
 
               while(millis()-t_sample<sampling_time_ms) {
@@ -514,10 +521,21 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(fb<fb_min) {
                   fb_min = fb;
                 }
+
+                sum_hv += hv;
+                sum_hv2 += (uint32_t)hv*(uint32_t)hv;
+                sum_fb += fb;
+                sum_fb2 += (uint32_t)fb*(uint32_t)fb;
+                n_reads++;
               }
 
-              impedance_buffer[4*i] = hv_max-hv_min;
-              impedance_buffer[4*i+2] = fb_max-fb_min;
+              //impedance_buffer[4*i] = hv_max-hv_min;
+              //impedance_buffer[4*i+2] = fb_max-fb_min;
+
+              impedance_buffer[4*i] = sqrt((float)sum_hv2/(float)n_reads -
+                pow((float)sum_hv/(float)n_reads, 2));
+              impedance_buffer[4*i+2] = sqrt((float)sum_fb2/(float)n_reads -
+                pow((float)sum_fb/(float)n_reads, 2));
 
               // if we didn't get a valid sample during the sampling time,
               // return -1 as the index
@@ -533,10 +551,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                     impedance_buffer[4*(i-1)+1]==A0_series_resistor_index_) {
                   float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
                   float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
-                  float V_fb = (fb_max-fb_min)*5.0/1024/sqrt(2)/2;
+                  float V_fb = impedance_buffer[4*i+2]*5.0/1024;
 
                   amplifier_gain_ =
-                      float(impedance_buffer[4*i])*5.0/1024/sqrt(2)/2 /
+                      float(impedance_buffer[4*i])*5.0/1024 /
                                                     // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
                           pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/

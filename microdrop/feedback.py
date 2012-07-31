@@ -26,7 +26,7 @@ try:
 except ImportError:
     import pickle
 
-import logging
+
 import gtk
 import numpy as np
 import matplotlib
@@ -885,6 +885,7 @@ class FeedbackResults():
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
+        # convert lists to numpy arrays
         self.__dict__ = state
         for k, v in self.__dict__.items():
             if isinstance(v, list):
@@ -892,14 +893,16 @@ class FeedbackResults():
         self._upgrade()
         
     def __getstate__(self):
-        for k, v in self.__dict__.items():
+        # convert numpy arrays/floats to standard lists/floats
+        out = deepcopy(self.__dict__)
+        for k, v in out.items():
             if isinstance(v, np.ndarray):
-                self.__dict__[k] = v.tolist()
-        return self.__dict__
+                out[k] = v.tolist()
+        return out
 
     def V_total(self):
         ind = mlab.find(self.hv_resistor!=-1)
-        T = np.zeros(np.array(self.hv_resistor).shape)
+        T = np.zeros(self.hv_resistor.shape)
         T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
                              self.calibration.R_hv[self.hv_resistor[ind]]],
                             self.frequency, 10e6)
@@ -924,22 +927,29 @@ class FeedbackResults():
         return 1.0/(2*math.pi*self.frequency*self.Z_device())
     
     def dxdt(self, ind=None):
-        """
-        # remove outliers
-        ind = np.nonzero(abs(Z-smooth(Z))/Z>10)[0]
-        for j in range(len(ind)-1, -1, -1):
-            Z = np.concatenate([Z[:ind[j]],Z[ind[j]+1:]])
-            t = np.concatenate([t[:ind[j]],t[ind[j]+1:]])
-        """
         if ind is None:
             ind = range(len(self.time))
-        window_len = 9
-        dt = np.diff(self.time[ind])/1000.0
-        Z = self.Z_device()[ind]
+        dt = np.diff(self.time[ind])
         C = self.capacitance()[ind]
-        dZdt = self.smooth(np.diff(Z), window_len) / dt
-        return -dZdt / Z[:-1]**2/(2*np.pi*self.frequency* \
-               C[-1]/np.sqrt(self.area))
+        dCdt = np.concatenate(([0], np.diff(C)/dt))
+        
+        if self.calibration.C_drop:
+            C_drop = self.calibration.C_drop*self.area
+        else:
+            C_drop = C[-1]
+        if self.calibration.C_filler:
+            C_filler = self.calibration.C_filler*self.area
+        else:
+            C_filler = C[0]
+        
+        # find the time when the capacitance reaches 95% of its final level
+        ind_95 = mlab.find((C-C_filler)/(C_drop-C_filler)>.95)
+        if len(ind_95):
+            # set all remaining velocities to 0
+            # (+1 because we appended dCdt=0 at t=0)
+            dCdt[ind_95[0]+1:]=0
+
+        return dCdt/(C_drop-C_filler)*np.sqrt(self.area)
 
     def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
@@ -1031,6 +1041,7 @@ class SweepFrequencyResults():
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
+        # convert lists to numpy arrays
         self.__dict__ = state
         for k, v in self.__dict__.items():
             if isinstance(v, list) and len(v) and isinstance(v[0], list):
@@ -1042,16 +1053,18 @@ class SweepFrequencyResults():
         self._upgrade()
 
     def __getstate__(self):
-        for k, v in self.__dict__.items():
+        # convert numpy arrays/floats to standard lists/floats
+        out = deepcopy(self.__dict__)
+        for k, v in out.items():
             if isinstance(v, list):
                 for i in range(len(v)):
-                    if isinstance(self.__dict__[k][i], np.ndarray):
-                        self.__dict__[k][i] = self.__dict__[k][i].tolist()
-                    elif isinstance(self.__dict__[k][i], np.float64):
-                        self.__dict__[k][i] = float(self.__dict__[k][i])
+                    if isinstance(out[k][i], np.ndarray):
+                        out[k][i] = out[k][i].tolist()
+                    elif isinstance(out[k][i], np.float64):
+                        out[k][i] = float(out[k][i])
             elif isinstance(v, np.ndarray):
-                self.__dict__[k] = v.tolist()
-        return self.__dict__
+                out[k] = v.tolist()
+        return out
 
     def add_frequency_step(self, frequency,
                            V_hv, hv_resistor,
@@ -1145,6 +1158,7 @@ class SweepVoltageResults():
         # else the versions are equal and don't need to be upgraded
 
     def __setstate__(self, state):
+        # convert lists to numpy arrays
         self.__dict__ = state
         for k, v in self.__dict__.items():
             if isinstance(v, list) and len(v) and isinstance(v[0], list):
@@ -1156,16 +1170,18 @@ class SweepVoltageResults():
         self._upgrade()
 
     def __getstate__(self):
-        for k, v in self.__dict__.items():
+        # convert numpy arrays/floats to standard lists/floats
+        out = deepcopy(self.__dict__)
+        for k, v in out.items():
             if isinstance(v, list):
                 for i in range(len(v)):
-                    if isinstance(self.__dict__[k][i], np.ndarray):
-                        self.__dict__[k][i] = self.__dict__[k][i].tolist()
-                    elif isinstance(self.__dict__[k][i], np.float64):
-                        self.__dict__[k][i] = float(self.__dict__[k][i])
+                    if isinstance(out[k][i], np.ndarray):
+                        out[k][i] = out[k][i].tolist()
+                    elif isinstance(out[k][i], np.float64):
+                        out[k][i] = float(out[k][i])
             elif isinstance(v, np.ndarray):
-                self.__dict__[k] = v.tolist()
-        return self.__dict__
+                out[k] = v.tolist()
+        return out
 
     def add_voltage_step(self, voltage,
                          V_hv, hv_resistor,
@@ -1331,9 +1347,18 @@ class FeedbackResultsController():
                     self.export_data.append('step:, %d' % (row['core']["step"]+1))
                     self.export_data.append('step time (s):, %f' % (row['core']["time"]))
 
-                    # only plot values that have a valid fb and hv resistor
-                    ind = mlab.find(np.logical_and(results.fb_resistor!=-1,
-                                    results.hv_resistor!=-1))
+                    # only plot values that have a valid fb and hv resistor,
+                    # and that have been using the same fb and hv resistor for
+                    # > 1 consecutive measurement
+                    ind = mlab.find(np.logical_and(
+                        np.logical_and(
+                        results.fb_resistor!=-1,
+                        results.hv_resistor!=-1),
+                        np.logical_and(
+                        np.concatenate(([0],np.diff(results.fb_resistor)))==0,
+                        np.concatenate(([0],np.diff(results.hv_resistor)))==0
+                    )))
+                    
                     
                     if y_axis=="Impedance":
                         self.axis.set_title("Impedance")
@@ -1370,15 +1395,11 @@ class FeedbackResultsController():
                                        results.area]))
                     elif y_axis=="Velocity":
                         dxdt = results.dxdt(ind)
-                        t = (np.array(results.time[:-1]) + \
-                             np.array(results.time[1:]))[ind[:-1]]/2
                         self.axis.set_title("Instantaneous velocity")
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        self.axis.plot(t, dxdt)
+                        self.axis.plot(results.time[ind], dxdt*1000)
                         self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in (
-                                np.array(results.time[:-1])+
-                                np.array(results.time[1:]))/2]))
+                            ", ".join([str(x) for x in results.time[ind]]))
                         self.export_data.append('velocity (mm/s):,' + 
                             ", ".join([str(x) for x in dxdt]))
                     elif y_axis=="Voltage":
@@ -1722,7 +1743,7 @@ class FeedbackCalibrationController():
         n_attenuation_steps = len(self.plugin.control_board.calibration.R_hv)
 
         if input_voltage is None:
-            input_voltage = .5*np.ones([n_attenuation_steps,
+            input_voltage = .1*np.ones([n_attenuation_steps,
                                         len(frequencies)]
             )
 
@@ -1754,7 +1775,7 @@ class FeedbackCalibrationController():
                         time.sleep(.1)
                         V = np.array(self.plugin.control_board.analog_reads(0,
                             n_samples))/1024.0*5-2.5
-                        V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
+                        V_rms = np.sqrt(np.mean(V**2)-np.mean(V)**2)
                         logging.info("V_rms=%.1f" % V_rms)
                         if V_rms > 1.3:
                             logging.info("divide input voltage by 2")
