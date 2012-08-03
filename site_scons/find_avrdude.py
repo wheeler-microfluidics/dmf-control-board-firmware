@@ -33,10 +33,13 @@ def get_arduino_paths():
         %s''' % '\n    '.join(ARDUINO_SEARCH_PATHS)
         sys.exit(1)
 
-    # use arduino version 0023 if it exists
-    for avrdude in fs:
-        if get_arduino_version(avrdude)=='0023':
-            break
+    if os.name == 'nt':
+        # use arduino version 0023 if it exists
+        for avrdude in fs:
+            if get_arduino_version(avrdude)=='0023':
+                break
+    else:
+        avrdude = fs[0]
 
     p = avrdude.parent
     while p and p.name != 'hardware':
