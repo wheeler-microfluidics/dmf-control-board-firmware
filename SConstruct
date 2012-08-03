@@ -139,12 +139,13 @@ version_target = Command('version.txt', None,
                         'echo %s > $TARGET' % SOFTWARE_VERSION)
 plugin_root = path('.').abspath()
 properties_target = plugin_root.joinpath('properties.yml')
-properties = {'name': str(plugin_root.name), 'version': SOFTWARE_VERSION}
+properties = {'plugin_name': 'wheelerlab.dmf_control_board',
+        'package_name': str(plugin_root.name), 'version': SOFTWARE_VERSION}
 properties_target.write_bytes(yaml.dump(properties))
-archive_name = '%s-%s.tar.gz' % (properties['name'], SOFTWARE_VERSION)
+archive_name = '%s-%s.tar.gz' % (properties['package_name'], SOFTWARE_VERSION)
 
 # This will build an archive using what ever DISTTAR_FORMAT that is set.
-tar = tar_env.DistTar('%s' % properties['name'], [tar_env.Dir('#')])
+tar = tar_env.DistTar('%s' % properties['package_name'], [tar_env.Dir('#')])
 renamed_tar = tar_env.Command(tar_env.File(archive_name), None,
         Move(archive_name, tar[0]))
 Depends(tar, package_hexes + [package_pyext, version_target] + extra_files)

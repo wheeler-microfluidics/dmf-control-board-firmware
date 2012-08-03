@@ -23,6 +23,7 @@ import math
 
 import gtk
 import numpy as np
+import yaml
 
 import utility
 try:
@@ -127,7 +128,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Boolean.named('feedback_enabled').using(default=True, optional=True),
     )
     _feedback_fields = set(['feedback_enabled'])
-    plugin_name = 'wheelerlab.dmf_control_board'
+    plugin_name = yaml.load(path(__file__).parent.parent.joinpath(
+            'properties.yml').bytes())['plugin_name']
     version = get_plugin_version(path(__file__).parent.parent)
     
     def __init__(self):
