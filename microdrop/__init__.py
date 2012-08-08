@@ -42,7 +42,7 @@ from logger import logger
 from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
 from plugin_helpers import StepOptionsController, AppDataController, \
-    get_plugin_version
+    get_plugin_info
 from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
@@ -128,13 +128,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Boolean.named('feedback_enabled').using(default=True, optional=True),
     )
     _feedback_fields = set(['feedback_enabled'])
-    plugin_name = yaml.load(path(__file__).parent.parent.joinpath(
-            'properties.yml').bytes())['plugin_name']
-    version = get_plugin_version(path(__file__).parent.parent)
+    version = get_plugin_info(path(__file__).parent.parent).version
     
     def __init__(self):
         self.control_board = DmfControlBoard()
-        self.name = self.plugin_name
+        self.name = get_plugin_info(path(__file__).parent.parent).plugin_name
         self.url = self.control_board.host_url()
         self.steps = [] # list of steps in the protocol
         self.feedback_options_controller = None

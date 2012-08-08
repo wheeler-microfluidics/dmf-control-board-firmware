@@ -11,16 +11,14 @@ from get_libs import get_lib
 from git_util import GitUtil
 
 
-def get_plugin_version():
+def get_version_string():
     version = GitUtil(None).describe()
     m = re.search('^v(?P<major>\d+)\.(?P<minor>\d+)(-(?P<micro>\d+))?', version)
     if m.group('micro'):
         micro = m.group('micro')
     else:
         micro = '0'
-    version_string = "%s.%s.%s" % (m.group('major'),
-            m.group('minor'), micro)
-    return version_string
+    return "%s.%s.%s" % (m.group('major'), m.group('minor'), micro)
 
 
 PYTHON_VERSION = "%s.%s" % (sys.version_info[0],
@@ -30,7 +28,7 @@ env = Environment()
 
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
-SOFTWARE_VERSION = get_plugin_version()
+SOFTWARE_VERSION = get_version_string()
 Export('SOFTWARE_VERSION')
 
 HARDWARE_MAJOR_VERSION = 1
