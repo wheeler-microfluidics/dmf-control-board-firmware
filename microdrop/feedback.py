@@ -241,18 +241,26 @@ class FeedbackOptionsController():
             self.plugin.control_board_menu.append(menu_item)
             menu_item.connect("activate", self.on_window_show)
             menu_item.show()
-            
-            self.measure_cap_menu_item = gtk.MenuItem(
-                    "Measure device capacitance")
+            self.measure_cap_filler_menu_item = gtk.MenuItem(
+                    "Measure capacitance of filler media")
             app.dmf_device_controller.view.popup.add_item(
-                    self.measure_cap_menu_item)
-            self.measure_cap_menu_item.connect("activate",
-                    self.on_measure_device_capacitance)
+                    self.measure_cap_filler_menu_item)
+            self.measure_cap_filler_menu_item.connect("activate",
+                    self.on_measure_cap_filler)
+            self.measure_cap_liquid_menu_item = gtk.MenuItem(
+                    "Measure capacitance of liquid")
+            app.dmf_device_controller.view.popup.add_item(
+                    self.measure_cap_liquid_menu_item)
+            self.measure_cap_liquid_menu_item.connect("activate",
+                    self.on_measure_cap_liquid)
+
             self.initialized = True
-        self.measure_cap_menu_item.show()
+        self.measure_cap_filler_menu_item.show()
+        self.measure_cap_liquid_menu_item.show()
 
     def on_plugin_disable(self):
-        self.measure_cap_menu_item.hide()
+        self.measure_cap_filler_menu_item.hide()
+        self.measure_cap_liquid_menu_item.hide()
 
     def on_window_show(self, widget, data=None):
         """
@@ -271,51 +279,57 @@ class FeedbackOptionsController():
         self.window.hide()
         return True
 
-    def on_measure_device_capacitance(self, widget, data=None):
+    def on_measure_cap_filler(self, widget, data=None):
+        self.plugin.control_board.calibration.C_filler = \
+            self.measure_device_capacitance()
+
+    def on_measure_cap_liquid(self, widget, data=None):
+        self.plugin.control_board.calibration.C_drop = \
+            self.measure_device_capacitance()
+
+    def measure_device_capacitance(self):
         app = get_app()
-        if self.plugin.control_board.connected():
-            electrode = \
-                app.dmf_device_controller.view.popup.last_electrode_clicked
-            area = electrode.area() * app.dmf_device.scale
-            current_state = self.plugin.control_board.state_of_all_channels
-            state = np.zeros(len(current_state))
+        electrode = \
+            app.dmf_device_controller.view.popup.last_electrode_clicked
+        area = electrode.area() * app.dmf_device.scale
+        current_state = self.plugin.control_board.state_of_all_channels
+        state = np.zeros(len(current_state))
 
-            if self.plugin.control_board.number_of_channels() < \
-                max(electrode.channels):
-                logging.warning("Error: "
-                    "currently connected board does not have enough channels "
-                    "to perform calibration on this electrode.")
-                return
+        if self.plugin.control_board.number_of_channels() < \
+            max(electrode.channels):
+            logging.warning("Error: "
+                "currently connected board does not have enough channels "
+                "to perform calibration on this electrode.")
+            return
 
-            state[electrode.channels]=1
-            step = app.protocol.current_step()
-            dmf_options = step.get_data(self.plugin.name)
-            voltage = dmf_options.voltage
-            frequency = dmf_options.frequency
-            emit_signal("set_frequency", frequency,
-                        interface=IWaveformGenerator)
-            emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
-            app_values = self.plugin.get_app_values()
-            test_options = deepcopy(dmf_options)
-            test_options.duration = 10*app_values['sampling_time_ms']
-            test_options.feedback_options = FeedbackOptions(
-                feedback_enabled=True, action=RetryAction())
-            self.plugin.check_impedance(test_options)
-            (V_hv, hv_resistor, V_fb, fb_resistor) = \
-                self.plugin.measure_impedance(state, test_options,
-                    app_values['sampling_time_ms'],
-                    app_values['delay_between_samples_ms'])
-            results = FeedbackResults(test_options,
+        state[electrode.channels]=1
+        step = app.protocol.current_step()
+        dmf_options = step.get_data(self.plugin.name)
+        voltage = dmf_options.voltage
+        frequency = dmf_options.frequency
+        emit_signal("set_frequency", frequency,
+                    interface=IWaveformGenerator)
+        emit_signal("set_voltage", voltage, interface=IWaveformGenerator)
+        app_values = self.plugin.get_app_values()
+        test_options = deepcopy(dmf_options)
+        test_options.duration = 10*app_values['sampling_time_ms']
+        test_options.feedback_options = FeedbackOptions(
+            feedback_enabled=True, action=RetryAction())
+        self.plugin.check_impedance(test_options)
+        (V_hv, hv_resistor, V_fb, fb_resistor) = \
+            self.plugin.measure_impedance(state, test_options,
                 app_values['sampling_time_ms'],
-                app_values['delay_between_samples_ms'],
-                V_hv, hv_resistor,
-                V_fb, fb_resistor,
-                area,
-                self.plugin.control_board.calibration)
-            logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
-            self.plugin.control_board.state_of_all_channels = current_state
-            RetryAction.capacitance_threshold =\
-                max(results.capacitance()) / area
+                app_values['delay_between_samples_ms'])
+        results = FeedbackResults(test_options,
+            app_values['sampling_time_ms'],
+            app_values['delay_between_samples_ms'],
+            V_hv, hv_resistor,
+            V_fb, fb_resistor,
+            area,
+            self.plugin.control_board.calibration)
+        logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
+        self.plugin.control_board.state_of_all_channels = current_state
+        return max(results.capacitance()) / area
 
     def on_button_feedback_enabled_toggled(self, widget, data=None):
         """

@@ -383,6 +383,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.edit_calibration_settings_menu_item.set_sensitive(connected)
         self.reset_calibration_to_default_values_menu_item.set_sensitive(
             connected)
+        self.feedback_options_controller.measure_cap_filler_menu_item. \
+            set_sensitive(connected)
+        self.feedback_options_controller.measure_cap_liquid_menu_item. \
+            set_sensitive(connected)
         app.main_window_controller.label_control_board_status. \
             set_text(self.connection_status)
 
