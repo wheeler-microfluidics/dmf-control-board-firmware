@@ -140,6 +140,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.feedback_calibration_controller = None
         self.initialized = False
         self.connection_status = "Not connected"
+        self.n_voltage_adjustments = None
 
     def on_plugin_enable(self):
         if get_app().protocol:
@@ -398,25 +399,24 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         if self.control_board.auto_adjust_amplifier_gain():
             voltage = impedance.options.voltage
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
-            logger.info('\tn_voltage_adjustments=%d' % \
-                        self.n_voltage_adjustments)
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
                 'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
                 100*(impedance.V_actuation()[-1]-voltage)/voltage))
-            
             app_values = self.get_app_values()            
             
             # check that the signal is within tolerance
             if abs(impedance.V_actuation()[-1]-voltage) > \
                 app_values['voltage_tolerance']:
                 # allow maximum of 5 adjustment attempts
-                if self.n_voltage_adjustments<5:
+                if self.n_voltage_adjustments and self.n_voltage_adjustments<5:
+                    logger.info('\tn_voltage_adjustments=%d' % \
+                                self.n_voltage_adjustments)
                     emit_signal("set_voltage", voltage,
                         interface=IWaveformGenerator)
                     self.check_impedance(impedance.options,
                                          self.n_voltage_adjustments+1)
                 else:
-                    self.n_voltage_adjustments = 0
+                    self.n_voltage_adjustments = None
                     logger.error("Unable to achieve the specified voltage.")
 
     def get_actuated_area(self):
@@ -488,7 +488,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                         interface=IWaveformGenerator)
                             emit_signal("set_voltage", voltage,
                                         interface=IWaveformGenerator)
-                            self.check_impedance(options)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, options,
                                     app_values['sampling_time_ms'],
@@ -544,7 +543,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                         float(frequency),
                                         interface=IWaveformGenerator)
                             test_options.frequency = frequency
-                            self.check_impedance(test_options)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, test_options,
                                     app_values['sampling_time_ms'],
@@ -572,7 +570,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             emit_signal("set_voltage", voltage,
                                         interface=IWaveformGenerator)
                             test_options.voltage = voltage
-                            self.check_impedance(test_options)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, test_options,
                                     app_values['sampling_time_ms'],
@@ -591,7 +588,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 interface=IWaveformGenerator)
                     emit_signal("set_voltage", voltage,
                                 interface=IWaveformGenerator)
-                    self.check_impedance(options)                
+                    self.check_impedance(options)
                     self.control_board.state_of_all_channels = state
     
             # if a protocol is running, wait for the specified minimum duration
