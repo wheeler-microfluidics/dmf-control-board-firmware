@@ -469,15 +469,16 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               uint16_t hv_max = 0;
               uint16_t hv_min = 1024;
               uint16_t hv = 0;
+              uint32_t sum_hv = 0;
+              uint32_t sum_hv2 = 0;
+              uint16_t n_reads_hv = 0;
+
               uint16_t fb_max = 0;
               uint16_t fb_min = 1024;
               uint16_t fb = 0;
-
-              uint32_t sum_hv = 0;
-              uint32_t sum_hv2 = 0;
               uint32_t sum_fb = 0;
               uint32_t sum_fb2 = 0;
-              uint16_t n_reads = 0;
+              uint16_t n_reads_fb = 0;
 
               uint32_t t_sample = millis();
 
@@ -492,6 +493,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                       A0_series_resistor_index_-1);
                     hv_max = 0;
                     hv_min = 1024;
+                    sum_hv = 0;
+                    sum_hv2 = 0;
+                    n_reads_hv = 0;
                   }
                   continue;
                 }
@@ -501,6 +505,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(hv<hv_min) {
                   hv_min = hv;
                 }
+
+                sum_hv += hv;
+                sum_hv2 += (uint32_t)hv*(uint32_t)hv;
+                n_reads_hv++;
 
                 fb = analogRead(1);
 
@@ -512,6 +520,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                       A1_series_resistor_index_-1);
                     fb_max = 0;
                     fb_min = 1024;
+                    sum_fb = 0;
+                    sum_fb2 = 0;
+                    n_reads_fb = 0;
                   }
                   continue;
                 }
@@ -522,20 +533,15 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   fb_min = fb;
                 }
 
-                sum_hv += hv;
-                sum_hv2 += (uint32_t)hv*(uint32_t)hv;
                 sum_fb += fb;
                 sum_fb2 += (uint32_t)fb*(uint32_t)fb;
-                n_reads++;
+                n_reads_fb++;
               }
 
-              //impedance_buffer[4*i] = hv_max-hv_min;
-              //impedance_buffer[4*i+2] = fb_max-fb_min;
-
-              impedance_buffer[4*i] = sqrt((float)sum_hv2/(float)n_reads -
-                pow((float)sum_hv/(float)n_reads, 2));
-              impedance_buffer[4*i+2] = sqrt((float)sum_fb2/(float)n_reads -
-                pow((float)sum_fb/(float)n_reads, 2));
+              impedance_buffer[4*i] = sqrt((float)sum_hv2/(float)n_reads_hv -
+                pow((float)sum_hv/(float)n_reads_hv, 2));
+              impedance_buffer[4*i+2] = sqrt((float)sum_fb2/(float)n_reads_fb -
+                pow((float)sum_fb/(float)n_reads_fb, 2));
 
               // if we didn't get a valid sample during the sampling time,
               // return -1 as the index
@@ -544,16 +550,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               } else {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
 
-                // adjust amplifier gain (only if the hv resistor is the same
-                // as on the previous reading; otherwise it may not have had
-                // enough time to get a good reading)
-                if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0 &&
-                    impedance_buffer[4*(i-1)+1]==A0_series_resistor_index_) {
-                  float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
-                  float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                // adjust amplifier gain
+                if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0) {
+                  float R = config_settings_.A0_series_resistance[
+                    A0_series_resistor_index_];
+                  float C = config_settings_.A0_series_capacitance[
+                    A0_series_resistor_index_];
                   float V_fb = impedance_buffer[4*i+2]*5.0/1024;
 
-                  amplifier_gain_ =
+                  // calculate the amplifier gain using an exponential moving
+                  // average (a higher alpha value weights the amplifier more
+                  // heavily on the most recent measurement).
+                  float alpha = .5;
+                  amplifier_gain_ = (1-alpha)*amplifier_gain_ + alpha*
                       float(impedance_buffer[4*i])*5.0/1024 /
                                                     // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
