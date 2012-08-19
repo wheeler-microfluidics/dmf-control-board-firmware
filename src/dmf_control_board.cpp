@@ -558,11 +558,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                     A0_series_resistor_index_];
                   float V_fb = impedance_buffer[4*i+2]*5.0/1024;
 
-                  // calculate the amplifier gain using an exponential moving
-                  // average (a higher alpha value weights the amplifier more
-                  // heavily on the most recent measurement).
-                  float alpha = .5;
-                  amplifier_gain_ = (1-alpha)*amplifier_gain_ + alpha*
+                  amplifier_gain_ =
                       float(impedance_buffer[4*i])*5.0/1024 /
                                                     // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
