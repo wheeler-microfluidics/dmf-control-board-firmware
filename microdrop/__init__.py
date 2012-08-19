@@ -141,6 +141,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.initialized = False
         self.connection_status = "Not connected"
         self.n_voltage_adjustments = None
+        self.amplifier_gain_initialized = False
 
     def on_plugin_enable(self):
         if get_app().protocol:
@@ -451,6 +452,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                      (options, dmf_options))
         feedback_options = options.feedback_options
         app_values = self.get_app_values()
+
+        if self.control_board.auto_adjust_amplifier_gain() and \
+            not self.amplifier_gain_initialized:
+            emit_signal("set_frequency",
+                        options.frequency,
+                        interface=IWaveformGenerator)
+            emit_signal("set_voltage", options.voltage,
+                        interface=IWaveformGenerator)
+            self.check_impedance(options)
+            self.amplifier_gain_initialized = True
+            logger.info('Amplifier gain initialized (gain=%.1f)' % \
+                        self.control_board.amplifier_gain())
 
         start_time = time.time()
 
