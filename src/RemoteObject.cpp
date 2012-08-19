@@ -158,7 +158,10 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
                          -time_cmd_sent_).total_microseconds());
   LogMessage(log_message_string_, function_name);
   if(return_code_!=RETURN_OK) {
-    throw runtime_error("Communication error.");
+    sprintf(log_message_string_,
+            "%s error sending command %d. Return code=%d.",
+            name().c_str(), cmd, return_code_);
+    throw runtime_error(log_message_string_);
   }
 #endif
   return return_code_;
