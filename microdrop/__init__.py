@@ -705,18 +705,20 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         logger.debug('[DmfControlBoardPlugin] set_step[%d]_values(): '\
                     'values_dict=%s' % (step_number, values_dict,))
         el = self.StepFields(value=values_dict)
-        if not el.validate():
-            raise ValueError('Invalid values: %s' % el.errors)
-        options = self.get_step_options(step_number=step_number)
-        for name, field in el.iteritems():
-            if field.value is None:
-                continue
-            if name in self._feedback_fields:
-                setattr(options.feedback_options, name, field.value)
-            else:
-                setattr(options, name, field.value)
-        emit_signal('on_step_options_changed', [self.name, step_number],
-                    interface=IPlugin)
+        try:
+            if not el.validate():
+                raise ValueError()            
+            options = self.get_step_options(step_number=step_number)
+            for name, field in el.iteritems():
+                if field.value is None:
+                    continue
+                if name in self._feedback_fields:
+                    setattr(options.feedback_options, name, field.value)
+                else:
+                    setattr(options, name, field.value)
+        finally:
+            emit_signal('on_step_options_changed', [self.name, step_number],
+                        interface=IPlugin)
 
     def get_step_values(self, step_number=None):
         app = get_app()
