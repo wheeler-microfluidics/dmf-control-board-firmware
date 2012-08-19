@@ -551,7 +551,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 impedance_buffer[4*i+1] = A0_series_resistor_index_;
 
                 // adjust amplifier gain
-                if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0) {
+                if(auto_adjust_amplifier_gain_ && waveform_voltage_>0) {
                   float R = config_settings_.A0_series_resistance[
                     A0_series_resistor_index_];
                   float C = config_settings_.A0_series_capacitance[
