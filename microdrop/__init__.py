@@ -141,6 +141,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.connection_status = "Not connected"
         self.n_voltage_adjustments = None
         self.amplifier_gain_initialized = False
+        self.current_frequency = None
 
     def on_plugin_enable(self):
         if get_app().protocol:
@@ -492,12 +493,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 data[-1]['core']['attempt']
     
                         if attempt <= feedback_options.action.max_repeats:
-                            voltage = float(options.voltage + \
+                            voltage = options.voltage + \
                                 feedback_options.action.increase_voltage * \
-                                attempt)
-                            frequency = float(options.frequency)
-                            emit_signal("set_frequency", frequency,
-                                        interface=IWaveformGenerator)
+                                attempt
+                            frequency = options.frequency
+                            if frequency != self.current_frequency:
+                                emit_signal("set_frequency", frequency,
+                                            interface=IWaveformGenerator)
+                                self.check_impedance(options)
                             emit_signal("set_voltage", voltage,
                                         interface=IWaveformGenerator)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
@@ -543,7 +546,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             np.log10(feedback_options.action.start_frequency),
                             np.log10(feedback_options.action.end_frequency),
                             int(feedback_options.action.n_frequency_steps))
-                        voltage = float(options.voltage)
+                        voltage = options.voltage
                         results = SweepFrequencyResults(feedback_options,
                             area,
                             self.control_board.calibration)
@@ -552,9 +555,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         test_options = deepcopy(options)
                         for frequency in frequencies:
                             emit_signal("set_frequency",
-                                        float(frequency),
+                                        frequency,
                                         interface=IWaveformGenerator)
                             test_options.frequency = frequency
+                            self.check_impedance(test_options)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, test_options,
                                     app_values['sampling_time_ms'],
@@ -567,12 +571,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         logger.info("Z_device=%s" % results.Z_device())                        
                     elif feedback_options.action.__class__==SweepVoltageAction:
                         voltages = np.linspace(
-                            feedback_options.action.start_voltage,
+                           feedback_options.action.start_voltage,
                            feedback_options.action.end_voltage,
                            feedback_options.action.n_voltage_steps)
-                        frequency = float(options.frequency)
-                        emit_signal("set_frequency", frequency,
-                                    interface=IWaveformGenerator)
+                        frequency = options.frequency
+                        if frequency != self.current_frequency:
+                            emit_signal("set_frequency", frequency,
+                                        interface=IWaveformGenerator)
+                            self.check_impedance(options)
                         results = SweepVoltageResults(feedback_options,
                             area,
                             frequency,
@@ -593,12 +599,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         logger.info("V_actuation=%s" % results.V_actuation())
                         logger.info("Z_device=%s" % results.Z_device())                        
                 else:
-                    voltage = float(options.voltage)
-                    frequency = float(options.frequency)
                     emit_signal("set_frequency",
-                                frequency,
+                                options.frequency,
                                 interface=IWaveformGenerator)
-                    emit_signal("set_voltage", voltage,
+                    emit_signal("set_voltage", options.voltage,
                                 interface=IWaveformGenerator)
                     self.check_impedance(options)
                     self.control_board.state_of_all_channels = state
@@ -691,6 +695,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         """
         logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
         self.control_board.set_waveform_frequency(frequency)
+        self.current_frequency = frequency
         
     def check_impedance(self, options, n_voltage_adjustments=0):
         # increment the number of adjustment attempts
