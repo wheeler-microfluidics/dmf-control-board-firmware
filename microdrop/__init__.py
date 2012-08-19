@@ -43,7 +43,7 @@ from pygtkhelpers.ui.objectlist import PropertyMapper
 from gui.protocol_grid_controller import ProtocolGridController
 from plugin_helpers import StepOptionsController, AppDataController, \
     get_plugin_info
-from plugin_manager import IPlugin, IWaveformGenerator, IAmplifier, Plugin, \
+from plugin_manager import IPlugin, IWaveformGenerator, Plugin, \
     implements, PluginGlobals, ScheduleRequest, emit_signal,\
     ExtensionPoint, get_service_instance
 from app_context import get_app
@@ -107,7 +107,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
-    implements(IAmplifier)    
 
     AppFields = Form.of(
         Integer.named('sampling_time_ms').using(default=10, optional=True,
