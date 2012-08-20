@@ -81,11 +81,8 @@ public:
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
-  //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS,
-  //  CMD_GET_MAX_SAMPLES
+  //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS
   static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
-  static const uint16_t MAX_SAMPLES =
-                          (RemoteObject::MAX_PAYLOAD_LENGTH-1)/sizeof(uint16_t);
 
   // Accessors and mutators
   static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0xA0;

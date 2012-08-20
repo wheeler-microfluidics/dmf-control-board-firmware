@@ -435,7 +435,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint16_t n_samples = ReadUint16();
         uint16_t delay_between_samples_ms = ReadUint16();
 
-        if(n_samples*4>MAX_SAMPLES) {
+        if(n_samples >
+        (MAX_PAYLOAD_LENGTH-1)/(2*sizeof(int8_t)+2*sizeof(int16_t))) {
           return_code_ = RETURN_GENERAL_ERROR;
         } else {
           if(payload_length()==3*sizeof(uint16_t) ||
@@ -460,25 +461,16 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // sample the feedback voltage
             for(uint16_t i=0; i<n_samples; i++) {
-              float V_hv;
-              float V_fb;
-              int8_t hv_resistor;
-              int8_t fb_resistor;
-
               uint16_t hv_max = 0;
               uint16_t hv_min = 1024;
               uint16_t hv = 0;
-              uint32_t sum_hv = 0;
-              uint32_t sum_hv2 = 0;
-              uint16_t n_reads_hv = 0;
-
+              uint16_t hv_pk_pk;
+              uint8_t hv_resistor;
               uint16_t fb_max = 0;
               uint16_t fb_min = 1024;
               uint16_t fb = 0;
-              uint32_t sum_fb = 0;
-              uint32_t sum_fb2 = 0;
-              uint16_t n_reads_fb = 0;
-
+              uint16_t fb_pk_pk;
+              uint8_t fb_resistor;
               uint32_t t_sample = millis();
 
               while(millis()-t_sample<sampling_time_ms) {
@@ -492,9 +484,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                       A0_series_resistor_index_-1);
                     hv_max = 0;
                     hv_min = 1024;
-                    sum_hv = 0;
-                    sum_hv2 = 0;
-                    n_reads_hv = 0;
                   }
                   continue;
                 }
@@ -504,10 +493,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(hv<hv_min) {
                   hv_min = hv;
                 }
-
-                sum_hv += hv;
-                sum_hv2 += (uint32_t)hv*(uint32_t)hv;
-                n_reads_hv++;
 
                 fb = analogRead(1);
 
@@ -519,9 +504,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                       A1_series_resistor_index_-1);
                     fb_max = 0;
                     fb_min = 1024;
-                    sum_fb = 0;
-                    sum_fb2 = 0;
-                    n_reads_fb = 0;
                   }
                   continue;
                 }
@@ -531,16 +513,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(fb<fb_min) {
                   fb_min = fb;
                 }
-
-                sum_fb += fb;
-                sum_fb2 += (uint32_t)fb*(uint32_t)fb;
-                n_reads_fb++;
               }
 
-              V_hv = sqrt((float)sum_hv2/(float)n_reads_hv -
-                pow((float)sum_hv/(float)n_reads_hv, 2))*5.0/1024;
-              V_fb = sqrt((float)sum_fb2/(float)n_reads_fb -
-                pow((float)sum_fb/(float)n_reads_fb, 2))*5.0/1024;
+              hv_pk_pk = hv_max-hv_min;
+              fb_pk_pk = fb_max-fb_min;
 
               // if we didn't get a valid sample during the sampling time,
               // return -1 as the index
@@ -551,14 +527,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 // as on the previous reading; otherwise it may not have had
                 // enough time to get a good reading)
                 if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0 &&
-                hv_resistor==A0_series_resistor_index_) {
-                  float R = config_settings_.A0_series_resistance[
-                    A0_series_resistor_index_];
-                  float C = config_settings_.A0_series_capacitance[
-                    A0_series_resistor_index_];
+                    hv_resistor==A0_series_resistor_index_) {
+                  float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
+                  float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                  float V_fb = fb_pk_pk*5.0/1024/sqrt(2)/2;
 
                   amplifier_gain_ =
-                      V_hv /                        // measured Vrms /
+                      hv_pk_pk*5.0/1024/sqrt(2)/2 / // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
                           pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
                       ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
@@ -592,10 +567,11 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 fb_resistor = A1_series_resistor_index_;
               }
 
-              Serialize(&V_hv, sizeof(V_hv));
+              Serialize(&hv_pk_pk, sizeof(hv_pk_pk));
               Serialize(&hv_resistor, sizeof(hv_resistor));
-              Serialize(&V_fb, sizeof(V_fb));
+              Serialize(&fb_pk_pk, sizeof(fb_pk_pk));
               Serialize(&fb_resistor, sizeof(fb_resistor));
+
 
               uint32_t t_delay = millis();
               while(millis()-t_delay<delay_between_samples_ms) {
@@ -1448,14 +1424,14 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
   Serialize(&state[0],state.size()*sizeof(uint8_t));
   if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
     LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
-    uint16_t n_samples = payload_length()/10;
+    uint16_t n_samples = payload_length()/4/sizeof(int16_t);
     sprintf(log_message_string_,"Read %d impedance samples",n_samples);
     LogMessage(log_message_string_,function_name);
     std::vector<float> impedance_buffer(4*n_samples);
     for(uint16_t i=0; i<n_samples; i++) {
-      impedance_buffer[4*i] = ReadFloat(); // V_hv
+      impedance_buffer[4*i] = (float)ReadInt16()*5.0/1024/sqrt(2)/2;   // V_hv
       impedance_buffer[4*i+1] = ReadInt8(); // hv_resistor
-      impedance_buffer[4*i+2] = ReadFloat(); // V_fb
+      impedance_buffer[4*i+2] = (float)ReadInt16()*5.0/1024/sqrt(2)/2; // V_fb
       impedance_buffer[4*i+3] = ReadInt8(); // fb_resistor
     }
     return impedance_buffer;
