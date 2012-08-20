@@ -497,12 +497,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 feedback_options.action.increase_voltage * \
                                 attempt
                             frequency = options.frequency
+                            emit_signal("set_voltage", voltage,
+                                        interface=IWaveformGenerator)
                             if frequency != self.current_frequency:
                                 emit_signal("set_frequency", frequency,
                                             interface=IWaveformGenerator)
                                 self.check_impedance(options)
-                            emit_signal("set_voltage", voltage,
-                                        interface=IWaveformGenerator)
                             (V_hv, hv_resistor, V_fb, fb_resistor) = \
                                 self.measure_impedance(state, options,
                                     app_values['sampling_time_ms'],
@@ -576,6 +576,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                            feedback_options.action.n_voltage_steps)
                         frequency = options.frequency
                         if frequency != self.current_frequency:
+                            emit_signal("set_voltage", options.voltage,
+                                        interface=IWaveformGenerator)
                             emit_signal("set_frequency", frequency,
                                         interface=IWaveformGenerator)
                             self.check_impedance(options)
