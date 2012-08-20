@@ -230,9 +230,9 @@ class DmfControlBoard(Base, SerialDevice):
                              sampling_time_ms, n_samples,
                              delay_between_samples_ms, state_))
         V_hv = impedance[0::4]
-        hv_resistor = impedance[1::4]
+        hv_resistor = impedance[1::4].astype(int)
         V_fb = impedance[2::4]
-        fb_resistor = impedance[3::4]
+        fb_resistor = impedance[3::4].astype(int)
         return (V_hv, hv_resistor, V_fb, fb_resistor)
         
     def i2c_write(self, address, data):
