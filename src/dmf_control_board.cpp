@@ -443,12 +443,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
              +number_of_channels_*sizeof(uint8_t))) {
             return_code_ = RETURN_OK;
 
-            // point the impedance_buffer_ to the payload_buffer_
-            int16_t* impedance_buffer = (int16_t*)payload();
-
-            // update the number of bytes written
-            bytes_written(n_samples*4*sizeof(uint16_t));
-
             uint8_t original_A0_index = A0_series_resistor_index_;
             uint8_t original_A1_index = A1_series_resistor_index_;
             
@@ -466,6 +460,11 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // sample the feedback voltage
             for(uint16_t i=0; i<n_samples; i++) {
+              float V_hv;
+              float V_fb;
+              int8_t hv_resistor;
+              int8_t fb_resistor;
+
               uint16_t hv_max = 0;
               uint16_t hv_min = 1024;
               uint16_t hv = 0;
@@ -538,32 +537,28 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 n_reads_fb++;
               }
 
-              impedance_buffer[4*i] = sqrt((float)sum_hv2/(float)n_reads_hv -
-                pow((float)sum_hv/(float)n_reads_hv, 2));
-              impedance_buffer[4*i+2] = sqrt((float)sum_fb2/(float)n_reads_fb -
-                pow((float)sum_fb/(float)n_reads_fb, 2));
+              V_hv = sqrt((float)sum_hv2/(float)n_reads_hv -
+                pow((float)sum_hv/(float)n_reads_hv, 2))*5.0/1024;
+              V_fb = sqrt((float)sum_fb2/(float)n_reads_fb -
+                pow((float)sum_fb/(float)n_reads_fb, 2))*5.0/1024;
 
               // if we didn't get a valid sample during the sampling time,
               // return -1 as the index
               if(hv_max==0 || hv_min==1024) {
-                impedance_buffer[4*i+1] = -1;
+                hv_resistor = -1;
               } else {
-                impedance_buffer[4*i+1] = A0_series_resistor_index_;
-
                 // adjust amplifier gain (only if the hv resistor is the same
                 // as on the previous reading; otherwise it may not have had
                 // enough time to get a good reading)
                 if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0 &&
-                impedance_buffer[4*(i-1)+1]==A0_series_resistor_index_) {
+                hv_resistor==A0_series_resistor_index_) {
                   float R = config_settings_.A0_series_resistance[
                     A0_series_resistor_index_];
                   float C = config_settings_.A0_series_capacitance[
                     A0_series_resistor_index_];
-                  float V_fb = impedance_buffer[4*i+2]*5.0/1024;
 
                   amplifier_gain_ =
-                      float(impedance_buffer[4*i])*5.0/1024 /
-                                                    // measured Vrms /
+                      V_hv /                        // measured Vrms /
                       (R/sqrt(pow(10e6+R, 2)+       // transfer function /
                           pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
                       ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
@@ -586,15 +581,21 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                     SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
                   }
                 }
+                hv_resistor = A0_series_resistor_index_;
               }
 
               // if we didn't get a valid sample during the sampling time,
               // return -1 as the index
               if(fb_max==0 || fb_min==1024) {
-                impedance_buffer[4*i+3] = -1;
+                fb_resistor = -1;
               } else {
-                impedance_buffer[4*i+3] = A1_series_resistor_index_;
+                fb_resistor = A1_series_resistor_index_;
               }
+
+              Serialize(&V_hv, sizeof(V_hv));
+              Serialize(&hv_resistor, sizeof(hv_resistor));
+              Serialize(&V_fb, sizeof(V_fb));
+              Serialize(&fb_resistor, sizeof(fb_resistor));
 
               uint32_t t_delay = millis();
               while(millis()-t_delay<delay_between_samples_ms) {
@@ -1432,7 +1433,7 @@ uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
   return return_code();
 }
 
-std::vector<int16_t> DmfControlBoard::MeasureImpedance(
+std::vector<float> DmfControlBoard::MeasureImpedance(
                                           uint16_t sampling_time_ms,
                                           uint16_t n_samples,
                                           uint16_t delay_between_samples_ms,
@@ -1447,16 +1448,19 @@ std::vector<int16_t> DmfControlBoard::MeasureImpedance(
   Serialize(&state[0],state.size()*sizeof(uint8_t));
   if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
     LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
-    uint16_t n_samples = payload_length()/4/sizeof(uint16_t);
+    uint16_t n_samples = payload_length()/10;
     sprintf(log_message_string_,"Read %d impedance samples",n_samples);
     LogMessage(log_message_string_,function_name);
-    std::vector<int16_t> impedance_buffer(4*n_samples);
-    for(uint16_t i=0; i<4*n_samples; i++) {
-      impedance_buffer[i] = ReadInt16();
+    std::vector<float> impedance_buffer(4*n_samples);
+    for(uint16_t i=0; i<n_samples; i++) {
+      impedance_buffer[4*i] = ReadFloat(); // V_hv
+      impedance_buffer[4*i+1] = ReadInt8(); // hv_resistor
+      impedance_buffer[4*i+2] = ReadFloat(); // V_fb
+      impedance_buffer[4*i+3] = ReadInt8(); // fb_resistor
     }
     return impedance_buffer;
   }
-  return std::vector<int16_t>(); // return an empty vector
+  return std::vector<float>(); // return an empty vector
 }
 
 uint8_t DmfControlBoard::ResetConfigToDefaults() {

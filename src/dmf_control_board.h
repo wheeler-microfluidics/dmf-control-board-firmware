@@ -164,7 +164,7 @@ public:
   uint8_t set_auto_adjust_amplifier_gain(bool on);
 
   // other functions
-  std::vector<int16_t> MeasureImpedance(
+  std::vector<float> MeasureImpedance(
                           uint16_t sampling_time_ms,
                           uint16_t n_samples,
                           uint16_t delay_between_samples_ms,
