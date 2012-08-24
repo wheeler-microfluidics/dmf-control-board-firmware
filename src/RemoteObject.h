@@ -85,8 +85,8 @@ public:
   static const uint16_t EEPROM_PIN_STATE_ADDRESS =     7;
 
   // protocol constants
-  static const uint16_t MAX_PAYLOAD_LENGTH =        2001;
-  static const uint8_t MAX_STRING_SIZE =              80;
+  static const uint16_t MAX_PAYLOAD_LENGTH =        2000;
+  static const uint8_t MAX_DEBUG_BUFFER_LENGTH =    1000;
 
   // reserved commands
   static const uint8_t CMD_GET_PROTOCOL_NAME =      0x80;
@@ -112,6 +112,7 @@ public:
   static const uint8_t CMD_SPI_SET_CLOCK_DIVIDER =  0x94;
   static const uint8_t CMD_SPI_SET_DATA_MODE =      0x95;
   static const uint8_t CMD_SPI_TRANSFER =           0x96;
+  static const uint8_t CMD_GET_DEBUG_BUFFER =       0x97;
   
   // reserved return codes
   static const uint8_t RETURN_OK =                  0x00;
@@ -174,6 +175,7 @@ public:
   std::string hardware_version();
   /**\brief Get the remote device's url.*/
   std::string url();
+  std::vector<uint8_t> debug_buffer();
   void set_pin_mode(uint8_t pin, bool mode);
   uint8_t digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
@@ -294,8 +296,9 @@ protected:
           if(debug_) {
           Logging::LogError(msg,class_name_.c_str(),function_name); }}
   inline void LogSeparator() { if(debug_) { Logging::LogSeparator(); }}
-  static char log_message_string_[];
 #endif
+  char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
+  uint16_t debug_buffer_length_;
   uint8_t return_code_; // return code
 
 private:
@@ -311,7 +314,8 @@ private:
   void ProcessPacket();
 
   uint8_t packet_cmd_; // command
-  uint8_t payload_[MAX_PAYLOAD_LENGTH]; // payload
+  uint8_t payload_[MAX_PAYLOAD_LENGTH+2]; // payload (+1 or 2 bytes for payload
+                                          // length)
   uint16_t payload_length_; // length of the payload
   uint8_t header_length_; // length of the packet header (2 if payload is
                           // <128 bytes, 3 otherwise)

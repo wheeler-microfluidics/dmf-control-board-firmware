@@ -20,22 +20,20 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include "RemoteObject.h"
 
 #ifdef AVR
-#include <util/crc16.h>
-#include "WProgram.h"
-#include <Wire.h>
-#include <SPI.h>
-#include <OneWire.h>
-#include <EEPROM.h>
-extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
-void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
+  #include <util/crc16.h>
+  #include "WProgram.h"
+  #include <Wire.h>
+  #include <SPI.h>
+  #include <OneWire.h>
+  #include <EEPROM.h>
+  extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
+  void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #else
-#include <boost/thread.hpp>
-#include <boost/timer.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
-#include <exception>
-using namespace std;
-
-char RemoteObject::log_message_string_[MAX_STRING_SIZE];
+  #include <boost/thread.hpp>
+  #include <boost/timer.hpp>
+  #include <boost/date_time/posix_time/posix_time_types.hpp>
+  #include <exception>
+  using namespace std;
 #endif
 
 RemoteObject::RemoteObject(uint32_t baud_rate,
@@ -81,15 +79,15 @@ void RemoteObject::SendByte(const uint8_t b) {
 #endif
   if(b==FRAME_BOUNDARY || b==CONTROL_ESCAPE) {
 #ifndef AVR
-    sprintf(log_message_string_,"write escape (0x%0X)",b);
-    LogMessage(log_message_string_,function_name);
+    sprintf(debug_buffer_,"write escape (0x%0X)",b);
+    LogMessage(debug_buffer_,function_name);
 #endif
     Serial.write(CONTROL_ESCAPE);
     Serial.write(b^ESCAPE_XOR);
   } else {
 #ifndef AVR
-    sprintf(log_message_string_,"write (0x%0X)",b);
-    LogMessage(log_message_string_,function_name);
+    sprintf(debug_buffer_,"write (0x%0X)",b);
+    LogMessage(debug_buffer_,function_name);
 #endif
     Serial.write(b);
   }
@@ -115,10 +113,10 @@ void RemoteObject::SendPreamble() {
   payload_length_ = bytes_written_;
 #ifndef AVR
   const char* function_name = "SendPreamble()";
-  sprintf(log_message_string_,
+  sprintf(debug_buffer_,
           "command=0x%0X (%d), payload_length=%d",
           packet_cmd_,packet_cmd_,payload_length_);
-  LogMessage(log_message_string_,function_name);
+  LogMessage(debug_buffer_,function_name);
 #endif
   Serial.write(FRAME_BOUNDARY);
   if(crc_enabled_) {
@@ -153,15 +151,15 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
   SendPayload();
   return_code_ = WaitForReply();
 #ifndef AVR
-  sprintf(log_message_string_,"return code=%d, cmd returned in %d us",
+  sprintf(debug_buffer_,"return code=%d, cmd returned in %d us",
           return_code_, (boost::posix_time::microsec_clock::universal_time()
                          -time_cmd_sent_).total_microseconds());
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
   if(return_code_!=RETURN_OK) {
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "%s error sending command %d. Return code=%d.",
             name().c_str(), cmd, return_code_);
-    throw runtime_error(log_message_string_);
+    throw runtime_error(debug_buffer_);
   }
 #endif
   return return_code_;
@@ -170,14 +168,14 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
 void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
 #ifndef AVR
   const char* function_name = "Serialize()";
-  sprintf(log_message_string_,"%d bytes.",size);
-  LogMessage(log_message_string_, function_name);
+  sprintf(debug_buffer_,"%d bytes.",size);
+  LogMessage(debug_buffer_, function_name);
 #endif
   //TODO check that MAX_PAYLOAD_LENGTH isn't exceeded
   for(uint16_t i=0;i<size;i++) {
 #ifndef AVR
-    sprintf(log_message_string_,"(0x%0X) byte %d",u[i],i);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_,"(0x%0X) byte %d",u[i],i);
+    LogMessage(debug_buffer_, function_name);
 #endif
     payload_[bytes_written_+i]=u[i];
   }
@@ -187,8 +185,8 @@ void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
 void RemoteObject::SendPayload() {
 #ifndef AVR
   const char* function_name = "SendPayload()";
-  sprintf(log_message_string_,"%d bytes",payload_length_);
-  LogMessage(log_message_string_, function_name);
+  sprintf(debug_buffer_,"%d bytes",payload_length_);
+  LogMessage(debug_buffer_, function_name);
 #endif
   for(uint16_t i=0; i<payload_length_; i++) {
     if(crc_enabled_) {
@@ -216,11 +214,11 @@ const char* RemoteObject::ReadString() {
   uint8_t length = strlen((const char*)payload_)+1;
   bytes_read_ += length;
 #ifndef AVR
-  sprintf(log_message_string_,
+  sprintf(debug_buffer_,
           "=\"%s\", bytes_read_=%d",
           (const char*)(payload_+bytes_read_-length),
           bytes_read_);
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
 #endif
   return (const char*)(payload_+bytes_read_-length);
 }
@@ -230,11 +228,11 @@ uint8_t RemoteObject::ReadUint8() {
   bytes_read_ += sizeof(uint8_t);
 #ifndef AVR
   const char* function_name = "ReadUint8()";
-  sprintf(log_message_string_,
+  sprintf(debug_buffer_,
           "=%d, bytes_read_=%d",
           *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t)),
           bytes_read_);
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
 #endif
   return *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t));
 }
@@ -248,11 +246,11 @@ uint16_t RemoteObject::ReadUint16() {
   bytes_read_ += sizeof(uint16_t);
 #ifndef AVR
   const char* function_name = "ReadUint16()";
-  sprintf(log_message_string_,
+  sprintf(debug_buffer_,
           "=%d, bytes_read_=%d",
           *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t)),
           bytes_read_);
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
 #endif
   return *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t));
 }
@@ -266,11 +264,11 @@ float RemoteObject::ReadFloat() {
   bytes_read_ += sizeof(float);
 #ifndef AVR
   const char* function_name = "ReadFloat()";
-  sprintf(log_message_string_,
+  sprintf(debug_buffer_,
           "=%.1f, bytes_read_=%d",
           *(float*)(payload_+bytes_read_-sizeof(float)),
           bytes_read_);
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
 #endif
   return *(float*)(payload_+bytes_read_-sizeof(float));
 }
@@ -310,14 +308,14 @@ void RemoteObject::ProcessPacket() {
     payload_length_--;// -1 because we've already read the return code
 #ifndef AVR
     const char* function_name = "ProcessPacket()";
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "(0x%0X). This packet is a reply to command (%d)",
             packet_cmd_^0x80,packet_cmd_^0x80);
-    LogMessage(log_message_string_, function_name);
-    sprintf(log_message_string_,"Return code=%d",return_code());
-    LogMessage(log_message_string_, function_name);
-    sprintf(log_message_string_,"Payload length=%d",payload_length());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
+    sprintf(debug_buffer_,"Return code=%d",return_code());
+    LogMessage(debug_buffer_, function_name);
+    sprintf(debug_buffer_,"Payload length=%d",payload_length());
+    LogMessage(debug_buffer_, function_name);
     LogSeparator();
 #endif
   }
@@ -326,9 +324,9 @@ void RemoteObject::ProcessPacket() {
 uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
 #ifndef AVR
   const char* function_name = "ProcessCommand()";
-  sprintf(log_message_string_,"command=0x%0X (%d)",
+  sprintf(debug_buffer_,"command=0x%0X (%d)",
           cmd,cmd);
-  LogMessage(log_message_string_, function_name);
+  LogMessage(debug_buffer_, function_name);
 #endif
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
@@ -439,7 +437,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         } else {
           n_samples = ReadUint16();
         }
-        if(n_samples>(MAX_PAYLOAD_LENGTH-1)/sizeof(uint16_t)) {
+        if(n_samples>(MAX_PAYLOAD_LENGTH)/sizeof(uint16_t)) {
           return_code_ = RETURN_GENERAL_ERROR;
         } else {
           return_code_ = RETURN_OK;
@@ -614,6 +612,14 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_GET_DEBUG_BUFFER:
+      if(payload_length()==0) {
+        Serialize(debug_buffer_, debug_buffer_length_);
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   SendReply(return_code_);
@@ -627,7 +633,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
   // deal with escapes
   if (b==CONTROL_ESCAPE) {
 #ifndef AVR
-    sprintf(log_message_string_,"(0x%0X) Escape",b);
+    sprintf(debug_buffer_,"(0x%0X) Escape",b);
     LogMessage("", function_name);
 #endif
     un_escaping_ = true;
@@ -635,31 +641,31 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
   } else if(un_escaping_) {
     b^=ESCAPE_XOR;
 #ifndef AVR
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "(0x%0X) Un-escaping",b);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
 #endif
   }
   if (b==FRAME_BOUNDARY && !un_escaping_) {
 #ifndef AVR
     LogSeparator();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "(0x%0X) Frame Boundary",b);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
 #endif
     if(bytes_received_>0) {
 #ifndef AVR
-      sprintf(log_message_string_,"(0x%0X) Invalid packet",b);
-      LogMessage(log_message_string_, function_name);
+      sprintf(debug_buffer_,"(0x%0X) Invalid packet",b);
+      LogMessage(debug_buffer_, function_name);
 #endif
     }
     bytes_received_ = 0;
   } else {
     if(bytes_received_==0) { // command byte
 #ifndef AVR
-      sprintf(log_message_string_,
+      sprintf(debug_buffer_,
               "(0x%0X) Command byte (%d)",b,b);
-      LogMessage(log_message_string_, function_name);
+      LogMessage(debug_buffer_, function_name);
 #endif
       packet_cmd_=b;
       if(crc_enabled_) {
@@ -685,8 +691,8 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
     }
 #ifndef AVR
     if(bytes_received_==header_length_) {
-      sprintf(log_message_string_, "Payload length=%d", payload_length_);
-      LogMessage(log_message_string_, function_name);
+      sprintf(debug_buffer_, "Payload length=%d", payload_length_);
+      LogMessage(debug_buffer_, function_name);
     }
 #endif
     if(crc_enabled_) {
@@ -695,15 +701,15 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
     bytes_received_++;
 #ifndef AVR
     if(b>=0x20&&b<=0x7E) {
-      sprintf(log_message_string_,
+      sprintf(debug_buffer_,
               "(0x%0X) %d bytes received (\'%c\')",
               b, bytes_received_ ,b);
     } else {
-      sprintf(log_message_string_,
+      sprintf(debug_buffer_,
               "(0x%0X) %d bytes received",
               b, bytes_received_);
     }
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
 #endif
     if(bytes_received_==payload_length_+header_length_+2*crc_enabled_) {
       bytes_received_ = 0;
@@ -836,10 +842,10 @@ string RemoteObject::protocol_name() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_PROTOCOL_NAME)==RETURN_OK) {
     string protocol_name = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "protocol_name=%s",
             protocol_name.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return protocol_name;
   }
   return "";
@@ -851,10 +857,10 @@ string RemoteObject::protocol_version() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_PROTOCOL_VERSION)==RETURN_OK) {
     string protocol_version = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "protocol_version=%s",
             protocol_version.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return protocol_version;
   }
   return "";
@@ -866,10 +872,10 @@ string RemoteObject::name() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_DEVICE_NAME)==RETURN_OK) {
     string name = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "name=%s",
             name.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return name;
   }
   return "";
@@ -881,10 +887,10 @@ string RemoteObject::manufacturer() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_MANUFACTURER)==RETURN_OK) {
     string manufacturer = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "manufacturer=%s",
             manufacturer.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return manufacturer;
   }
   return "";
@@ -896,10 +902,10 @@ string RemoteObject::software_version() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_SOFTWARE_VERSION)==RETURN_OK) {
     string software_version = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "software_version=%s",
             software_version.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return software_version;
   }
   return "";
@@ -911,10 +917,10 @@ string RemoteObject::hardware_version() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_HARDWARE_VERSION)==RETURN_OK) {
     string hardware_version = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "hardware_version=%s",
             hardware_version.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return hardware_version;
   }
   return "";
@@ -926,10 +932,10 @@ string RemoteObject::url() {
   LogMessage("send command", function_name);
   if(SendCommand(CMD_GET_URL)==RETURN_OK) {
     string url = ReadString();
-    sprintf(log_message_string_,
+    sprintf(debug_buffer_,
             "url=%s",
             url.c_str());
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return url;
   }
   return "";
@@ -943,9 +949,9 @@ void RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
   uint8_t data = mode;
   Serialize(&data,sizeof(data));
   if(SendCommand(CMD_SET_PIN_MODE)==RETURN_OK) {
-    sprintf(log_message_string_,"pin %d mode=%d",
+    sprintf(debug_buffer_,"pin %d mode=%d",
             pin, mode);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -956,9 +962,9 @@ uint8_t RemoteObject::digital_read(uint8_t pin) {
   Serialize(&pin,sizeof(pin));
   if(SendCommand(CMD_DIGITAL_READ)==RETURN_OK) {
     uint8_t value = ReadUint8();
-    sprintf(log_message_string_,"pin %d value=%d",
+    sprintf(debug_buffer_,"pin %d value=%d",
             pin, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return value;
   }
   return 0;
@@ -972,9 +978,9 @@ void RemoteObject::digital_write(uint8_t pin, bool value) {
   uint8_t data = value;
   Serialize(&data,sizeof(data));
   if(SendCommand(CMD_DIGITAL_WRITE)==RETURN_OK) {
-    sprintf(log_message_string_,"pin %d value=%d",
+    sprintf(debug_buffer_,"pin %d value=%d",
             pin, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -985,9 +991,9 @@ uint16_t RemoteObject::analog_read(uint8_t pin) {
   Serialize(&pin,sizeof(pin));
   if(SendCommand(CMD_ANALOG_READ)==RETURN_OK) {
     uint16_t value = ReadUint16();
-    sprintf(log_message_string_,"pin %d value=%d",
+    sprintf(debug_buffer_,"pin %d value=%d",
             pin, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return value;
   }
   return 0;
@@ -1021,9 +1027,9 @@ void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   Serialize(&pin,sizeof(pin));
   Serialize(&value,sizeof(value));
   if(SendCommand(CMD_DIGITAL_WRITE)==RETURN_OK) {
-    sprintf(log_message_string_,"pin %d value=%d",
+    sprintf(debug_buffer_,"pin %d value=%d",
             pin, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1034,9 +1040,9 @@ uint8_t RemoteObject::eeprom_read(uint16_t address) {
   Serialize(&address,sizeof(address));
   if(SendCommand(CMD_EEPROM_READ)==RETURN_OK) {
     uint8_t value = ReadUint8();
-    sprintf(log_message_string_,"address %d value=%d",
+    sprintf(debug_buffer_,"address %d value=%d",
             address, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return value;
   }
   return 0;
@@ -1049,9 +1055,9 @@ void RemoteObject::eeprom_write(uint16_t address, uint8_t value) {
   Serialize(&address,sizeof(address));
   Serialize(&value,sizeof(value));
   if(SendCommand(CMD_EEPROM_WRITE)==RETURN_OK) {
-    sprintf(log_message_string_,"address %d value=%d",
+    sprintf(debug_buffer_,"address %d value=%d",
             address, value);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1063,9 +1069,9 @@ std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
   Serialize(&pin, sizeof(pin));
   Serialize(&index, sizeof(index));
   if(SendCommand(CMD_ONEWIRE_GET_ADDRESS)==RETURN_OK) {
-    sprintf(log_message_string_,"pin %d, index=%d",
+    sprintf(debug_buffer_,"pin %d, index=%d",
             pin, index);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     std::vector<uint8_t> address;
     for(int i=0; i<payload_length(); i++) {
       address.push_back(ReadUint8());
@@ -1092,9 +1098,9 @@ std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
       for(uint8_t i=0; i<n_bytes; i++) {
         data.push_back(ReadUint8());
       }
-      sprintf(log_message_string_,"pin %d, command=%d, n_bytes=%d",
+      sprintf(debug_buffer_,"pin %d, command=%d, n_bytes=%d",
               pin, command, n_bytes);
-      LogMessage(log_message_string_, function_name);
+      LogMessage(debug_buffer_, function_name);
       return data;
     }
   }
@@ -1112,11 +1118,11 @@ void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
     Serialize(&value,sizeof(value));
     Serialize(&power,sizeof(power));
     if(SendCommand(CMD_ONEWIRE_WRITE)==RETURN_OK) {
-      sprintf(log_message_string_,
+      sprintf(debug_buffer_,
               "pin %d, value=%d, power=%d",
               pin, value, power);
     }
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1127,11 +1133,11 @@ void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
   Serialize(&address,sizeof(address));
   Serialize(&data[0],data.size()*sizeof(uint8_t));
   if(SendCommand(CMD_I2C_WRITE)==RETURN_OK) {
-    sprintf(log_message_string_, "address %d", address);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_, "address %d", address);
+    LogMessage(debug_buffer_, function_name);
     for(uint8_t i=0; i<data.size(); i++) {
-      sprintf(log_message_string_, "data[%d]=%d", i, data[i]);
-      LogMessage(log_message_string_, function_name);
+      sprintf(debug_buffer_, "data[%d]=%d", i, data[i]);
+      LogMessage(debug_buffer_, function_name);
     }
   }
 }
@@ -1146,14 +1152,14 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
   Serialize(&send_data[0],send_data.size()*sizeof(uint8_t));
   Serialize(&n_bytes_to_read,sizeof(n_bytes_to_read));
   if(SendCommand(CMD_I2C_READ)==RETURN_OK) {
-    sprintf(log_message_string_, "address %d", address);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_, "address %d", address);
+    LogMessage(debug_buffer_, function_name);
     std::vector<uint8_t> received_data;
     for(uint8_t i=0; i<n_bytes_to_read; i++) {
       received_data.push_back(ReadUint8());
-      sprintf(log_message_string_, "received_data[%d]=%d",
+      sprintf(debug_buffer_, "received_data[%d]=%d",
               i, received_data[i]);
-      LogMessage(log_message_string_, function_name);
+      LogMessage(debug_buffer_, function_name);
     }
     return received_data;
   }
@@ -1166,8 +1172,8 @@ void RemoteObject::spi_set_bit_order(bool order) {
   LogMessage("send command", function_name);
   Serialize(&order, sizeof(order));
   if(SendCommand(CMD_SPI_SET_BIT_ORDER)==RETURN_OK) {
-    sprintf(log_message_string_, "order %d", order);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_, "order %d", order);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1177,8 +1183,8 @@ void RemoteObject::spi_set_clock_divider(uint8_t divider) {
   LogMessage("send command", function_name);
   Serialize(&divider, sizeof(divider));
   if(SendCommand(CMD_SPI_SET_CLOCK_DIVIDER)==RETURN_OK) {
-    sprintf(log_message_string_, "divider %d", divider);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_, "divider %d", divider);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1188,8 +1194,8 @@ void RemoteObject::spi_set_data_mode(uint8_t mode) {
   LogMessage("send command", function_name);
   Serialize(&mode, sizeof(mode));
   if(SendCommand(CMD_SPI_SET_DATA_MODE)==RETURN_OK) {
-    sprintf(log_message_string_, "mode %d", mode);
-    LogMessage(log_message_string_, function_name);
+    sprintf(debug_buffer_, "mode %d", mode);
+    LogMessage(debug_buffer_, function_name);
   }
 }
 
@@ -1200,12 +1206,26 @@ uint8_t RemoteObject::spi_transfer(uint8_t value) {
   Serialize(&value, sizeof(value));
   if(SendCommand(CMD_SPI_TRANSFER)==RETURN_OK) {
     uint8_t data = ReadUint8();
-    sprintf(log_message_string_, "sent: %d, received: %d",
+    sprintf(debug_buffer_, "sent: %d, received: %d",
       value, data);
-    LogMessage(log_message_string_, function_name);
+    LogMessage(debug_buffer_, function_name);
     return data;  
   }
   return 0;
+}
+
+std::vector<uint8_t> RemoteObject::debug_buffer() {
+  const char* function_name = "debug_buffer()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if(SendCommand(CMD_GET_DEBUG_BUFFER)==RETURN_OK) {
+    std::vector<uint8_t> buffer;
+    for(uint16_t i=0; i<payload_length(); i++) {
+      buffer.push_back(ReadUint8());
+    }
+    return buffer;
+  }
+  return std::vector<uint8_t>();
 }
 
 #endif

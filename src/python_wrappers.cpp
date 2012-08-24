@@ -98,6 +98,7 @@ object DmfControlBoard_class
     .def("spi_set_clock_divider",&DmfControlBoard::spi_set_clock_divider)
     .def("spi_set_data_mode",&DmfControlBoard::spi_set_data_mode)
     .def("spi_transfer",&DmfControlBoard::spi_transfer)
+    .def("debug_buffer",&DmfControlBoard::debug_buffer)
     .def("number_of_channels",&DmfControlBoard::number_of_channels)
     .def("state_of_all_channels",&DmfControlBoard::state_of_all_channels)
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
