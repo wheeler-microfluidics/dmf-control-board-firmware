@@ -20,8 +20,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdint.h>
 #include "dmf_control_board.h"
 #ifndef AVR
+  #include <boost/format.hpp>
   using namespace std;
-  #include <boost/date_time/posix_time/posix_time_types.hpp>
+  using boost::format;
 #else
   #include "WProgram.h"
   #include <Wire.h>
@@ -75,9 +76,8 @@ DmfControlBoard::~DmfControlBoard() {
 uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #ifndef AVR
   const char* function_name = "ProcessCommand()";
-  sprintf(debug_buffer_,"command=0x%0X (%d)",
-          cmd,cmd);
-  LogMessage(debug_buffer_, function_name);
+  LogMessage(str(format("command=0x%0X (%d)") % cmd % cmd).c_str(),
+    function_name);
 #endif
   switch(cmd) {
 #ifdef AVR // Commands that only the Arduino handles
@@ -993,16 +993,6 @@ void DmfControlBoard::SaveConfig() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t DmfControlBoard::SendCommand(const uint8_t cmd) {
-  const char* function_name = "SendCommand()";
-  std::ostringstream msg;
-  RemoteObject::SendCommand(cmd);
-  msg << "returned " << (int)return_code() << " in " <<
-      MillisecondsSinceLastCheck() << " ms";
-  LogMessage(msg.str().c_str(), function_name);
-  return return_code();
-}
-
 uint16_t DmfControlBoard::number_of_channels() {
   const char* function_name = "number_of_channels()";
   LogSeparator();
@@ -1010,10 +1000,8 @@ uint16_t DmfControlBoard::number_of_channels() {
   if(SendCommand(CMD_GET_NUMBER_OF_CHANNELS)==RETURN_OK) {
     if(payload_length()==sizeof(uint16_t)) {
       uint16_t number_of_channels = ReadUint16();
-      sprintf(debug_buffer_,
-              "number_of_channels=%d",
-              number_of_channels);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("number_of_channels=%d") %
+        number_of_channels).c_str(), function_name);
       return number_of_channels;
     } else {
       LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
@@ -1033,10 +1021,8 @@ vector<uint8_t> DmfControlBoard::state_of_all_channels() {
     std::vector<uint8_t> state_of_channels;
     for(int i=0; i<payload_length(); i++) {
       state_of_channels.push_back(ReadUint8());
-      sprintf(debug_buffer_,
-              "state_of_channels_[%d]=%d",
-              i,state_of_channels[i]);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("state_of_channels_[%d]=%d") % i %
+        state_of_channels[i]).c_str(), function_name);
     }
     return state_of_channels;
   }
@@ -1052,8 +1038,7 @@ uint8_t DmfControlBoard::state_of_channel(const uint16_t channel) {
     LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
     if(payload_length()==sizeof(uint8_t)) {
       uint8_t state = ReadUint8();
-      sprintf(debug_buffer_, "state=%d", state);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("state=%d") % state).c_str(), function_name);
       return state;
     } else {
       LogError("Bad packet size", function_name);
@@ -1071,9 +1056,8 @@ float DmfControlBoard::sampling_rate() {
     LogMessage("CMD_GET_SAMPLING_RATE", function_name);
     if(payload_length()==sizeof(float)) {
       float sampling_rate = ReadFloat();
-      sprintf(debug_buffer_,
-              "sampling_rate_=%.1e",sampling_rate);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("sampling_rate_=%.1e") % sampling_rate).c_str(),
+        function_name);
       return sampling_rate;
     } else {
       LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
@@ -1105,9 +1089,8 @@ uint8_t DmfControlBoard::series_resistor_index(const uint8_t channel) {
     LogMessage("CMD_GET_SERIES_RESISTOR_INDEX", function_name);
     if(payload_length()==sizeof(uint8_t)) {
       uint8_t index = ReadUint8();
-      sprintf(debug_buffer_,
-              "series_resistor_index=%d", index);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("series_resistor_index=%d") % index).c_str(),
+        function_name);
       return index;
     } else {
       LogMessage("CMD_GET_SERIES_RESISTOR_INDEX, Bad packet size",
@@ -1127,9 +1110,8 @@ float DmfControlBoard::series_resistance(const uint8_t channel) {
     LogMessage("CMD_GET_SERIES_RESISTANCE", function_name);
     if(payload_length()==sizeof(float)) {
       float series_resistance = ReadFloat();
-      sprintf(debug_buffer_,
-              "series_resistance=%.1e",series_resistance);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("series_resistance=%.1e") %
+        series_resistance).c_str(), function_name);
       return series_resistance;
     } else {
       LogMessage("CMD_GET_SERIES_RESISTANCE, Bad packet size",
@@ -1149,9 +1131,8 @@ float DmfControlBoard::series_capacitance(const uint8_t channel) {
     LogMessage("CMD_GET_SERIES_CAPACITANCE", function_name);
     if(payload_length()==sizeof(float)) {
       float series_capacitance = ReadFloat();
-      sprintf(debug_buffer_,
-              "series_capacitance=%.1e",series_capacitance);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("series_capacitance=%.1e") %
+        series_capacitance).c_str(), function_name);
       return series_capacitance;
     } else {
       LogMessage("CMD_GET_SERIES_CAPACITANCE, Bad packet size",
@@ -1170,9 +1151,8 @@ float DmfControlBoard::amplifier_gain() {
     LogMessage("CMD_GET_AMPLIFIER_GAIN", function_name);
     if(payload_length()==sizeof(float)) {
       float gain = ReadFloat();
-      sprintf(debug_buffer_,
-              "amplifier_gain=%.1e",gain);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("amplifier_gain=%.1e") % gain).c_str(),
+        function_name);
       return gain;
     } else {
       LogMessage("CMD_GET_AMPLIFIER_GAIN, Bad packet size",
@@ -1191,9 +1171,8 @@ bool DmfControlBoard::auto_adjust_amplifier_gain() {
     LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
     if(payload_length()==sizeof(uint8_t)) {
       uint8_t value = ReadUint8();
-      sprintf(debug_buffer_,
-              "auto_adjust_amplifier_gain=%d", value);
-      LogMessage(debug_buffer_, function_name);
+      LogMessage(str(format("auto_adjust_amplifier_gain=%d") % value).c_str(),
+        function_name);
       return value>0;
     } else {
       LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, Bad packet size",
@@ -1219,9 +1198,8 @@ std::string DmfControlBoard::waveform() {
         } else if(waveform==SQUARE) {
           waveform_str = "SQUARE";
         }
-        std::ostringstream msg;
-        msg << "waveform=" << waveform_str;
-        LogMessage(msg.str().c_str(), function_name);
+        LogMessage(str(format("waveform=%s") % waveform_str).c_str(),
+          function_name);
         return waveform_str;
       } else {
         return_code_ = RETURN_BAD_VALUE;
@@ -1245,9 +1223,8 @@ float DmfControlBoard::waveform_voltage() {
     LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
     if(payload_length()==sizeof(float)) {
       float v_rms = ReadFloat();
-      std::ostringstream msg;
-      msg << "waveform_voltage=" << (float)v_rms;
-      LogMessage(msg.str().c_str(), function_name);
+      LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
+        function_name);
       return v_rms;
     } else {
       LogMessage("CMD_GET_WAVEFORM_VOLTAGE, Bad packet size",
@@ -1266,9 +1243,8 @@ float DmfControlBoard::waveform_frequency() {
     LogMessage("CMD_GET_WAVEFORM_FREQUENCY", function_name);
     if(payload_length()==sizeof(float)) {
       float freq_hz = ReadFloat();
-      std::ostringstream msg;
-      msg << "waveform_frequency=" << freq_hz;
-      LogMessage(msg.str().c_str(), function_name);
+      LogMessage(str(format("waveform_frequency=%.1f") % freq_hz).c_str(),
+        function_name);
       return freq_hz;
     } else {
       LogMessage("CMD_GET_WAVEFORM_FREQUENCY, Bad packet size",
@@ -1373,10 +1349,10 @@ uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel, const uint
 
 uint8_t DmfControlBoard::set_waveform(bool waveform) {
   const char* function_name = "set_waveform()";
-  std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
   uint8_t data = waveform;
+  LogMessage(str(format("waveform=%d") % waveform).c_str(), function_name);
   Serialize(&data,sizeof(data));
   if(SendCommand(CMD_SET_WAVEFORM)==RETURN_OK) {
     LogMessage("CMD_SET_WAVEFORM", function_name);
@@ -1387,14 +1363,14 @@ uint8_t DmfControlBoard::set_waveform(bool waveform) {
 
 uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
   const char* function_name = "set_waveform_voltage()";
-  std::ostringstream msg;
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&v_rms,sizeof(v_rms));
-  LogMessage(msg.str().c_str(), function_name);
+  LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
+    function_name);
   if(SendCommand(CMD_SET_WAVEFORM_VOLTAGE)==RETURN_OK) {
     LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
-    LogMessage("volage set successfully", function_name);
+    LogMessage("voltage set successfully", function_name);
   }
   return return_code();
 }
@@ -1402,8 +1378,7 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
 uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
   const char* function_name = "set_actuation_frequency()";
   LogSeparator();
-  sprintf(debug_buffer_,"freq_hz=%.1f",freq_hz);
-  LogMessage(debug_buffer_, function_name);
+  LogMessage(str(format("freq_hz=%.1f") % freq_hz).c_str(), function_name);
   LogMessage("send command", function_name);
   Serialize(&freq_hz,sizeof(freq_hz));
   if(SendCommand(CMD_SET_WAVEFORM_FREQUENCY)==RETURN_OK) {
@@ -1429,8 +1404,8 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
   if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
     LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
     uint16_t n_samples = payload_length()/(2*sizeof(int16_t)+2*sizeof(int8_t));
-    sprintf(debug_buffer_,"Read %d impedance samples",n_samples);
-    LogMessage(debug_buffer_,function_name);
+    LogMessage(str(format("Read %d impedance samples") % n_samples).c_str(),
+      function_name);
     std::vector<float> impedance_buffer(4*n_samples);
     for(uint16_t i=0; i<n_samples; i++) {
       impedance_buffer[4*i] = (float)ReadInt16()*5.0/1024/sqrt(2)/2;   // V_hv
@@ -1446,7 +1421,6 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
 uint8_t DmfControlBoard::ResetConfigToDefaults() {
   const char* function_name = "ResetConfigToDefaults()";
   LogSeparator();
-  LogMessage(debug_buffer_, function_name);
   if(SendCommand(CMD_RESET_CONFIG_TO_DEFAULTS)==RETURN_OK) {
     LogMessage("CMD_RESET_CONFIG_TO_DEFAULTS", function_name);
     LogMessage("config reset successfully", function_name);
@@ -1454,12 +1428,4 @@ uint8_t DmfControlBoard::ResetConfigToDefaults() {
   return return_code();
 }
 
-float DmfControlBoard::MillisecondsSinceLastCheck() {
-  boost::posix_time::ptime t = t_last_check_;
-  t_last_check_ = boost::posix_time::microsec_clock::universal_time();
-  return floor(0.5+(float)(boost::posix_time::microsec_clock::universal_time()-t)
-         .total_microseconds()/1000);
-}
-
 #endif // AVR
-

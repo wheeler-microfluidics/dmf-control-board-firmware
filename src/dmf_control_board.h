@@ -254,11 +254,6 @@ private:
   void LoadConfig(bool use_defaults=false);
   void SaveConfig();
   version_t ConfigVersion();
-#else
-  uint8_t SendCommand(const uint8_t cmd);
-  float MillisecondsSinceLastCheck();
-  void SerializeChannelState(const std::vector<uint8_t> state,
-                               std::ostringstream& msg);
 #endif
 
   //private members
@@ -273,10 +268,6 @@ private:
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;
-#else
-  std::string experiment_log_file_name_;
-  std::ofstream experiment_log_file_;
-  boost::posix_time::ptime t_last_check_;
 #endif
 };
 #endif // _DMF_CONTROL_BOARD_H_

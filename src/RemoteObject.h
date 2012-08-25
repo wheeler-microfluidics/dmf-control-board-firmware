@@ -86,7 +86,7 @@ public:
 
   // protocol constants
   static const uint16_t MAX_PAYLOAD_LENGTH =        2000;
-  static const uint8_t MAX_DEBUG_BUFFER_LENGTH =    1000;
+  static const uint16_t MAX_DEBUG_BUFFER_LENGTH =   1000;
 
   // reserved commands
   static const uint8_t CMD_GET_PROTOCOL_NAME =      0x80;
@@ -290,11 +290,15 @@ protected:
   inline void LogMessage(const char* msg,
                          const char* function_name,
                          uint8_t level=5) {
-          if(debug_) {
-            Logging::LogMessage(level,msg,class_name_.c_str(),function_name); }}
+    if(debug_) {
+      Logging::LogMessage(level,msg,class_name_.c_str(),function_name);
+    }
+  }
   inline void LogError(const char* msg, const char* function_name) {
-          if(debug_) {
-          Logging::LogError(msg,class_name_.c_str(),function_name); }}
+    if(debug_) {
+            Logging::LogError(msg,class_name_.c_str(),function_name);
+    }
+  }
   inline void LogSeparator() { if(debug_) { Logging::LogSeparator(); }}
 #endif
   char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
