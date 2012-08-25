@@ -63,15 +63,12 @@ class WaitForFeedbackMeasurement(threading.Thread):
         
     def run(self):
         options = self.plugin.get_step_options()
-        try:
-            self.results = self.plugin.control_board.measure_impedance(
-                                self.sampling_time_ms,
-                                int(math.ceil(options.duration/ 
-                                          self.sampling_time_ms)),
-                                self.delay_between_samples_ms,
-                                self.state)
-        except:
-            self.results = self.plugin.control_board.return_code()
+        self.results = self.plugin.control_board.measure_impedance(
+                            self.sampling_time_ms,
+                            int(math.ceil(options.duration/ 
+                                      self.sampling_time_ms)),
+                            self.delay_between_samples_ms,
+                            self.state)
 
 PluginGlobals.push_env('microdrop.managed')
 
