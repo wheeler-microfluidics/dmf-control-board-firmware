@@ -153,8 +153,8 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
     (int)return_code_ % (boost::posix_time::microsec_clock::universal_time()
     -time_cmd_sent_).total_microseconds()).c_str(), function_name);
   if(return_code_!=RETURN_OK) {
-    throw runtime_error(str(format("%s error sending command %d. "
-        "Return code=%d.") % name() % cmd % return_code_).c_str());
+	  throw runtime_error(str(format("Error sending command %d. "
+        "Return code=%d.") % (int)cmd % (int)return_code_).c_str());
   }
 #endif
   return return_code_;
