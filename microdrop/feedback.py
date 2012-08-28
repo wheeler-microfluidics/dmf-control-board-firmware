@@ -1605,7 +1605,9 @@ class FeedbackCalibrationController():
         """
 
     def calibrate_attenuators(self):
-        frequencies = self.prompt_for_frequency_range()
+        frequencies, valid = self.prompt_for_frequency_range()
+        if not valid:
+            return
         
         app = get_app()
         app.main_window_controller.info("The control board uses a bank of "
@@ -1627,12 +1629,17 @@ class FeedbackCalibrationController():
                                                     gtk.RESPONSE_CANCEL,
                                                     gtk.STOCK_SAVE,
                                                     gtk.RESPONSE_OK))
-            dialog.set_default_response(gtk.RESPONSE_OK)
-            response = dialog.run()
-            if response == gtk.RESPONSE_OK:
-                filename = path(dialog.get_filename())
-                with open(filename.abspath(), 'wb') as f:
-                    pickle.dump(results, f)
+            while True:
+                try:
+                    dialog.set_default_response(gtk.RESPONSE_OK)
+                    response = dialog.run()
+                    if response == gtk.RESPONSE_OK:
+                        filename = path(dialog.get_filename())
+                        with open(filename.abspath(), 'wb') as f:
+                            pickle.dump(results, f)
+                        break
+                except Exception, why:
+                    logger.error("Error saving calibration file. %s." % why)
             dialog.destroy()
             self.process_hv_calibration(results)
 
@@ -1653,7 +1660,7 @@ class FeedbackCalibrationController():
         frequencies = np.logspace(np.log10(start_frequency),
                                   np.log10(end_frequency),
                                   number_of_steps)
-        return frequencies
+        return frequencies, valid
 
     def calibrate_feedback_resistors(self):
         app = get_app()
@@ -1673,7 +1680,7 @@ class FeedbackCalibrationController():
             else:
                 assert(len(state) == max_channels)
         
-        frequencies = self.prompt_for_frequency_range()
+        frequencies, valid = self.prompt_for_frequency_range()
         n_samples = 1000
         calibration = self.plugin.control_board.calibration
         V_hv = np.zeros([len(frequencies),
