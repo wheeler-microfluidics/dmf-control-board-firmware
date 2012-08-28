@@ -235,6 +235,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 self.control_board.connect()
             app_values['serial_port'] = self.control_board.port
             self.set_app_values(app_values)
+        else:
+            raise Exception("No serial ports available.")
 
     def check_device_name_and_version(self):
         try:
