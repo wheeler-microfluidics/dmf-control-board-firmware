@@ -1593,6 +1593,7 @@ class FeedbackCalibrationController():
         if response == gtk.RESPONSE_YES:
             self.calibrate_attenuators()
 
+        """
         response = yesno("Would you like to calibrate the feedback resistors? "
                          "Please note that you must have an electrode covered "
                          "by a drop and that electrode should be actuated. If "
@@ -1601,6 +1602,7 @@ class FeedbackCalibrationController():
         
         if response == gtk.RESPONSE_YES:
             self.calibrate_feedback_resistors()
+        """
 
     def calibrate_attenuators(self):
         frequencies = self.prompt_for_frequency_range()
@@ -2080,7 +2082,7 @@ class FeedbackCalibrationController():
                   self.plugin.control_board.calibration.R_hv[i]
             ]
             a.loglog(frequencies[ind], f(p0, frequencies[ind], R1), colors[i]+'--')
-            legend.append('Ch%d, fit' % i)
+            legend.append('Ch%d, previous fit' % i)
 
             if 'voltages' in results:
                 voltages = np.array(results['voltages'])
@@ -2091,7 +2093,7 @@ class FeedbackCalibrationController():
                 legend.append('Ch%d, new fit' % i)
 
                 a.plot(frequencies, attenuation[i], colors[i]+'o')
-                legend.append('Ch%d, scope' % i)
+                legend.append('Ch%d, oscilloscope measurements' % i)
 
                 # update control board calibration
                 self.plugin.control_board.set_series_resistor_index(0,i)
@@ -2108,29 +2110,6 @@ class FeedbackCalibrationController():
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('Attenuation')
         a.set_title('HV attenuation')
-        canvas.draw()
-
-        i=0
-        legend = []
-        fit_params = np.array(fit_params)
-        canvas, a = self.create_plot("Relative amplifier gain")
-        ind = mlab.find(hv_rms[i,:]>.1)
-        gain = None
-        if 'voltages' in results:
-            gain = voltages[i, :]/input_voltage[i, :]
-            a.semilogx(frequencies, gain, 'bo')
-            legend.append('Ch%d, scope' % i)
-        
-        #a.semilogx(frequencies, gain/gain[0], 'bo')
-        #legend.append('No feedback')
-        a.semilogx(frequencies,
-                   hv_rms[i,:]/f(fit_params[i,:], frequencies, R1)/input_voltage[i, :],
-                   'ro')
-        legend.append('Feedback')
-        a.set_xlabel('Frequency (Hz)')
-        a.set_ylabel('Relative gain')
-        a.set_title("V$_o$/V$_{in}$")
-        a.legend(legend, loc="upper left")
         canvas.draw()
 
     def create_plot(self, title):
