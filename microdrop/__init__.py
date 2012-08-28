@@ -220,6 +220,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 self.connect()
 
     def connect(self):
+        self.current_frequency = None
+        self.amplifier_gain_initialized = False         
         app_values = self.get_app_values()
         # try to connect to the last successful port
         try:
@@ -376,7 +378,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             self.control_board.set_series_capacitance(channel,
                                 v/1e12)
             # reconnect to update settings
-            self.connect()    
+            self.connect()
+            if get_app().protocol:
+                self.on_step_run()
 
     def on_reset_calibration_to_default_values(self, widget=None, data=None):
         self.control_board.reset_config_to_defaults()
@@ -384,6 +388,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.connect()
 
     def update_connection_status(self):
+        self.connection_status = "Not Connected"
         app = get_app()
         connected = self.control_board.connected()
         if connected:
@@ -425,8 +430,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             # check that the signal is within tolerance
             if abs(impedance.V_actuation()[-1]-voltage) > \
                 app_values['voltage_tolerance']:
+                if impedance.V_actuation()[-1]<5.0:
+                    logger.error("Low voltage detected. Please check that the amplifier is on.")
                 # allow maximum of 5 adjustment attempts
-                if self.n_voltage_adjustments and self.n_voltage_adjustments<5:
+                elif self.n_voltage_adjustments and self.n_voltage_adjustments<5:
                     logger.info('\tn_voltage_adjustments=%d' % \
                                 self.n_voltage_adjustments)
                     emit_signal("set_voltage", voltage,
@@ -436,6 +443,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 else:
                     self.n_voltage_adjustments = None
                     logger.error("Unable to achieve the specified voltage.")
+            else:
+                self.amplifier_gain_initialized = True
+                logger.info('Amplifier gain initialized (gain=%.1f)' % \
+                            self.control_board.amplifier_gain())
 
     def get_actuated_area(self):
         app = get_app()
@@ -478,9 +489,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             emit_signal("set_voltage", options.voltage,
                         interface=IWaveformGenerator)
             self.check_impedance(options)
-            self.amplifier_gain_initialized = True
-            logger.info('Amplifier gain initialized (gain=%.1f)' % \
-                        self.control_board.amplifier_gain())
 
         start_time = time.time()
 
