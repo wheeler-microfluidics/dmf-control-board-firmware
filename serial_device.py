@@ -39,9 +39,11 @@ class SerialDevice(object):
         else:
             ports = itertools.chain(path('/dev').walk('ttyUSB*'),
                             path('/dev').walk('ttyACM*'))
-        for port in ports:
+        # sort list alphabetically
+        ports_ = [port for port in ports]
+        ports_.sort()
+        for port in ports_:
             yield port
-            
 
     @classmethod
     def _get_serial_ports_windows(cls):
