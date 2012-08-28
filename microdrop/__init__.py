@@ -35,7 +35,7 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
-from flatland import Element, Dict, List, String, Integer, Boolean, Float, Form
+from flatland import Element, Dict, List, String, Integer, Boolean, Float, Form, Enum
 from flatland.validation import ValueAtLeast, ValueAtMost
 
 from logger import logger
@@ -105,6 +105,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     implements(IPlugin)
     implements(IWaveformGenerator)
 
+    serial_ports_ = [port for port in serial_device.SerialDevice().get_serial_ports()]
     AppFields = Form.of(
         Integer.named('sampling_time_ms').using(default=10, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
@@ -112,6 +113,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             optional=True, validators=[ValueAtLeast(minimum=0), ],),
         Float.named('voltage_tolerance').using(default=2, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
+        Enum.named('serial_port').using(default=0, optional=True)\
+            .valued(*serial_ports_),
     )
 
     StepFields = Form.of(
@@ -192,15 +195,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         
             self.initialized = True
 
-        self.control_board_menu_item.show()
+        super(DmfControlBoardPlugin, self).on_plugin_enable()
         self.check_device_name_and_version()
-        
+        self.control_board_menu_item.show()
+
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
-        
-        super(DmfControlBoardPlugin, self).on_plugin_enable()
 
     def on_plugin_disable(self):
         self.feedback_options_controller.on_plugin_disable()
@@ -210,9 +212,27 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
             pgc.update_grid()
 
+    def on_app_options_changed(self, plugin_name):
+        if plugin_name == self.name:
+            app_values = self.get_app_values()
+            if self.control_board.connected() and \
+            self.control_board.port != app_values['serial_port']:
+                self.connect()
+
+    def connect(self):
+        app_values = self.get_app_values()
+        # try to connect to the last successful port
+        try:
+            self.control_board.connect(str(app_values['serial_port']))
+        except Exception, why:
+            logger.warning('Could not connect to control board on port %s. '
+                           'Checking other ports...' % app_values['serial_port'])
+            self.control_board.connect()
+            app_values['serial_port'] = self.control_board.port
+
     def check_device_name_and_version(self):
         try:
-            self.control_board.connect()
+            self.connect()
             name = self.control_board.name()
             hardware_version = utility.Version.fromstring(
                 self.control_board.hardware_version()
@@ -249,7 +269,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         try:
             connected = self.control_board.connected()
             if not connected:
-                self.control_board.connect()
+                self.connect()
             hardware_version = utility.Version.fromstring(
                 self.control_board.hardware_version()
             )
@@ -356,12 +376,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             self.control_board.set_series_capacitance(channel,
                                 v/1e12)
             # reconnect to update settings
-            self.control_board.connect()    
+            self.connect()    
 
     def on_reset_calibration_to_default_values(self, widget=None, data=None):
         self.control_board.reset_config_to_defaults()
         # reconnect to update settings
-        self.control_board.connect()
+        self.connect()
 
     def update_connection_status(self):
         app = get_app()

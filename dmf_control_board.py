@@ -124,6 +124,7 @@ class DmfControlBoard(Base, SerialDevice):
                 
     def connect(self, port=None):
         if port:
+            logger.info("Try connecting to port %s..." % port)
             Base.connect(self, port)
             self.port = port
         else:
@@ -252,9 +253,7 @@ class DmfControlBoard(Base, SerialDevice):
             if self.connect(port) == self.RETURN_OK:
                 return True
         except Exception, why:
-            if re.search(r'Remote device is not a Arduino DMF ' \
-                        'Controller version .*', str(why)):
-                logger.warning('On port %s, %s' % (port, why))
+            logger.info('On port %s, %s' % (port, why))
         return False
     
     def flash_firmware(self, hardware_version):
