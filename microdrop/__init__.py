@@ -104,8 +104,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
-
+    
     serial_ports_ = [port for port in serial_device.SerialDevice().get_serial_ports()]
+    if len(serial_ports_):
+        default_port_ = serial_ports_[0]
+    else:
+        default_port_ = None
+    
     AppFields = Form.of(
         Integer.named('sampling_time_ms').using(default=10, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
@@ -113,7 +118,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             optional=True, validators=[ValueAtLeast(minimum=0), ],),
         Float.named('voltage_tolerance').using(default=2, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
-        Enum.named('serial_port').using(default=0, optional=True)\
+        Enum.named('serial_port').using(default=default_port_, optional=True)\
             .valued(*serial_ports_),
     )
 
@@ -144,9 +149,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.current_frequency = None
 
     def on_plugin_enable(self):
-        if get_app().protocol:
-            self.on_step_run()
-
         if not self.initialized:
             self.feedback_options_controller = FeedbackOptionsController(self)
             self.feedback_results_controller = FeedbackResultsController(self)
@@ -221,16 +223,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
     def connect(self):
         self.current_frequency = None
-        self.amplifier_gain_initialized = False         
-        app_values = self.get_app_values()
-        # try to connect to the last successful port
-        try:
-            self.control_board.connect(str(app_values['serial_port']))
-        except Exception, why:
-            logger.warning('Could not connect to control board on port %s. '
-                           'Checking other ports...' % app_values['serial_port'])
-            self.control_board.connect()
+        self.amplifier_gain_initialized = False
+        if len(DmfControlBoardPlugin.serial_ports_):
+            app_values = self.get_app_values()
+            # try to connect to the last successful port
+            try:
+                self.control_board.connect(str(app_values['serial_port']))
+            except Exception, why:
+                logger.warning('Could not connect to control board on port %s. '
+                               'Checking other ports...' % app_values['serial_port'])
+                self.control_board.connect()
             app_values['serial_port'] = self.control_board.port
+            self.set_app_values(app_values)
 
     def check_device_name_and_version(self):
         try:
@@ -419,7 +423,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             set_text(self.connection_status + ", Voltage: %.1f V" % \
                      impedance.V_actuation()[-1])
 
-        if self.control_board.auto_adjust_amplifier_gain():
+        if impedance.V_actuation()[-1]<5.0:
+            logger.error("Low voltage detected. Please check that the amplifier is on.")
+        elif self.control_board.auto_adjust_amplifier_gain():
             voltage = impedance.options.voltage
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
@@ -430,10 +436,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             # check that the signal is within tolerance
             if abs(impedance.V_actuation()[-1]-voltage) > \
                 app_values['voltage_tolerance']:
-                if impedance.V_actuation()[-1]<5.0:
-                    logger.error("Low voltage detected. Please check that the amplifier is on.")
                 # allow maximum of 5 adjustment attempts
-                elif self.n_voltage_adjustments and self.n_voltage_adjustments<5:
+                if self.n_voltage_adjustments and self.n_voltage_adjustments<5:
                     logger.info('\tn_voltage_adjustments=%d' % \
                                 self.n_voltage_adjustments)
                     emit_signal("set_voltage", voltage,
@@ -481,20 +485,22 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         feedback_options = options.feedback_options
         app_values = self.get_app_values()
 
-        if self.control_board.auto_adjust_amplifier_gain() and \
-            not self.amplifier_gain_initialized:
-            emit_signal("set_frequency",
-                        options.frequency,
-                        interface=IWaveformGenerator)
-            emit_signal("set_voltage", options.voltage,
-                        interface=IWaveformGenerator)
-            self.check_impedance(options)
-
         start_time = time.time()
 
         try:
             if self.control_board.connected() and \
                 (app.realtime_mode or app.running):
+                
+                # initialize the amplifier gain
+                if self.control_board.auto_adjust_amplifier_gain() and \
+                    not self.amplifier_gain_initialized:
+                    emit_signal("set_frequency",
+                                options.frequency,
+                                interface=IWaveformGenerator)
+                    emit_signal("set_voltage", options.voltage,
+                                interface=IWaveformGenerator)
+                    self.check_impedance(options)
+
                 state = dmf_options.state_of_channels
                 max_channels = self.control_board.number_of_channels() 
                 if len(state) >  max_channels:
