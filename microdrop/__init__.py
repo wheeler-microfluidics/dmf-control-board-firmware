@@ -639,7 +639,15 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 interface=IWaveformGenerator)
                     self.check_impedance(options)
                     self.control_board.state_of_all_channels = state
-    
+            # turn off all electrodes if we're not in realtime mode and not
+            # running a protocol
+            elif self.control_board.connected() and \
+            not app.realtime_mode and not app.running:
+                # turn off all electrodes
+                self.control_board.set_state_of_all_channels(
+                    np.zeros(self.control_board.number_of_channels())
+                )
+            
             # if a protocol is running, wait for the specified minimum duration
             if app.running and not app.realtime_mode:
                 while time.time() - start_time < options.duration / 1000.0:
