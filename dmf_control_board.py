@@ -64,7 +64,7 @@ class FeedbackCalibration():
         if C_drop:
             self.C_drop = C_drop
         else:
-            self.C_filler = None
+            self.C_drop = None
         if C_filler:
             self.C_filler = C_filler
         else:

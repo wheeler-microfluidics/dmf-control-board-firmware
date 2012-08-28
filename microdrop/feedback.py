@@ -954,7 +954,7 @@ class FeedbackResults():
         if self.calibration.C_filler:
             C_filler = self.calibration.C_filler*self.area
         else:
-            C_filler = C[0]
+            C_filler = 0
         
         # find the time when the capacitance reaches 95% of its final level
         ind_95 = mlab.find((C-C_filler)/(C_drop-C_filler)>.95)
