@@ -1264,6 +1264,8 @@ class FeedbackResultsController():
         self.window = self.builder.get_object("window")
         self.combobox_x_axis = self.builder.get_object("combobox_x_axis")
         self.combobox_y_axis = self.builder.get_object("combobox_y_axis")
+        self.checkbutton_normalize_by_area = self.builder.get_object(
+            "checkbutton_normalize_by_area")
         self.window.set_title("Feedback Results")
         self.builder.connect_signals(self)
         self.data = []
@@ -1283,8 +1285,7 @@ class FeedbackResultsController():
         combobox_set_model_from_list(self.combobox_x_axis,
                                      ["Time", "Frequency", "Voltage"])
         combobox_set_model_from_list(self.combobox_y_axis,
-                                     ["Impedance", "Capacitance",
-                                      "Capacitance/Area", "Velocity",
+                                     ["Impedance", "Capacitance", "Velocity",
                                       "Voltage", "x-position"])
         self.combobox_x_axis.set_active(0)
         self.combobox_y_axis.set_active(0)
@@ -1309,16 +1310,21 @@ class FeedbackResultsController():
         if x_axis=="Time":
             combobox_set_model_from_list(self.combobox_y_axis,
                                          ["Impedance", "Capacitance",
-                                          "Capacitance/Area", "Velocity",
-                                          "Voltage", "x-position"])
+                                          "Velocity",  "Voltage", "x-position"])
         else:
             combobox_set_model_from_list(self.combobox_y_axis,
                                          ["Impedance", "Capacitance",
-                                          "Capacitance/Area", "Voltage"])
+                                          "Voltage"])
         self.combobox_y_axis.set_active(0)
         self.update_plot()
 
     def on_combobox_y_axis_changed(self, widget, data=None):
+        y_axis = combobox_get_active_text(self.combobox_y_axis)
+        self.checkbutton_normalize_by_area.set_sensitive(y_axis=="Impedance" \
+            or y_axis=="Capacitance")
+        self.update_plot()
+
+    def on_checkbutton_normalize_by_area_toggled(self, widget, data=None):
         self.update_plot()
 
     def on_export_data_clicked(self, widget, data=None):
@@ -1366,11 +1372,44 @@ class FeedbackResultsController():
         legend = []
         legend_loc = "upper right"
         self.export_data = []        
+
+        normalization_string = ""
+        if self.checkbutton_normalize_by_area.get_active():
+            normalization_string = "/mm$^2$"
+        
+        if y_axis=="Impedance":
+            self.axis.set_title("Impedance%s" % \
+                                normalization_string)
+            self.axis.set_ylabel(
+                "|Z$_{device}$| ($\Omega$%s)" % normalization_string)
+            self.axis.set_yscale('log')
+        elif y_axis=="Capacitance":
+            self.axis.set_title("Capacitance%s" % \
+                                normalization_string)
+            self.axis.set_ylabel("C$_{device}$ (F%s)" % \
+                                 normalization_string)
+            legend_loc = "lower right"
+        elif y_axis=="Velocity":
+            self.axis.set_title("Instantaneous velocity")
+            self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
+        elif y_axis=="Voltage":
+            self.axis.set_title("Actuation voltage")
+            self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
+            legend_loc = "lower right"
+        elif y_axis=="x-position":
+            self.axis.set_title("x-position")
+            self.axis.set_ylabel("x-position (mm)")
+
         if x_axis=="Time":
             self.axis.set_xlabel("Time (ms)")
             for row in self.data:
                 if self.plugin.name in row.keys() and "FeedbackResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["FeedbackResults"]
+
+                    normalization = 1.0
+                    if self.checkbutton_normalize_by_area.get_active():
+                        normalization = results.area
+
                     self.export_data.append('step:, %d' % (row['core']["step"]+1))
                     self.export_data.append('step time (s):, %f' % (row['core']["time"]))
 
@@ -1385,65 +1424,44 @@ class FeedbackResultsController():
                         np.concatenate(([0],np.diff(results.fb_resistor)))==0,
                         np.concatenate(([0],np.diff(results.hv_resistor)))==0
                     )))
-                    
-                    
+                        
                     if y_axis=="Impedance":
-                        self.axis.set_title("Impedance")
-                        self.axis.set_ylabel(
-                            "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
-                            results.frequency)
                         self.axis.plot(results.time[ind],
-                                       results.Z_device()[ind])
-                        self.axis.set_yscale('log')
+                                       results.Z_device()[ind]/normalization)
                         self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in results.time]))
-                        self.export_data.append('impedance (Ohms):, ' + 
-                            ", ".join([str(x) for x in results.Z_device()]))
+                            ", ".join([str(x) for x in results.time[ind]]))
+                        self.export_data.append('impedance (Ohms%s):, ' % \
+                                                (normalization_string) + \
+                            ", ".join([str(x) for x in \
+                                       results.Z_device()[ind]/normalization]))
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
                         self.axis.plot(results.time[ind],
-                                       results.capacitance()[ind])
-                        legend_loc = "lower right"
+                                       results.capacitance()[ind]/normalization)
                         self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in results.time]))
-                        self.export_data.append('capacitance (F):,' + 
-                            ", ".join([str(x) for x in results.capacitance()]))
-                    elif y_axis=="Capacitance/Area":
-                        self.axis.set_title("Capacitance/Area")
-                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
-                        self.axis.plot(results.time[ind],
-                                       results.capacitance()[ind]/results.area)
-                        legend_loc = "lower right"
-                        self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in results.time]))
-                        self.export_data.append('capacitance/area (F/mm^2):,' + 
-                            ", ".join([str(x) for x in results.capacitance()/ \
-                                       results.area]))
+                            ", ".join([str(x) for x in results.time[ind]]))
+                        self.export_data.append('capacitance (F%s):,' % \
+                                                normalization_string + \
+                            ", ".join([str(x) for x in \
+                                       results.capacitance()[ind]/ \
+                                       normalization]))
                     elif y_axis=="Velocity":
                         t, dxdt = results.dxdt(ind)
-                        self.axis.set_title("Instantaneous velocity")
-                        self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
                         self.axis.plot(t, dxdt*1000)
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in t]))
                         self.export_data.append('velocity (mm/s):,' + 
                             ", ".join([str(x) for x in dxdt]))
                     elif y_axis=="Voltage":
-                        self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.plot(results.time[ind],
                                        results.V_actuation()[ind])
-                        legend_loc = "lower right"
                         self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in results.time]))
+                            ", ".join([str(x) for x in results.time[ind]]))
                         self.export_data.append('V_actuation (V_RMS):,' + 
-                            ", ".join([str(x) for x in results.V_actuation()]))
+                            ", ".join([str(x) for x in \
+                                       results.V_actuation()[ind]]))
                     elif y_axis=="x-position":
                         t = results.time[ind]
                         x_pos = results.x_position()[ind]
-                        self.axis.set_title("x-position")
-                        self.axis.set_ylabel("x-position (mm)")
                         self.axis.plot(t, x_pos)
                         self.export_data.append('time (ms):, '+
                             ", ".join([str(x) for x in t]))
@@ -1453,6 +1471,7 @@ class FeedbackResultsController():
                                                         row['core']["time"]))
         elif x_axis=="Frequency":
             self.axis.set_xlabel("Frequency (Hz)")
+            self.axis.set_xscale('log')
             for row in self.data:
                 if self.plugin.name in row.keys() and \
                 "SweepFrequencyResults" in row[self.plugin.name].keys():
@@ -1464,59 +1483,38 @@ class FeedbackResultsController():
                     self.export_data.append('frequency (Hz):, '+
                         ", ".join([str(x) for x in results.frequency]))
                     if y_axis=="Impedance":
-                        self.axis.set_title("Impedance")
-                        self.axis.set_ylabel("|Z$_{device}$(f)| ($\Omega$)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.Z_device(), 1),
-                                           np.std(results.Z_device(), 1),
+                                           np.mean(results.Z_device(), 1)/ \
+                                           normalization,
+                                           np.std(results.Z_device(), 1)/ \
+                                           normalization,
                                            fmt='.')
-                        self.axis.set_xscale('log')
-                        self.axis.set_yscale('log')
-                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                        self.export_data.append('mean(impedance) (Ohms%s):, ' \
+                            % normalization_string + \
                             ", ".join([str(x) for x in np.mean(
-                            results.Z_device(), 1)]))
-                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            results.Z_device(), 1)/normalization]))
+                        self.export_data.append('std(impedance) (Ohms%s):, ' \
+                            % normalization_string + \
                             ", ".join([str(x) for x in np.std(
-                            results.Z_device(), 1)]))
+                            results.Z_device(), 1)/normalization]))
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
                         self.axis.errorbar(results.frequency,
-                                           np.mean(results.capacitance(), 1),
-                                           np.std(results.capacitance(), 1),
+                                           np.mean(results.capacitance(), 1)/ \
+                                           normalization,
+                                           np.std(results.capacitance(), 1)/ \
+                                           normalization,
                                            fmt='.')
-                        self.axis.set_xscale('log')
                         self.export_data.append('mean(capacitance) '
                             '(F):, ' + ", ".join([str(x) for x in np.mean(
-                            results.capacitance()/results.area, 1)]))
+                            results.capacitance()/normalization, 1)]))
                         self.export_data.append('std(capacitance/area) '
                             '(F):, ' + ", ".join([str(x) for x in np.std(
-                            results.capacitance(), 1)/results.area]))
-                    elif y_axis=="Capacitance/Area":
-                        self.axis.set_title("Capacitance/Area")
-                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
-                        self.axis.errorbar(results.frequency,
-                                           np.mean(results.capacitance(), 1)/
-                                                results.area,
-                                           np.std(results.capacitance(), 1)/
-                                                results.area,
-                                           fmt='.')
-                        self.axis.set_xscale('log')
-                        self.export_data.append('mean(capacitance/area) '
-                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
-                            results.capacitance()/results.area, 1)]))
-                        self.export_data.append('std(capacitance/area) '
-                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
-                            results.capacitance(), 1)/results.area]))
+                            results.capacitance(), 1)/normalization]))
                     elif y_axis=="Voltage":
-                        self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.errorbar(results.frequency,
                                            np.mean(results.V_actuation(), 1),
                                            np.std(results.V_actuation(), 1),
                                            fmt='.')
-                        self.axis.set_xscale('log')
-                        legend_loc = "lower right"
                         self.export_data.append('mean(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
                             results.V_actuation(), 1)]))
@@ -1538,55 +1536,38 @@ class FeedbackResultsController():
                     self.export_data.append('voltage (Vrms):, '+
                         ", ".join([str(x) for x in results.voltage]))
                     if y_axis=="Impedance":
-                        self.axis.set_title("Impedance")
-                        self.axis.set_ylabel(
-                            "|Z$_{device}$(f=%.1e Hz)| ($\Omega$)" % \
-                            results.frequency)
                         self.axis.errorbar(results.voltage,
-                                           np.mean(results.Z_device(), 1),
-                                           np.std(results.Z_device(), 1),
+                                           np.mean(results.Z_device(), 1)/ \
+                                           normalization,
+                                           np.std(results.Z_device(), 1)/ 
+                                           normalization,
                                            fmt='.')
-                        self.axis.set_yscale('log')
-                        self.export_data.append('mean(impedance) (Ohms):, ' + 
+                        self.export_data.append('mean(impedance) (Ohms%s):, ' \
+                            % normalization_string + \
                             ", ".join([str(x) for x in np.mean(
-                            results.Z_device(), 1)]))
-                        self.export_data.append('std(impedance) (Ohms):, ' + 
+                            results.Z_device(), 1)/normalization]))
+                        self.export_data.append('std(impedance) (Ohms%s):, ' \
+                            % normalization_string + \
                             ", ".join([str(x) for x in np.std(
-                            results.Z_device(), 1)]))
+                            results.Z_device(), 1)/normalization]))
                     elif y_axis=="Capacitance":
-                        self.axis.set_title("Capacitance")
-                        self.axis.set_ylabel("C$_{device}$ (F)")
                         self.axis.errorbar(results.voltage,
-                                           np.mean(results.capacitance(), 1),
-                                           np.std(results.capacitance(), 1),
+                                           np.mean(results.capacitance(), 1)/ \
+                                           normalization,
+                                           np.std(results.capacitance(), 1)/ \
+                                           normalization,
                                            fmt='.')
                         self.export_data.append('mean(capacitance) '
                             '(F):, ' + ", ".join([str(x) for x in np.mean(
-                            results.capacitance(), 1)]))
+                            results.capacitance(), 1)/normalization]))
                         self.export_data.append('std(capacitance) '
                             '(F):, ' + ", ".join([str(x) for x in np.std(
-                            results.capacitance(), 1)]))
-                    elif y_axis=="Capacitance/Area":
-                        self.axis.set_title("Capacitance/Area")
-                        self.axis.set_ylabel("C$_{device}$ (F/mm$^2$)")
-                        self.axis.errorbar(results.voltage,
-                                           np.mean(results.capacitance()/results.area, 1),
-                                           np.std(results.capacitance()/results.area, 1),
-                                           fmt='.')
-                        self.export_data.append('mean(capacitance/area) '
-                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.mean(
-                            results.capacitance()/results.area, 1)]))
-                        self.export_data.append('std(capacitance/area) '
-                            '(F/mm^2):, ' + ", ".join([str(x) for x in np.std(
-                            results.capacitance()/results.area, 1)]))
+                            results.capacitance(), 1)/normalization]))
                     elif y_axis=="Voltage":
-                        self.axis.set_title("Actuation voltage")
-                        self.axis.set_ylabel("V$_{actuation}$ (V$_{RMS}$)")
                         self.axis.errorbar(results.voltage,
                                            np.mean(results.V_actuation(), 1),
                                            np.std(results.V_actuation(), 1),
                                            fmt='.')
-                        legend_loc = "lower right"
                         self.export_data.append('mean(V_actuation) '
                             '(Vrms):, ' + ", ".join([str(x) for x in np.mean(
                             results.V_actuation(), 1)]))
