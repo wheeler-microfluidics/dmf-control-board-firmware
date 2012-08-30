@@ -556,7 +556,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 {"FeedbackResults":results},self.name)
                             if max(results.capacitance())/area < \
                                 feedback_options.action.percent_threshold/ \
-                                    100.0*RetryAction.capacitance_threshold:
+                                    100.0*self.control_board.calibration.C_drop:
                                 logger.info('step=%d: attempt=%d, max(C)'
                                             '/A=%.1e F/mm^2. Repeat' % \
                                             (app.protocol.current_step_number,

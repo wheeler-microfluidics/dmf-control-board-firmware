@@ -76,7 +76,6 @@ def feedback_signal(p, frequency, Z):
 
 class RetryAction():
     class_version = str(Version(0,1))
-    capacitance_threshold = 0
 
     def __init__(self,
                  percent_threshold=None,
@@ -952,7 +951,7 @@ class FeedbackResults():
         return (self.capacitance()/self.area-C_filler)/ \
             (C_drop-C_filler)*np.sqrt(self.area)
 
-    def dxdt(self, ind=None):
+    def dxdt(self, ind=None, threshold=0.95):
         if ind is None:
             ind = range(len(self.time))
         dt = np.diff(self.time[ind])
@@ -969,12 +968,13 @@ class FeedbackResults():
         else:
             C_filler = 0
         
-        # find the time when the capacitance reaches 95% of its final level
-        ind_95 = mlab.find((C-C_filler)/(C_drop-C_filler)>.95)
-        if len(ind_95):
+        # find the time when the capacitance exceeds the threshold or when the
+        # velocity goes negative
+        ind_stop = mlab.find(np.logical_or((C[1:]-C_filler)/ \
+                             (C_drop-C_filler)>threshold, dCdt<0))
+        if len(ind_stop):
             # set all remaining velocities to 0
-            # (+1 because we appended dCdt=0 at t=0)
-            dCdt[ind_95[0]+1:]=0
+            dCdt[ind_stop[0]:]=0
 
         return t, dCdt/(C_drop-C_filler)*np.sqrt(self.area)
 
