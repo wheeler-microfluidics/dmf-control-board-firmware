@@ -940,6 +940,18 @@ class FeedbackResults():
     def capacitance(self):
         return 1.0/(2*math.pi*self.frequency*self.Z_device())
     
+    def x_position(self):
+        if self.calibration.C_drop:
+            C_drop = self.calibration.C_drop
+        else:
+            C_drop = self.capacitance()[-1]/self.area
+        if self.calibration.C_filler:
+            C_filler = self.calibration.C_filler
+        else:
+            C_filler = 0
+        return (self.capacitance()/self.area-C_filler)/ \
+            (C_drop-C_filler)*np.sqrt(self.area)
+
     def dxdt(self, ind=None):
         if ind is None:
             ind = range(len(self.time))
@@ -1273,7 +1285,7 @@ class FeedbackResultsController():
         combobox_set_model_from_list(self.combobox_y_axis,
                                      ["Impedance", "Capacitance",
                                       "Capacitance/Area", "Velocity",
-                                      "Voltage"])
+                                      "Voltage", "x-position"])
         self.combobox_x_axis.set_active(0)
         self.combobox_y_axis.set_active(0)
 
@@ -1298,7 +1310,7 @@ class FeedbackResultsController():
             combobox_set_model_from_list(self.combobox_y_axis,
                                          ["Impedance", "Capacitance",
                                           "Capacitance/Area", "Velocity",
-                                          "Voltage"])
+                                          "Voltage", "x-position"])
         else:
             combobox_set_model_from_list(self.combobox_y_axis,
                                          ["Impedance", "Capacitance",
@@ -1427,6 +1439,16 @@ class FeedbackResultsController():
                             ", ".join([str(x) for x in results.time]))
                         self.export_data.append('V_actuation (V_RMS):,' + 
                             ", ".join([str(x) for x in results.V_actuation()]))
+                    elif y_axis=="x-position":
+                        t = results.time[ind]
+                        x_pos = results.x_position()[ind]
+                        self.axis.set_title("x-position")
+                        self.axis.set_ylabel("x-position (mm)")
+                        self.axis.plot(t, x_pos)
+                        self.export_data.append('time (ms):, '+
+                            ", ".join([str(x) for x in t]))
+                        self.export_data.append('velocity (mm/s):,' + 
+                            ", ".join([str(x) for x in x_pos]))
                     legend.append("Step %d (%.3f s)" % (row['core']["step"]+1,
                                                         row['core']["time"]))
         elif x_axis=="Frequency":
