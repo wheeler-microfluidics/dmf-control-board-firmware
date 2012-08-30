@@ -944,8 +944,9 @@ class FeedbackResults():
         if ind is None:
             ind = range(len(self.time))
         dt = np.diff(self.time[ind])
+        t = self.time[ind][1:]-dt/2.0
         C = self.capacitance()[ind]
-        dCdt = np.concatenate(([0], np.diff(C)/dt))
+        dCdt = np.diff(C)/dt
         
         if self.calibration.C_drop:
             C_drop = self.calibration.C_drop*self.area
@@ -963,7 +964,7 @@ class FeedbackResults():
             # (+1 because we appended dCdt=0 at t=0)
             dCdt[ind_95[0]+1:]=0
 
-        return dCdt/(C_drop-C_filler)*np.sqrt(self.area)
+        return t, dCdt/(C_drop-C_filler)*np.sqrt(self.area)
 
     def smooth(self, x, window_len=11, window='hanning'):
         """smooth the data using a window with requested size.
@@ -1408,12 +1409,12 @@ class FeedbackResultsController():
                             ", ".join([str(x) for x in results.capacitance()/ \
                                        results.area]))
                     elif y_axis=="Velocity":
-                        dxdt = results.dxdt(ind)
+                        t, dxdt = results.dxdt(ind)
                         self.axis.set_title("Instantaneous velocity")
                         self.axis.set_ylabel("Velocity$_{drop}$ (mm/s)")
-                        self.axis.plot(results.time[ind], dxdt*1000)
+                        self.axis.plot(t, dxdt*1000)
                         self.export_data.append('time (ms):, '+
-                            ", ".join([str(x) for x in results.time[ind]]))
+                            ", ".join([str(x) for x in t]))
                         self.export_data.append('velocity (mm/s):,' + 
                             ", ".join([str(x) for x in dxdt]))
                     elif y_axis=="Voltage":
