@@ -951,11 +951,24 @@ class FeedbackResults():
         return (self.capacitance()/self.area-C_filler)/ \
             (C_drop-C_filler)*np.sqrt(self.area)
 
+    def mean_velocity(self, ind=None, threshold=0.95):
+        if ind is None:
+            ind = range(len(self.time))
+        t, dxdt = self.dxdt(ind, threshold)
+        x = self.x_position()
+        ind_stop = ind[mlab.find(dxdt==0)[1]]
+        dx = x[ind_stop]-x[0]
+        if max(dxdt>0):
+            dt = t[ind_stop]
+            return dx/dt
+        else:
+            return 0
+
     def dxdt(self, ind=None, threshold=0.95):
         if ind is None:
             ind = range(len(self.time))
         dt = np.diff(self.time[ind])
-        t = self.time[ind][1:]-dt/2.0
+        t = self.time[ind][1:]-(self.time[1]-self.time[0])/2.0
         C = self.capacitance()[ind]
         dCdt = np.diff(C)/dt
         
@@ -968,10 +981,10 @@ class FeedbackResults():
         else:
             C_filler = 0
         
-        # find the time when the capacitance exceeds the threshold or when the
-        # velocity goes negative
-        ind_stop = mlab.find(np.logical_or((C[1:]-C_filler)/ \
-                             (C_drop-C_filler)>threshold, dCdt<0))
+        # find the time when the capacitance exceeds the specified threshold
+        # (e.g., the drop has stopped moving once it has passed 95% of it's
+        # final value)
+        ind_stop = mlab.find((C[1:]-C_filler)/(C[-1]-C_filler)>threshold)
         if len(ind_stop):
             # set all remaining velocities to 0
             dCdt[ind_stop[0]:]=0
