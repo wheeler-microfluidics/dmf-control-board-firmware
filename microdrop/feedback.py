@@ -1601,9 +1601,101 @@ class FeedbackCalibrationController():
         self.plugin = plugin
         self.experiment_log_controller = get_service_instance_by_name(
             "microdrop.gui.experiment_log_controller", "microdrop")
+
+    def on_save_log_calibration(self, widget, data=None):
+        selected_data = self.experiment_log_controller.get_selected_data()
+        calibration = None
+        if len(selected_data)>1:
+            logger.error("Multiple steps are selected. Please choose a single "
+                         "step.")
+            return
+        try:
+            if 'FeedbackResults' in selected_data[0][self.plugin.name]:
+                calibration = selected_data[0][self.plugin.name] \
+                    ['FeedbackResults'].calibration
+            elif 'SweepFrequencyResults' in selected_data[0][self.plugin.name]:
+                calibration = selected_data[0][self.plugin.name] \
+                    ['SweepFrequencyResults'].calibration
+            elif 'SweepVoltageResults' in selected_data[0][self.plugin.name]:
+                calibration = selected_data[0][self.plugin.name] \
+                    ['SweepVoltageResults'].calibration
+        except:
+            logger.error("This step does not contain any calibration data.")
+            return
         
-    def on_edit_calibration(self, widget, data=None):
-        logger.debug("on_edit_calibration()")
+        dialog = gtk.FileChooserDialog(title="Save feedback calibration",
+                                       action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       buttons=(gtk.STOCK_CANCEL,
+                                                gtk.RESPONSE_CANCEL,
+                                                gtk.STOCK_SAVE,
+                                                gtk.RESPONSE_OK))
+
+        while True:
+            try:
+                dialog.set_default_response(gtk.RESPONSE_OK)
+                response = dialog.run()
+                if response == gtk.RESPONSE_OK:
+                    filename = path(dialog.get_filename())
+                    with open(filename.abspath(), 'wb') as f:
+                        pickle.dump(calibration, f)
+                    break
+                else:
+                    break
+            except Exception, why:
+                logger.error("Error saving calibration file. %s." % why)
+        dialog.destroy()
+    
+    def on_load_log_calibration(self, widget, data=None):
+        dialog = gtk.FileChooserDialog(
+            title="Load calibration from file",
+            action=gtk.FILE_CHOOSER_ACTION_OPEN,
+            buttons=(gtk.STOCK_CANCEL,
+                     gtk.RESPONSE_CANCEL,
+                     gtk.STOCK_OPEN,
+                     gtk.RESPONSE_OK)
+        )
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        calibration = None
+        if response == gtk.RESPONSE_OK:
+            filename = path(dialog.get_filename())
+            with open(filename, 'rb') as f:
+                try:
+                    calibration = pickle.load(f)
+                    logging.debug("Loaded object from pickle.")
+                    if str(calibration.__class__).split('.')[-1] != \
+                        'FeedbackCalibration':
+                        raise ValueError()
+                except Exception, why:
+                    logging.error('Not a valid calibration file.')
+                    logging.debug(why)
+        dialog.destroy()
+
+        selected_data = self.experiment_log_controller.get_selected_data()
+        for row in selected_data:
+            try:
+                if 'FeedbackResults' in row[self.plugin.name]:
+                    row[self.plugin.name]['FeedbackResults'].calibration = \
+                        deepcopy(calibration)
+                elif 'SweepFrequencyResults' in row[self.plugin.name]:
+                    row[self.plugin.name]['SweepFrequencyResults']. \
+                    calibration = deepcopy(calibration)
+                elif 'SweepVoltageResults' in row[self.plugin.name]:
+                    row[self.plugin.name]['SweepVoltageResults'].calibration = \
+                        deepcopy(calibration)
+            except:
+                continue
+        # save the experiment log with the new values
+        filename = os.path.join(self.experiment_log_controller.results. \
+                                log.directory,
+                                str(self.experiment_log_controller.results. \
+                                    log.experiment_id),
+                                'data')
+        self.experiment_log_controller.results.log.save(filename)
+        emit_signal("on_experiment_log_selection_changed", [selected_data])   
+    
+    def on_edit_log_calibration(self, widget, data=None):
+        logger.debug("on_edit_log_calibration()")
         settings = {}
         schema_entries = []
         calibration_list = []
@@ -1791,6 +1883,8 @@ class FeedbackCalibrationController():
                         filename = path(dialog.get_filename())
                         with open(filename.abspath(), 'wb') as f:
                             pickle.dump(results, f)
+                        break
+                    else:
                         break
                 except Exception, why:
                     logger.error("Error saving calibration file. %s." % why)

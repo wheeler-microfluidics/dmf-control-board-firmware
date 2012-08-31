@@ -147,7 +147,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.n_voltage_adjustments = None
         self.amplifier_gain_initialized = False
         self.current_frequency = None
-        self.edit_calibration_menu_item = gtk.MenuItem("Edit calibration")
+        self.edit_log_calibration_menu_item = gtk.MenuItem("Edit calibration")
+        self.save_log_calibration_menu_item = \
+            gtk.MenuItem("Save calibration to file")
+        self.load_log_calibration_menu_item = \
+            gtk.MenuItem("Load calibration from file")
 
     def on_plugin_enable(self):
         if not self.initialized:
@@ -155,14 +159,22 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.feedback_results_controller = FeedbackResultsController(self)
             self.feedback_calibration_controller = \
                 FeedbackCalibrationController(self)
-            self.edit_calibration_menu_item.connect("activate",
-                self.feedback_calibration_controller.on_edit_calibration)
+            self.edit_log_calibration_menu_item.connect("activate",
+                self.feedback_calibration_controller.on_edit_log_calibration)
+            self.save_log_calibration_menu_item.connect("activate",
+                self.feedback_calibration_controller.on_save_log_calibration)
+            self.load_log_calibration_menu_item.connect("activate",
+                self.feedback_calibration_controller.on_load_log_calibration)
             
             experiment_log_controller = get_service_instance_by_name(
                 "microdrop.gui.experiment_log_controller", "microdrop")
             if hasattr(experiment_log_controller, 'popup'):
                 experiment_log_controller.popup.add_item(
-                    self.edit_calibration_menu_item)
+                    self.edit_log_calibration_menu_item)
+                experiment_log_controller.popup.add_item(
+                    self.save_log_calibration_menu_item)
+                experiment_log_controller.popup.add_item(
+                    self.load_log_calibration_menu_item)
 
             app = get_app()
             self.control_board_menu_item = gtk.MenuItem("DMF control board")
@@ -192,9 +204,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         
             menu_item = gtk.MenuItem("Edit calibration settings")
             menu_item.connect("activate",
-                              self.on_edit_calibration_settings)
+                              self.on_edit_calibration)
             self.control_board_menu.append(menu_item)
-            self.edit_calibration_settings_menu_item = menu_item
+            self.edit_calibration_menu_item = menu_item
             menu_item.show()
 
             menu_item = gtk.MenuItem("Reset calibration to default values")
@@ -209,7 +221,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         super(DmfControlBoardPlugin, self).on_plugin_enable()
         self.check_device_name_and_version()
         self.control_board_menu_item.show()
-        self.edit_calibration_menu_item.show()
+        self.edit_log_calibration_menu_item.show()
         self.feedback_results_controller.feedback_results_menu_item.show()
         if get_app().protocol:
             self.on_step_run()
@@ -219,7 +231,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_plugin_disable(self):
         self.feedback_options_controller.on_plugin_disable()
         self.control_board_menu_item.hide()
-        self.edit_calibration_menu_item.hide()
+        self.edit_log_calibration_menu_item.hide()
         self.feedback_results_controller.window.hide()
         self.feedback_results_controller.feedback_results_menu_item.hide()
         if get_app().protocol:
@@ -303,7 +315,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
 
-    def on_edit_calibration_settings(self, widget=None, data=None):
+    def on_edit_calibration(self, widget=None, data=None):
         if not self.control_board.connected():
             logging.error("A control board must be connected in order to "
                           "edit calibration settings.")
@@ -423,7 +435,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 pass
         self.perform_calibration_menu_item.set_sensitive(connected)
         self.load_calibration_from_file_menu_item.set_sensitive(connected)
-        self.edit_calibration_settings_menu_item.set_sensitive(connected)
+        self.edit_calibration_menu_item.set_sensitive(connected)
         self.reset_calibration_to_default_values_menu_item.set_sensitive(
             connected)
         self.feedback_options_controller.measure_cap_filler_menu_item. \
