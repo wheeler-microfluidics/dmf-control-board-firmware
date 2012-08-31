@@ -147,6 +147,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.n_voltage_adjustments = None
         self.amplifier_gain_initialized = False
         self.current_frequency = None
+        self.edit_calibration_menu_item = gtk.MenuItem("Edit calibration")
 
     def on_plugin_enable(self):
         if not self.initialized:
@@ -154,6 +155,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.feedback_results_controller = FeedbackResultsController(self)
             self.feedback_calibration_controller = \
                 FeedbackCalibrationController(self)
+            self.edit_calibration_menu_item.connect("activate",
+                self.feedback_calibration_controller.on_edit_calibration)
+            
+            experiment_log_controller = get_service_instance_by_name(
+                "microdrop.gui.experiment_log_controller", "microdrop")
+            if hasattr(experiment_log_controller, 'popup'):
+                experiment_log_controller.popup.add_item(
+                    self.edit_calibration_menu_item)
 
             app = get_app()
             self.control_board_menu_item = gtk.MenuItem("DMF control board")
@@ -200,7 +209,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         super(DmfControlBoardPlugin, self).on_plugin_enable()
         self.check_device_name_and_version()
         self.control_board_menu_item.show()
-
+        self.edit_calibration_menu_item.show()
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
@@ -209,6 +218,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_plugin_disable(self):
         self.feedback_options_controller.on_plugin_disable()
         self.control_board_menu_item.hide()
+        self.edit_calibration_menu_item.hide()
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
@@ -849,12 +859,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Returns a list of scheduling requests (i.e., ScheduleRequest
         instances) for the function specified by function_name.
         """
-        if function_name == 'on_plugin_enable':
-            return [ScheduleRequest('microdrop.gui.main_window_controller',
-                                    self.name),
-                    ScheduleRequest('microdrop.gui.dmf_device_controller',
-                                    self.name)]
-        elif function_name in ['on_step_options_changed']:
+        if function_name in ['on_step_options_changed']:
             return [ScheduleRequest(self.name,
                                     'microdrop.gui.protocol_grid_controller')]
         elif function_name in ['on_dmf_device_changed']:

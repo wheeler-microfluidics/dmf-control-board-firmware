@@ -61,7 +61,8 @@ from utility.gui import textentry_validate, combobox_set_model_from_list, \
     combobox_get_active_text, text_entry_dialog, FormViewDialog, yesno
 from flatland.schema import String, Form, Integer, Boolean, Float
 from flatland.validation import ValueAtLeast, ValueAtMost
-from plugin_manager import emit_signal, IWaveformGenerator, IPlugin
+from plugin_manager import emit_signal, IWaveformGenerator, IPlugin, \
+    get_service_instance_by_name
 from app_context import get_app
 
 
@@ -1598,6 +1599,22 @@ class FeedbackResultsController():
 class FeedbackCalibrationController():
     def __init__(self, plugin):
         self.plugin = plugin
+        
+    def on_edit_calibration(self, widget, data=None):
+        print "on_edit_calibration"
+        """
+        selected_data = self.experiment_log_controller.get_selected_data()
+        C_drop = None
+        for i, row in enumerate(selected_data):
+            print row
+            calibration = row['FeedbackResults'].calibration
+            if i==0:
+                C_drop = calibration.C_drop
+            else:
+                if calibration.C_drop != C_drop:
+                    C_drop = None
+        print "C_drop=%f" % C_drop
+        """
         
     def on_perform_calibration(self, widget, data=None):
         if not self.plugin.control_board.connected():
