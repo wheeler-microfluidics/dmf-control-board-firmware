@@ -1599,23 +1599,143 @@ class FeedbackResultsController():
 class FeedbackCalibrationController():
     def __init__(self, plugin):
         self.plugin = plugin
+        self.experiment_log_controller = get_service_instance_by_name(
+            "microdrop.gui.experiment_log_controller", "microdrop")
         
     def on_edit_calibration(self, widget, data=None):
-        print "on_edit_calibration"
-        """
+        logger.debug("on_edit_calibration()")
+        settings = {}
+        schema_entries = []
+        calibration_list = []
         selected_data = self.experiment_log_controller.get_selected_data()
-        C_drop = None
-        for i, row in enumerate(selected_data):
-            print row
-            calibration = row['FeedbackResults'].calibration
-            if i==0:
-                C_drop = calibration.C_drop
+        for row in selected_data:
+            try:
+                if 'FeedbackResults' in row[self.plugin.name]:
+                    calibration_list.append(row[self.plugin.name] \
+                                        ['FeedbackResults'].calibration)
+                elif 'SweepFrequencyResults' in row[self.plugin.name]:
+                    calibration_list.append(row[self.plugin.name] \
+                                        ['SweepFrequencyResults'].calibration)
+                elif 'SweepVoltageResults' in row[self.plugin.name]:
+                    calibration_list.append(row[self.plugin.name] \
+                                        ['SweepVoltageResults'].calibration)
+            except:
+                continue
+
+            calibration = calibration_list[-1]
+            
+            # set default for each setting only if all selected steps have a
+            # the same value, otherwise, leave the default blank
+            if len(calibration_list)==1:
+                settings["C_drop"] = calibration.C_drop
+                settings["C_filler"] = calibration.C_filler
+                for i in range(len(calibration.R_hv)):
+                    settings['R_hv_%d' % i] = calibration.R_hv[i]
+                    settings['C_hv_%d' % i] = calibration.C_hv[i]
+                for i in range(len(calibration.R_fb)):
+                    settings['R_fb_%d' % i] = calibration.R_fb[i]
+                    settings['C_fb_%d' % i] = calibration.C_fb[i]
             else:
-                if calibration.C_drop != C_drop:
-                    C_drop = None
-        print "C_drop=%f" % C_drop
-        """
+                def check_group_value(name, new):
+                    if settings[name] and settings[name] != new:
+                        settings[name] = None
+                check_group_value("C_drop", calibration.C_drop)
+                check_group_value("C_filler", calibration.C_filler)
+                for i in range(len(calibration.R_hv)):
+                    check_group_value('R_hv_%d' % i, calibration.R_hv[i])
+                    check_group_value('C_hv_%d' % i, calibration.C_hv[i])
+                for i in range(len(calibration.R_fb)):
+                    check_group_value('R_fb_%d' % i, calibration.R_fb[i])
+                    check_group_value('C_fb_%d' % i, calibration.C_fb[i])
+
+        def set_field_value(name, multiplier=1):
+            string_value = ""
+            if settings[name]:
+                string_value = str(settings[name]*multiplier)
+            schema_entries.append(String.named(name).using(
+                default=string_value, optional=True))
+
+        set_field_value('C_drop', 1e12)
+        set_field_value('C_filler', 1e12)
+
+        for i in range(len(calibration.R_hv)):
+            set_field_value('R_hv_%d' % i)
+            set_field_value('C_hv_%d' % i, 1e12)
+        for i in range(len(calibration.R_fb)):
+            set_field_value('R_fb_%d' % i)
+            set_field_value('C_fb_%d' % i, 1e12)
         
+        form = Form.of(*schema_entries)
+        dialog = FormViewDialog('Edit calibration settings')
+        valid, response =  dialog.run(form)
+        
+        if not valid:
+            return
+
+        logger.debug("Applying updated calibration settings to log file.")
+    
+        try:
+            if response['C_drop'] and \
+                float(response['C_drop'])/1e12 != settings["C_drop"]:
+                for calibration in calibration_list:
+                    calibration.C_drop = float(response['C_drop'])/1e12
+        except ValueError:
+            logger.error('C_drop value (%s) is invalid.' % response['C_drop'])
+
+        try:
+            if response['C_filler'] and \
+                float(response['C_filler'])/1e12 != settings["C_filler"]:
+                for calibration in calibration_list:
+                    calibration.C_filler = float(response['C_filler'])/1e12
+        except ValueError:
+            logger.error('C_filler value (%s) is invalid.' % \
+                         response['C_filler'])
+
+        for i in range(len(calibration.R_hv)):
+            try:
+                if response['R_hv_%d' % i] and \
+                    float(response['R_hv_%d' % i]) != settings['R_hv_%d' % i]:
+                    for calibration in calibration_list:
+                        calibration.R_hv[i] = float(response['R_hv_%d' % i])
+            except ValueError:
+                logger.error('R_hv_%d value (%s) is invalid.' % \
+                             (i, response['R_hv_%d' % i]))
+            try:            
+                if response['C_hv_%d' % i] and \
+                    float(response['C_hv_%d' % i])/1e12 != settings['C_hv_%d' % i]:
+                    for calibration in calibration_list:
+                        calibration.C_hv[i] = float(response['C_hv_%d' % i])/1e12
+            except ValueError:
+                logger.error('C_hv_%d value (%s) is invalid.' % \
+                             (i, response['C_hv_%d' % i]))
+                        
+        for i in range(len(calibration.R_fb)):
+            try:
+                if response['R_fb_%d' % i] and \
+                    float(response['R_fb_%d' % i]) != settings['R_fb_%d' % i]:
+                    for calibration in calibration_list:
+                        calibration.R_fb[i] = float(response['R_fb_%d' % i])
+            except ValueError:
+                logger.error('R_fb_%d value (%s) is invalid.' % \
+                             (i, response['R_fb_%d' % i]))
+            try:            
+                if response['C_fb_%d' % i] and \
+                    float(response['C_fb_%d' % i])/1e12 != settings['C_fb_%d' % i]:
+                    for calibration in calibration_list:
+                        calibration.C_fb[i] = float(response['C_fb_%d' % i])/1e12
+            except ValueError:
+                logger.error('C_fb_%d value (%s) is invalid.' % \
+                             (i, response['C_fb_%d' % i]))
+                
+        # save the experiment log with the new values
+        filename = os.path.join(self.experiment_log_controller.results. \
+                                log.directory,
+                                str(self.experiment_log_controller.results. \
+                                    log.experiment_id),
+                                'data')
+        self.experiment_log_controller.results.log.save(filename)
+        emit_signal("on_experiment_log_selection_changed", [selected_data])   
+
     def on_perform_calibration(self, widget, data=None):
         if not self.plugin.control_board.connected():
             logging.error("A control board must be connected in order to "
