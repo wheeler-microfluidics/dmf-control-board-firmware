@@ -1284,10 +1284,10 @@ class FeedbackResultsController():
         self.builder.connect_signals(self)
         self.data = []
 
-        menu_item = gtk.MenuItem("Feedback Results")
-        app.main_window_controller.menu_view.append(menu_item)
-        menu_item.connect("activate", self.on_window_show)
-        menu_item.show()
+        self.feedback_results_menu_item = gtk.MenuItem("Feedback Results")
+        app.main_window_controller.menu_view.append(
+            self.feedback_results_menu_item)
+        self.feedback_results_menu_item.connect("activate", self.on_window_show)
 
         self.figure = Figure()
         self.canvas = FigureCanvasGTK(self.figure)

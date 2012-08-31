@@ -197,7 +197,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.edit_calibration_settings_menu_item = menu_item
             menu_item.show()
 
-            menu_item = gtk.MenuItem("Rest calibration to default values")
+            menu_item = gtk.MenuItem("Reset calibration to default values")
             menu_item.connect("activate",
                               self.on_reset_calibration_to_default_values)
             self.control_board_menu.append(menu_item)
@@ -210,6 +210,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.check_device_name_and_version()
         self.control_board_menu_item.show()
         self.edit_calibration_menu_item.show()
+        self.feedback_results_controller.feedback_results_menu_item.show()
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
@@ -219,6 +220,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.feedback_options_controller.on_plugin_disable()
         self.control_board_menu_item.hide()
         self.edit_calibration_menu_item.hide()
+        self.feedback_results_controller.window.hide()
+        self.feedback_results_controller.feedback_results_menu_item.hide()
         if get_app().protocol:
             self.on_step_run()
             pgc = get_service_instance(ProtocolGridController, env='microdrop')
