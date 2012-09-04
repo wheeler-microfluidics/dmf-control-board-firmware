@@ -257,7 +257,7 @@ class ArduinoBuildContext(object):
                 self.ARDUINO_BOARD))
 
         avrdudeOpts = ['-V', '-F', '-c %s' % UPLOAD_PROTOCOL, '-b %s' % UPLOAD_SPEED,
-            '-p %s' % self.MCU, '-P %s' % self.ARDUINO_PORT, '-U flash:w:$SOURCES']
+            '-p %s' % self.MCU, '-P \\\\.\\%s' % self.ARDUINO_PORT, '-U flash:w:$SOURCES']
 
         if self.AVRDUDE_CONF:
             avrdudeOpts += ['-C "%s"' % self.AVRDUDE_CONF]
@@ -354,6 +354,8 @@ class ArduinoBuildContext(object):
         if register_upload:
             fuse_cmd = '"%s" %s' % (self.AVRDUDE_BIN, ' '.join(
                     self.get_avrdude_options()))
+
+            print fuse_cmd
 
             upload = env.Alias('upload', hex_path, [fuse_cmd]);
             env.AlwaysBuild(upload)

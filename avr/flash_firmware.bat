@@ -12,7 +12,7 @@ if not exist avrdude.exe (
   echo Error! This script must be executed within the "avr" directory
   goto :eof
 )
-avrdude.exe -c stk500v2 -b 115200 -p atmega2560 -P %1 -U %2 -C avrdude.conf
+avrdude.exe -c stk500v2 -b 115200 -p atmega2560 -P \\.\%1 -U %2 -C avrdude.conf
 goto :eof
 
 :usage
