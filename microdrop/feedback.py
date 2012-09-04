@@ -957,10 +957,10 @@ class FeedbackResults():
             ind = range(len(self.time))
         t, dxdt = self.dxdt(ind, threshold)
         x = self.x_position()
-        ind_stop = ind[mlab.find(dxdt==0)[1]]
-        dx = x[ind_stop]-x[0]
-        if max(dxdt>0):
-            dt = t[ind_stop]
+        ind_stop = ind[mlab.find(dxdt==0)[0]]
+        dx = x[ind_stop]-x[ind[0]]
+        if max(dxdt>0) and ind_stop<len(t):
+            dt = t[ind_stop]-t[ind[0]]
             return dx/dt
         else:
             return 0
@@ -991,50 +991,6 @@ class FeedbackResults():
             dCdt[ind_stop[0]:]=0
 
         return t, dCdt/(C_drop-C_filler)*np.sqrt(self.area)
-
-    def smooth(self, x, window_len=11, window='hanning'):
-        """smooth the data using a window with requested size.
-        
-        This method is based on the convolution of a scaled window with the signal.
-        
-        :param x: the input signal 
-        :param window_len: the dimension of the smoothing window; should be an odd integer
-        :param window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'.  'flat' will produce a moving average smoothing.
-    
-        :returns: the smoothed signal
-            
-        **Usage**::
-    
-        >>t=linspace(-2,2,0.1)
-        >>x=sin(t)+randn(len(t))*0.1
-        >>y=smooth(x)
-        
-        .. seealso:: numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve, scipy.signal.lfilter
-     
-        .. todo:: the window parameter could be the window itself if an array instead of a string   
-        """
-    
-        if x.ndim != 1:
-            raise ValueError, "smooth only accepts 1 dimension arrays."
-    
-        if x.size < window_len:
-            raise ValueError, "Input vector needs to be bigger than window size."
-    
-        if window_len<3:
-            return x
-    
-        if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-            raise ValueError, "Window is none of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
-    
-        s=np.r_[x[0]*np.ones(window_len),x,x[-1]*np.ones(window_len)]
-        if window == 'flat': #moving average
-            w=np.ones(window_len,'d')
-        else:
-            w=eval('np.'+window+'(window_len)')
-    
-        y=np.convolve(w/w.sum(),s,mode='valid')
-        y = y[(window_len-1)/2+1:-(window_len-1)/2-1]
-        return y
 
 
 class SweepFrequencyResults():
@@ -1765,59 +1721,45 @@ class FeedbackCalibrationController():
             return
 
         logger.debug("Applying updated calibration settings to log file.")
-    
-        try:
-            if response['C_drop'] and \
-                float(response['C_drop'])/1e12 != settings["C_drop"]:
-                for calibration in calibration_list:
-                    calibration.C_drop = float(response['C_drop'])/1e12
-        except ValueError:
-            logger.error('C_drop value (%s) is invalid.' % response['C_drop'])
 
-        try:
-            if response['C_filler'] and \
-                float(response['C_filler'])/1e12 != settings["C_filler"]:
-                for calibration in calibration_list:
-                    calibration.C_filler = float(response['C_filler'])/1e12
-        except ValueError:
-            logger.error('C_filler value (%s) is invalid.' % \
-                         response['C_filler'])
-
+        def get_field_value(name, multiplier=1):
+            try:
+                print 'response[%s]=' % name, response[name]
+                print 'settings[%s]=' % name, settings[name]
+                if response[name] and \
+                    (settings[name] is None or abs(float(response[name])/multiplier-settings[name])/ \
+                    settings[name] > .0001):
+                    return float(response[name])/multiplier
+            except ValueError:
+                logger.error('C_drop value (%s) is invalid.' % response['C_drop'])
+            return None
+        
+        value = get_field_value('C_drop', 1e12)
+        if value:
+            for calibration in calibration_list:
+                calibration.C_drop = value
+        value = get_field_value('C_filler', 1e12)
+        if value:
+            for calibration in calibration_list:
+                calibration.C_filler = value
         for i in range(len(calibration.R_hv)):
-            try:
-                if response['R_hv_%d' % i] and \
-                    float(response['R_hv_%d' % i]) != settings['R_hv_%d' % i]:
-                    for calibration in calibration_list:
-                        calibration.R_hv[i] = float(response['R_hv_%d' % i])
-            except ValueError:
-                logger.error('R_hv_%d value (%s) is invalid.' % \
-                             (i, response['R_hv_%d' % i]))
-            try:            
-                if response['C_hv_%d' % i] and \
-                    float(response['C_hv_%d' % i])/1e12 != settings['C_hv_%d' % i]:
-                    for calibration in calibration_list:
-                        calibration.C_hv[i] = float(response['C_hv_%d' % i])/1e12
-            except ValueError:
-                logger.error('C_hv_%d value (%s) is invalid.' % \
-                             (i, response['C_hv_%d' % i]))
-                        
+            value = get_field_value('R_hv_%d' % i)
+            if value:
+                for calibration in calibration_list:
+                    calibration.R_hv[i] = value
+            value = get_field_value('C_hv_%d' % i, 1e12)
+            if value:
+                for calibration in calibration_list:
+                    calibration.C_hv[i] = value
         for i in range(len(calibration.R_fb)):
-            try:
-                if response['R_fb_%d' % i] and \
-                    float(response['R_fb_%d' % i]) != settings['R_fb_%d' % i]:
-                    for calibration in calibration_list:
-                        calibration.R_fb[i] = float(response['R_fb_%d' % i])
-            except ValueError:
-                logger.error('R_fb_%d value (%s) is invalid.' % \
-                             (i, response['R_fb_%d' % i]))
-            try:            
-                if response['C_fb_%d' % i] and \
-                    float(response['C_fb_%d' % i])/1e12 != settings['C_fb_%d' % i]:
-                    for calibration in calibration_list:
-                        calibration.C_fb[i] = float(response['C_fb_%d' % i])/1e12
-            except ValueError:
-                logger.error('C_fb_%d value (%s) is invalid.' % \
-                             (i, response['C_fb_%d' % i]))
+            value = get_field_value('R_fb_%d' % i)
+            if value:
+                for calibration in calibration_list:
+                    calibration.R_fb[i] = value
+            value = get_field_value('C_fb_%d' % i, 1e12)
+            if value:
+                for calibration in calibration_list:
+                    calibration.C_fb[i] = value
                 
         # save the experiment log with the new values
         filename = os.path.join(self.experiment_log_controller.results. \
