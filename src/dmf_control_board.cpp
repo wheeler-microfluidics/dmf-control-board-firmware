@@ -473,7 +473,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               uint8_t fb_resistor;
               uint32_t t_sample = millis();
 
-              while(millis()-t_sample<sampling_time_ms) {
+              while(millis()-t_sample<sampling_time_ms/2) {
                 hv = analogRead(0);
 
                 // if the ADC is saturated, use a smaller resistor
@@ -493,7 +493,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 if(hv<hv_min) {
                   hv_min = hv;
                 }
+              }
 
+              while(millis()-t_sample<sampling_time_ms) {
                 fb = analogRead(1);
 
                 // if the ADC is saturated, use a smaller resistor

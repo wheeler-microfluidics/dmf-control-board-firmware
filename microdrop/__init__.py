@@ -574,12 +574,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 fb_resistor,
                                 area,
                                 self.control_board.calibration)
-                            logger.info("V_actuation=%s" % \
+                            logger.debug("V_actuation=%s" % \
                                         results.V_actuation())
-                            logger.info("Z_device=%s" % results.Z_device())                        
+                            logger.debug("Z_device=%s" % results.Z_device())                        
                             app.experiment_log.add_data(
                                 {"FeedbackResults":results},self.name)
-                            if max(results.capacitance())/area < \
+                            if self.control_board.calibration.C_drop and \
+                                max(results.capacitance())/area < \
                                 feedback_options.action.percent_threshold/ \
                                     100.0*self.control_board.calibration.C_drop:
                                 logger.info('step=%d: attempt=%d, max(C)'
