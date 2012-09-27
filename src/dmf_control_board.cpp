@@ -465,55 +465,64 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               uint16_t hv_min = 1024;
               uint16_t hv = 0;
               int16_t hv_pk_pk;
-              uint8_t hv_resistor;
+              uint8_t hv_resistor = A0_series_resistor_index_;
               uint16_t fb_max = 0;
               uint16_t fb_min = 1024;
               uint16_t fb = 0;
               int16_t fb_pk_pk;
-              uint8_t fb_resistor;
+              uint8_t fb_resistor = A1_series_resistor_index_;
               uint32_t t_sample = millis();
 
-              while(millis()-t_sample<sampling_time_ms/2) {
-                hv = analogRead(0);
-
-                // if the ADC is saturated, use a smaller resistor
-                // and reset the peak
-                if(hv>820) {
-                  if(A0_series_resistor_index_>0) {
-                    SetSeriesResistor(0, \
-                      A0_series_resistor_index_-1);
-                    hv_max = 0;
-                    hv_min = 1024;
-                  }
-                  continue;
-                }
-                if(hv>hv_max) {
-                  hv_max = hv;
-                }
-                if(hv<hv_min) {
-                  hv_min = hv;
-                }
-              }
-
               while(millis()-t_sample<sampling_time_ms) {
-                fb = analogRead(1);
-
-                // if the ADC is saturated, use a smaller resistor
-                // and reset the peak
-                if(fb>820) {
-                  if(A1_series_resistor_index_>0) {
-                    SetSeriesResistor(1,
-                      A1_series_resistor_index_-1);
-                    fb_max = 0;
-                    fb_min = 1024;
+                // hv_resistor == -1 if the smallest series resistor becomes
+                // saturated
+                if(hv_resistor != -1) {
+                  hv = analogRead(0);
+                  // if the ADC is saturated, use a smaller resistor
+                  // and reset the peak
+                  if(hv>820) {
+                    if(A0_series_resistor_index_>0) {
+                      SetSeriesResistor(0, \
+                        A0_series_resistor_index_-1);
+                      hv_max = 0;
+                      hv_min = 1024;
+                    } else {
+                      hv_resistor = -1;
+                    }
+                    continue;
                   }
-                  continue;
+                  if(hv>hv_max) {
+                    hv_max = hv;
+                  }
+                  if(hv<hv_min) {
+                    hv_min = hv;
+                  }
                 }
-                if(fb>fb_max) {
-                  fb_max = fb;
-                }
-                if(fb<fb_min) {
-                  fb_min = fb;
+
+                // hv_resistor == -1 if the smallest series resistor becomes
+                // saturated
+                if(fb_resistor != -1) {
+                  fb = analogRead(1);
+
+                  // if the ADC is saturated, use a smaller resistor
+                  // and reset the peak
+                  if(fb>820) {
+                    if(A1_series_resistor_index_>0) {
+                      SetSeriesResistor(1,
+                        A1_series_resistor_index_-1);
+                      fb_max = 0;
+                      fb_min = 1024;
+                    } else {
+                      fb_resistor = -1;
+                    }
+                    continue;
+                  }
+                  if(fb>fb_max) {
+                    fb_max = fb;
+                  }
+                  if(fb<fb_min) {
+                    fb_min = fb;
+                  }
                 }
               }
 
@@ -522,7 +531,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
               // if we didn't get a valid feedback sample during the sampling
               // time, return -1 as the index
-              if(fb_max==0 || fb_min==1024) {
+              if(fb_max==0 || fb_min==1024 && fb_resistor != -1) {
                 fb_resistor = -1;
               } else {
                 fb_resistor = A1_series_resistor_index_;
@@ -530,7 +539,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
               // if we didn't get a valid high voltage sample during the
               // sampling time, return -1 as the index
-              if(hv_max==0 || hv_min==1024) {
+              if(hv_max==0 || hv_min==1024 && hv_resistor != -1) {
                 hv_resistor = -1;
               } else {
                 // adjust amplifier gain (only if the hv resistor is the same
