@@ -52,20 +52,20 @@ from dmf_device import DeviceScaleNotSet
 
 
 class WaitForFeedbackMeasurement(threading.Thread):
-    def __init__(self, plugin, state, sampling_time_ms,
+    def __init__(self, plugin, state, options, sampling_time_ms,
                  delay_between_samples_ms):
         self.plugin = plugin
         self.state = state
+        self.options = options
         self.sampling_time_ms = sampling_time_ms
         self.delay_between_samples_ms = delay_between_samples_ms
         self.results = None
         threading.Thread.__init__(self)
         
     def run(self):
-        options = self.plugin.get_step_options()
         self.results = self.plugin.control_board.measure_impedance(
                             self.sampling_time_ms,
-                            int(math.ceil(options.duration/ 
+                            int(math.ceil(self.options.duration/ 
                                       self.sampling_time_ms)),
                             self.delay_between_samples_ms,
                             self.state)
@@ -670,26 +670,28 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             # turn off all electrodes if we're not in realtime mode and not
             # running a protocol
             elif self.control_board.connected() and \
-            not app.realtime_mode and not app.running:
+                not app.realtime_mode and not app.running:
                 # turn off all electrodes
                 self.control_board.set_state_of_all_channels(
                     np.zeros(self.control_board.number_of_channels())
                 )
-            
+                
             # if a protocol is running, wait for the specified minimum duration
-            if app.running and not app.realtime_mode:
+            if app.running:
                 while time.time() - start_time < options.duration / 1000.0:
                     while gtk.events_pending():
                         gtk.main_iteration()
+                    # if the protocol has been stopped, break immediately
+                    if not app.running:
+                        break
                     # Sleep for 0.1ms between protocol polling loop iterations.
-                    # (see above for reasoning)
                     time.sleep(0.0001)
         except DeviceScaleNotSet:
             logger.error("Please set the area of one of your electrodes.")
 
     def measure_impedance(self, state, options, sampling_time_ms,
                           delay_between_samples_ms):
-        thread = WaitForFeedbackMeasurement(self, state,
+        thread = WaitForFeedbackMeasurement(self, state, options,
                                             sampling_time_ms,
                                             delay_between_samples_ms)
         thread.start()
