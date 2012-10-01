@@ -588,6 +588,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               Serialize(&fb_pk_pk, sizeof(fb_pk_pk));
               Serialize(&fb_resistor, sizeof(fb_resistor));
 
+              if(Serial.available()>0) {
+                break;
+              }
+
               uint32_t t_delay = millis();
               while(millis()-t_delay<delay_between_samples_ms) {
               }
@@ -1387,7 +1391,7 @@ uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
 }
 
 uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
-  const char* function_name = "set_actuation_frequency()";
+  const char* function_name = "set_waveform_frequency()";
   LogSeparator();
   LogMessage(str(format("freq_hz=%.1f") % freq_hz).c_str(), function_name);
   LogMessage("send command", function_name);
@@ -1404,7 +1408,21 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
                                           uint16_t n_samples,
                                           uint16_t delay_between_samples_ms,
                                           const std::vector<uint8_t> state) {
-  const char* function_name = "MeasureImpedance()";
+  MeasureImpedanceNonBlocking(sampling_time_ms,
+                              n_samples,
+                              delay_between_samples_ms,
+                              state);
+  boost::this_thread::sleep(boost::posix_time::milliseconds(
+      n_samples*(delay_between_samples_ms+sampling_time_ms)));
+  return GetImpedanceData();
+}
+
+void DmfControlBoard::MeasureImpedanceNonBlocking(
+                                          uint16_t sampling_time_ms,
+                                          uint16_t n_samples,
+                                          uint16_t delay_between_samples_ms,
+                                          const std::vector<uint8_t> state) {
+  const char* function_name = "MeasureImpedanceNonBlocking()";
   LogSeparator();
   LogMessage("send command", function_name);
   // if we get this far, everything is ok
@@ -1412,8 +1430,12 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
   Serialize(&n_samples,sizeof(n_samples));
   Serialize(&delay_between_samples_ms,sizeof(delay_between_samples_ms));
   Serialize(&state[0],state.size()*sizeof(uint8_t));
-  if(SendCommand(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
-    LogMessage("CMD_MEASURE_IMPEDANCE", function_name);
+  SendNonBlockingCommand(CMD_MEASURE_IMPEDANCE);
+}
+
+std::vector<float> DmfControlBoard::GetImpedanceData() {
+  const char* function_name = "GetImpedanceData()";
+  if(ValidateReply(CMD_MEASURE_IMPEDANCE)==RETURN_OK) {
     uint16_t n_samples = payload_length()/(2*sizeof(int16_t)+2*sizeof(int8_t));
     LogMessage(str(format("Read %d impedance samples") % n_samples).c_str(),
       function_name);
@@ -1424,6 +1446,10 @@ std::vector<float> DmfControlBoard::MeasureImpedance(
       impedance_buffer[4*i+2] = (float)ReadInt16()*5.0/1024/sqrt(2)/2; // V_fb
       impedance_buffer[4*i+3] = ReadInt8(); // fb_resistor
     }
+    LogMessage(str(format("payload_length()=%d") % payload_length()).c_str(),
+      function_name);
+    LogMessage(str(format("bytes_read()-payload_length()=%d") % (bytes_read()-payload_length())).c_str(),
+      function_name);
     return impedance_buffer;
   }
   return std::vector<float>(); // return an empty vector

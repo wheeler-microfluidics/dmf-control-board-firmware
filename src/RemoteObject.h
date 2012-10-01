@@ -78,7 +78,7 @@ __________________________________________________________________________
 class RemoteObject {
 public:
 #ifndef AVR
-  static const uint32_t TIMEOUT_MICROSECONDS =   4000000; // TODO: this should be configurable
+  static const uint32_t TIMEOUT_MILLISECONDS =   1000; // TODO: this should be configurable
 #endif
   // EEPROM addresses
   static const uint16_t EEPROM_PIN_MODE_ADDRESS =      0;
@@ -135,9 +135,12 @@ public:
 
   uint8_t return_code() { return return_code_; }
   bool crc_enabled() { return crc_enabled_; }
+  void Listen();
+  void SendInterrupt();
+  uint16_t bytes_read() { return bytes_read_; }
+  bool waiting_for_reply() { Listen(); return waiting_for_reply_to_>0; }
 
 #ifdef AVR
-  void Listen();
   virtual void begin();
 
   // These methods force the derived class to define functions that
@@ -285,6 +288,8 @@ protected:
   \sa Serialize()
   */
   uint8_t SendCommand(const uint8_t cmd);
+  void SendNonBlockingCommand(const uint8_t cmd);
+  uint8_t ValidateReply(const uint8_t cmd);
 
 #ifndef AVR
   inline void LogMessage(const char* msg,
@@ -304,20 +309,20 @@ protected:
   char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
   uint16_t debug_buffer_length_;
   uint8_t return_code_; // return code
+  uint8_t packet_cmd_; // command
 
 private:
   static const uint8_t FRAME_BOUNDARY =           0x7E;
   static const uint8_t CONTROL_ESCAPE =           0x7D;
   static const uint8_t ESCAPE_XOR =               0x20;
 
-  void SendPreamble();
+  void SendPreamble(const uint8_t cmd);
   void SendPayload();
   void SendByte(uint8_t b);
   uint16_t UpdateCrc(uint16_t crc, uint8_t data);
   void ProcessSerialInput(const uint8_t byte);
   void ProcessPacket();
 
-  uint8_t packet_cmd_; // command
   uint8_t payload_[MAX_PAYLOAD_LENGTH+2]; // payload (+1 or 2 bytes for payload
                                           // length)
   uint16_t payload_length_; // length of the payload

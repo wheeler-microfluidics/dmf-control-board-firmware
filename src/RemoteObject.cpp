@@ -109,19 +109,19 @@ uint16_t RemoteObject::UpdateCrc(uint16_t crc, uint8_t data) {
   return crc;
 }
 
-void RemoteObject::SendPreamble() {
+void RemoteObject::SendPreamble(const uint8_t cmd) {
   payload_length_ = bytes_written_;
 #ifndef AVR
   const char* function_name = "SendPreamble()";
   LogMessage(str(format("command=0x%0X (%d), payload_length=%d") %
-    (int)packet_cmd_ % (int)packet_cmd_ % payload_length_).c_str(), function_name);
+    (int)cmd % (int)cmd % payload_length_).c_str(), function_name);
 #endif
   Serial.write(FRAME_BOUNDARY);
   if(crc_enabled_) {
     tx_crc_ = 0xFFFF; // reset crc
-    tx_crc_ = UpdateCrc(tx_crc_, packet_cmd_);
+    tx_crc_ = UpdateCrc(tx_crc_, cmd);
   }
-  SendByte(packet_cmd_);
+  SendByte(cmd);
   if(payload_length_<128) {
     if(crc_enabled_) {
       tx_crc_ = UpdateCrc(tx_crc_, (uint8_t)payload_length_);
@@ -142,22 +142,30 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
   const char* function_name = "SendCommand()";
   LogSeparator();
   LogMessage("",function_name);
-  time_cmd_sent_ = boost::posix_time::microsec_clock::universal_time();
 #endif
   packet_cmd_ = cmd;
-  SendPreamble();
+  SendPreamble(cmd);
   SendPayload();
+  waiting_for_reply_to_ = cmd;
   return_code_ = WaitForReply();
-#ifndef AVR
-  LogMessage(str(format("return code=%d, cmd returned in %d us") %
-    (int)return_code_ % (boost::posix_time::microsec_clock::universal_time()
-    -time_cmd_sent_).total_microseconds()).c_str(), function_name);
-  if(return_code_!=RETURN_OK) {
-	  throw runtime_error(str(format("Error sending command %d. "
-        "Return code=%d.") % (int)cmd % (int)return_code_).c_str());
-  }
-#endif
   return return_code_;
+}
+
+void RemoteObject::SendNonBlockingCommand(const uint8_t cmd) {
+#ifndef AVR
+  const char* function_name = "SendNonBlockingCommand()";
+  LogSeparator();
+  LogMessage("",function_name);
+#endif
+  packet_cmd_ = cmd;
+  SendPreamble(cmd);
+  SendPayload();
+  waiting_for_reply_to_ = cmd;
+}
+
+void RemoteObject::SendInterrupt() {
+  // send a dummy byte
+  SendByte(0);
 }
 
 void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
@@ -168,7 +176,7 @@ void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
   //TODO check that MAX_PAYLOAD_LENGTH isn't exceeded
   for(uint16_t i=0;i<size;i++) {
 #ifndef AVR
-    LogMessage(str(format("(0x%0X) byte %d") % u[i] % i).c_str(),
+    LogMessage(str(format("(0x%0X) byte %d") % int(u[i]) % i).c_str(),
       function_name);
 #endif
     payload_[bytes_written_+i]=u[i];
@@ -197,7 +205,7 @@ void RemoteObject::SendPayload() {
 
 void RemoteObject::SendReply(uint8_t return_code) {
   Serialize(&return_code,1);
-  SendPreamble();
+  SendPreamble(packet_cmd_);
   SendPayload();
 }
 
@@ -220,7 +228,8 @@ uint8_t RemoteObject::ReadUint8() {
 #ifndef AVR
   const char* function_name = "ReadUint8()";
   LogMessage(str(format("=%d, bytes_read_=%d") %
-    *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t)) % bytes_read_).c_str(),
+    int(*(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t))) %
+      bytes_read_).c_str(),
     function_name);
 #endif
   return *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t));
@@ -260,22 +269,51 @@ float RemoteObject::ReadFloat() {
 
 uint8_t RemoteObject::WaitForReply() {
 #ifndef AVR
-  LogMessage("", "WaitForReply()");
+  const char* function_name = "WaitForReply()";
+  LogMessage("", function_name);
+  time_cmd_sent_ = boost::posix_time::microsec_clock::universal_time();
 #endif
-  char b;
-  waiting_for_reply_to_ = packet_cmd_;
+  uint8_t cmd = packet_cmd_;
   while(waiting_for_reply_to_) {
-    if(Serial.available()) {
-      b = Serial.read();
-      ProcessSerialInput(b);
-    }
+    Listen();
 #ifndef AVR
-      else if((boost::posix_time::microsec_clock::universal_time()
-       -time_cmd_sent_).total_microseconds()>TIMEOUT_MICROSECONDS) {
+    if((boost::posix_time::microsec_clock::universal_time()
+       -time_cmd_sent_).total_milliseconds()>TIMEOUT_MILLISECONDS) {
       return_code_ = RETURN_TIMEOUT;
-      waiting_for_reply_to_ = 0;
+      throw runtime_error(str(format("Command %d timeout.") %
+        (int)cmd ).c_str());
     }
 #endif
+  }
+#ifndef AVR
+  LogMessage(str(format("return code=%d, cmd returned in %d us") %
+    (int)return_code_ % (boost::posix_time::microsec_clock::universal_time()
+    -time_cmd_sent_).total_microseconds()).c_str(), function_name);
+  if(return_code_!=RETURN_OK) {
+    throw runtime_error(str(format("Error sending command %d. "
+        "Return code=%d.") % (int)cmd % (int)return_code_).c_str());
+  }
+#endif
+  return return_code_;
+}
+
+uint8_t RemoteObject::ValidateReply(const uint8_t cmd) {
+  if(WaitForReply()==RETURN_OK) {
+    if(cmd!=(packet_cmd_^0x80)) {
+#ifndef AVR
+      throw runtime_error(str(format("Requesting for data from command 0x%0X "
+        "(%d), but the previously sent command was 0x%0X (%d).") % int(cmd) %
+        int(cmd) % int(packet_cmd_) % int(packet_cmd_)).c_str());
+#endif
+      return RETURN_GENERAL_ERROR;
+
+    // if we've previously read bytes from the buffer, throw an error
+    } else if(bytes_read()) {
+#ifndef AVR
+      throw runtime_error("Data from this command has already been retrieved.");
+#endif
+      return RETURN_GENERAL_ERROR;
+    }
   }
   return return_code_;
 }
@@ -285,9 +323,9 @@ void RemoteObject::ProcessPacket() {
     packet_cmd_ = packet_cmd_^0x80; // Flip the MSB for reply
     return_code_ = RETURN_UNKNOWN_COMMAND;
     ProcessCommand(packet_cmd_^0x80);
-#ifndef AVR
+  #ifndef AVR
     LogSeparator();
-#endif
+  #endif
   } else {
     return_code_ = payload_[payload_length_-1];
     payload_length_--;// -1 because we've already read the return code
@@ -710,7 +748,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
       LogSeparator();
 #endif
       // if we're not expecting something else, stop waiting
-      if(packet_cmd_==(waiting_for_reply_to_^0x80)) {
+      if(waiting_for_reply_to_ && packet_cmd_==(waiting_for_reply_to_^0x80)) {
         waiting_for_reply_to_ = 0;
       }
 #ifndef AVR
@@ -722,6 +760,12 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
   }
   if(un_escaping_) {
     un_escaping_=false;
+  }
+}
+
+void RemoteObject::Listen() {
+  while(Serial.available()>0) {
+    ProcessSerialInput(Serial.read());
   }
 }
 
@@ -738,11 +782,6 @@ void RemoteObject::begin() {
   SPI.begin();
 }
 
-void RemoteObject::Listen() {
-  while(Serial.available()>0) {
-    ProcessSerialInput(Serial.read());
-  }
-}
 #else
 ////////////////////////////////////////////////////////////////////////////////
 //
