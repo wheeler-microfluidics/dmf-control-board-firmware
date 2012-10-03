@@ -437,7 +437,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
         if(n_samples >
         MAX_PAYLOAD_LENGTH/(2*sizeof(int8_t)+2*sizeof(int16_t))) {
-          return_code_ = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
         } else {
           if(payload_length()==3*sizeof(uint16_t) ||
              (payload_length()==3*sizeof(uint16_t)

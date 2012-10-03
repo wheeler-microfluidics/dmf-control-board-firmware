@@ -34,6 +34,8 @@ const uint8_t RemoteObject::RETURN_BAD_INDEX;
 const uint8_t RemoteObject::RETURN_BAD_PACKET_SIZE;
 const uint8_t RemoteObject::RETURN_BAD_CRC;
 const uint8_t RemoteObject::RETURN_BAD_VALUE;
+const uint8_t RemoteObject::RETURN_MAX_PAYLOAD_EXCEEDED;
+const uint16_t RemoteObject::MAX_PAYLOAD_LENGTH;
 const uint8_t DmfControlBoard::SINE;
 const uint8_t DmfControlBoard::SQUARE;
 const uint16_t DmfControlBoard::EEPROM_CONFIG_SETTINGS;
@@ -146,4 +148,5 @@ DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_B
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
 DmfControlBoard_class.attr("RETURN_BAD_VALUE") = DmfControlBoard::RETURN_BAD_VALUE;
 DmfControlBoard_class.attr("EEPROM_CONFIG_SETTINGS") = DmfControlBoard::EEPROM_CONFIG_SETTINGS;
+DmfControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = DmfControlBoard::MAX_PAYLOAD_LENGTH;
 }

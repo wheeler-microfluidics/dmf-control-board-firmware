@@ -458,7 +458,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
           n_samples = ReadUint16();
         }
         if(n_samples>(MAX_PAYLOAD_LENGTH)/sizeof(uint16_t)) {
-          return_code_ = RETURN_GENERAL_ERROR;
+          return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
         } else {
           return_code_ = RETURN_OK;
 
