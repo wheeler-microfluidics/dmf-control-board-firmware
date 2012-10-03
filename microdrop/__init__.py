@@ -22,6 +22,7 @@ import time
 import math
 
 import gtk
+import gobject
 import numpy as np
 import yaml
 
@@ -545,10 +546,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 app_values['delay_between_samples_ms'],
                                 state)
                             logger.info('[DmfControlBoardPlugin] on_step_run: '
-                                        'timeout_add(%d)' % options.duration)
-                            gtk.timeout_add(options.duration,
+                                        'timeout_add(%d, _callback_retry_action'
+                                        '_completed)' % options.duration)
+                            gobject.timeout_add(options.duration,
                                 self._callback_retry_action_completed,
-                                    options)
+                                options)
                         else:
                             emit_signal("on_step_complete", [self.name, 'Fail'])
                         return
@@ -615,8 +617,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             # if a protocol is running, wait for the specified minimum duration
             if app.running:
                 logger.info('[DmfControlBoardPlugin] on_step_run: '
-                            'timeout_add(%d)' % options.duration)
-                gtk.timeout_add(options.duration, self._callback_step_completed)
+                            'timeout_add(%d, _callback_step_completed)' %
+                            options.duration)
+                gobject.timeout_add(options.duration,
+                                    self._callback_step_completed)
                 return
         except DeviceScaleNotSet:
             logger.error("Please set the area of one of your electrodes.")
@@ -723,9 +727,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 app_values['delay_between_samples_ms'],
                 state)
             logger.info('[DmfControlBoardPlugin] _callback_sweep_frequency: '
-                        'timeout_add(%d)' % options.duration)
-            gtk.timeout_add(options.duration, self._callback_sweep_frequency,
-                            options, results, state, frequencies)
+                        'timeout_add(%d, _callback_sweep_frequency)' %
+                        options.duration)
+            gobject.timeout_add(options.duration,
+                                self._callback_sweep_frequency,
+                                options, results, state, frequencies)
         else:
             emit_signal("on_step_complete", self.name)
         return False # stop the timeout from refiring
@@ -763,9 +769,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 app_values['delay_between_samples_ms'],
                 state)
             logger.info('[DmfControlBoardPlugin] _callback_sweep_voltage: '
-                        'timeout_add(%d)' % options.duration)
-            gtk.timeout_add(options.duration, self._callback_sweep_voltage,
-                            options, results, state, voltages)
+                        'timeout_add(%d, _callback_sweep_voltage)' %
+                        options.duration)
+            gobject.timeout_add(options.duration, self._callback_sweep_voltage,
+                                options, results, state, voltages)
         else:
             emit_signal("on_step_complete", self.name)
         return False # stop the timeout from refiring
