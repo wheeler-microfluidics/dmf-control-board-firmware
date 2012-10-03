@@ -134,6 +134,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             gtk.MenuItem("Save calibration to file")
         self.load_log_calibration_menu_item = \
             gtk.MenuItem("Load calibration from file")
+        self.timeout_id = None
 
     def on_plugin_enable(self):
         if not self.initialized:
@@ -487,6 +488,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         proceeding.
         """
         logger.debug('[DmfControlBoardPlugin] on_step_run()')
+        self._kill_running_step()
         app = get_app()
         options = self.get_step_options()
         dmf_options = app.dmf_device_controller.get_step_options()
@@ -548,9 +550,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             logger.info('[DmfControlBoardPlugin] on_step_run: '
                                         'timeout_add(%d, _callback_retry_action'
                                         '_completed)' % options.duration)
-                            gobject.timeout_add(options.duration,
-                                self._callback_retry_action_completed,
-                                options)
+                            self.timeout_id = \
+                                gobject.timeout_add(options.duration,
+                                    self._callback_retry_action_completed,
+                                    options)
                         else:
                             emit_signal("on_step_complete", [self.name, 'Fail'])
                         return
@@ -619,11 +622,16 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 logger.info('[DmfControlBoardPlugin] on_step_run: '
                             'timeout_add(%d, _callback_step_completed)' %
                             options.duration)
-                gobject.timeout_add(options.duration,
-                                    self._callback_step_completed)
+                self.timeout_id = \
+                    gobject.timeout_add(options.duration,
+                    self._callback_step_completed)
                 return
         except DeviceScaleNotSet:
             logger.error("Please set the area of one of your electrodes.")
+
+    def on_step_complete(self, plugin_name, return_value=None):
+        if plugin_name==self.name:
+            self.timeout_id = None
 
     def get_impedance_data(self, options):
         """
@@ -644,6 +652,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.control_board.calibration)
         emit_signal("on_device_impedance_update", results)
         return (V_hv, hv_resistor, V_fb, fb_resistor)
+
+    def _kill_running_step(self):
+        if self.timeout_id:
+            logger.info('[DmfControlBoardPlugin] _kill_running_step: removing'
+                        'timeout_id=%d' % self.timeout_id)
+            gobject.source_remove(self.timeout_id)
 
     def _callback_step_completed(self):
         logger.info('[DmfControlBoardPlugin] _callback_step_completed')
@@ -729,9 +743,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.info('[DmfControlBoardPlugin] _callback_sweep_frequency: '
                         'timeout_add(%d, _callback_sweep_frequency)' %
                         options.duration)
-            gobject.timeout_add(options.duration,
-                                self._callback_sweep_frequency,
-                                options, results, state, frequencies)
+            self.timeout_id = \
+                gobject.timeout_add(options.duration,
+                                    self._callback_sweep_frequency,
+                                    options, results, state, frequencies)
         else:
             emit_signal("on_step_complete", self.name)
         return False # stop the timeout from refiring
@@ -771,8 +786,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.info('[DmfControlBoardPlugin] _callback_sweep_voltage: '
                         'timeout_add(%d, _callback_sweep_voltage)' %
                         options.duration)
-            gobject.timeout_add(options.duration, self._callback_sweep_voltage,
-                                options, results, state, voltages)
+            self.timeout_id = \
+                gobject.timeout_add(options.duration,
+                                    self._callback_sweep_voltage,
+                                    options, results, state, voltages)
         else:
             emit_signal("on_step_complete", self.name)
         return False # stop the timeout from refiring
@@ -795,6 +812,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Handler called when a protocol is paused.
         """
         app = get_app()
+        self._kill_running_step()
         if self.control_board.connected() and not app.realtime_mode:
             # turn off all electrodes
             self.control_board.set_state_of_all_channels(
