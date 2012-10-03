@@ -513,6 +513,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         app_values = self.get_app_values()
 
         start_time = time.time()
+        return_value = None
 
         try:
             if self.control_board.connected() and \
@@ -529,7 +530,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     self.check_impedance(options)
 
                 state = dmf_options.state_of_channels
-                max_channels = self.control_board.number_of_channels() 
+                max_channels = self.control_board.number_of_channels()
                 if len(state) >  max_channels:
                     state = state[0:max_channels]
                 elif len(state) < max_channels:
@@ -543,13 +544,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     area = self.get_actuated_area()
                     
                     if feedback_options.action.__class__ == RetryAction:
-                        if 'attempt' not in app.experiment_log. \
-                            data[-1]['core'].keys():
-                            attempt = 0
-                        else:
-                            attempt = app.experiment_log. \
-                                data[-1]['core']['attempt']
-    
+                        attempt = app.protocol.current_step_attempt
                         if attempt <= feedback_options.action.max_repeats:
                             voltage = options.voltage + \
                                 feedback_options.action.increase_voltage * \
@@ -589,16 +584,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                              attempt,
                                              max(results.capacitance())/area))
                                 # signal that the step should be repeated
-                                return 'Repeat'
+                                return_value = 'Repeat'
                             else:
                                 logger.info('step=%d: attempt=%d, max(C)'
                                             '/A=%.1e F/mm^2. OK' % \
                                             (app.protocol.current_step_number,
                                              attempt,
                                              max(results.capacitance())/area))
-                                return 'Ok'
                         else:
-                            return 'Fail'
+                            return_value = 'Fail'
+
+                        emit_signal("on_step_complete", self.name, return_value)
+                        return
                     elif feedback_options.action.__class__ == \
                         SweepFrequencyAction:
                         frequencies = np.logspace(
@@ -627,7 +624,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         app.experiment_log.add_data(
                             {"SweepFrequencyResults":results}, self.name)
                         logger.info("V_actuation=%s" % results.V_actuation())
-                        logger.info("Z_device=%s" % results.Z_device())                        
+                        logger.info("Z_device=%s" % results.Z_device())
+                        emit_signal("on_step_complete", self.name)
+                        return
                     elif feedback_options.action.__class__==SweepVoltageAction:
                         voltages = np.linspace(
                            feedback_options.action.start_voltage,
@@ -658,7 +657,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                         app.experiment_log.add_data(
                             {"SweepVoltageResults":results}, self.name)
                         logger.info("V_actuation=%s" % results.V_actuation())
-                        logger.info("Z_device=%s" % results.Z_device())                        
+                        logger.info("Z_device=%s" % results.Z_device())
+                        emit_signal("on_step_complete", self.name)
+                        return
                 else:
                     emit_signal("set_frequency",
                                 options.frequency,
@@ -675,19 +676,18 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 self.control_board.set_state_of_all_channels(
                     np.zeros(self.control_board.number_of_channels())
                 )
-                
+            
             # if a protocol is running, wait for the specified minimum duration
             if app.running:
-                while time.time() - start_time < options.duration / 1000.0:
-                    while gtk.events_pending():
-                        gtk.main_iteration()
-                    # if the protocol has been stopped, break immediately
-                    if not app.running:
-                        break
-                    # Sleep for 0.1ms between protocol polling loop iterations.
-                    time.sleep(0.0001)
+                gtk.timeout_add(options.duration, self.step_completed)
+                return
         except DeviceScaleNotSet:
             logger.error("Please set the area of one of your electrodes.")
+
+    def step_completed(self):
+        logger.info('[DmfControlBoardPlugin] step_completed')
+        emit_signal("on_step_complete", self.name)
+        return False # stop the timeout from refiring
 
     def measure_impedance(self, state, options, sampling_time_ms,
                           delay_between_samples_ms):
