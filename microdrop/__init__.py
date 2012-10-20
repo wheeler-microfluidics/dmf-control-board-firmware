@@ -547,15 +547,15 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                     app_values['sampling_time_ms'])),
                                 app_values['delay_between_samples_ms'],
                                 state)
-                            logger.info('[DmfControlBoardPlugin] on_step_run: '
-                                        'timeout_add(%d, _callback_retry_action'
-                                        '_completed)' % options.duration)
+                            logger.debug('[DmfControlBoardPlugin] on_step_run: '
+                                         'timeout_add(%d, _callback_retry_action'
+                                         '_completed)' % options.duration)
                             self.timeout_id = \
                                 gobject.timeout_add(options.duration,
                                     self._callback_retry_action_completed,
                                     options)
                         else:
-                            emit_signal("on_step_complete", [self.name, 'Fail'])
+                            self.step_complete('Fail')
                         return
                     elif feedback_options.action.__class__ == \
                         SweepFrequencyAction:
@@ -619,15 +619,22 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             
             # if a protocol is running, wait for the specified minimum duration
             if app.running:
-                logger.info('[DmfControlBoardPlugin] on_step_run: '
-                            'timeout_add(%d, _callback_step_completed)' %
-                            options.duration)
+                logger.debug('[DmfControlBoardPlugin] on_step_run: '
+                             'timeout_add(%d, _callback_step_completed)' %
+                             options.duration)
                 self.timeout_id = \
                     gobject.timeout_add(options.duration,
                     self._callback_step_completed)
                 return
+            else:
+                self.step_complete()
         except DeviceScaleNotSet:
             logger.error("Please set the area of one of your electrodes.")
+
+    def step_complete(self, return_value=None):
+        app = get_app()
+        if app.running or app.realtime_mode:
+            emit_signal('on_step_complete', [self.name, return_value])
 
     def on_step_complete(self, plugin_name, return_value=None):
         if plugin_name==self.name:
@@ -655,17 +662,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
     def _kill_running_step(self):
         if self.timeout_id:
-            logger.info('[DmfControlBoardPlugin] _kill_running_step: removing'
-                        'timeout_id=%d' % self.timeout_id)
+            logger.debug('[DmfControlBoardPlugin] _kill_running_step: removing'
+                         'timeout_id=%d' % self.timeout_id)
             gobject.source_remove(self.timeout_id)
 
     def _callback_step_completed(self):
-        logger.info('[DmfControlBoardPlugin] _callback_step_completed')
-        emit_signal("on_step_complete", self.name)
+        logger.debug('[DmfControlBoardPlugin] _callback_step_completed')
+        self.step_complete()
         return False # stop the timeout from refiring
 
     def _callback_retry_action_completed(self, options):
-        logger.info('[DmfControlBoardPlugin] '
+        logger.debug('[DmfControlBoardPlugin] '
                      '_callback_retry_action_completed')
         app = get_app()
         app_values = self.get_app_values()
@@ -691,25 +698,25 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             max(results.capacitance())/area < \
             feedback_options.action.percent_threshold/ \
                 100.0*self.control_board.calibration.C_drop:
-            logger.info('step=%d: attempt=%d, max(C)'
-                        '/A=%.1e F/mm^2. Repeat' % \
-                        (app.protocol.current_step_number,
-                         app.protocol.current_step_attempt,
-                         max(results.capacitance())/area))
+            logger.debug('step=%d: attempt=%d, max(C)'
+                         '/A=%.1e F/mm^2. Repeat' % \
+                         (app.protocol.current_step_number,
+                          app.protocol.current_step_attempt,
+                          max(results.capacitance())/area))
             # signal that the step should be repeated
             return_value = 'Repeat'
         else:
-            logger.info('step=%d: attempt=%d, max(C)'
-                        '/A=%.1e F/mm^2. OK' % \
-                        (app.protocol.current_step_number,
-                         app.protocol.current_step_attempt,
-                         max(results.capacitance())/area))
-        emit_signal("on_step_complete", [self.name, return_value])
+            logger.debug('step=%d: attempt=%d, max(C)'
+                         '/A=%.1e F/mm^2. OK' % \
+                         (app.protocol.current_step_number,
+                          app.protocol.current_step_attempt,
+                          max(results.capacitance())/area))
+        self.step_complete(return_value)
         return False # stop the timeout from refiring
 
     def _callback_sweep_frequency(self, options, results, state, frequencies,
                                   first_call=False):
-        logger.info('[DmfControlBoardPlugin] '
+        logger.debug('[DmfControlBoardPlugin] '
                      '_callback_sweep_frequency')
         app = get_app()
         app_values = self.get_app_values()
@@ -740,20 +747,20 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'],
                 state)
-            logger.info('[DmfControlBoardPlugin] _callback_sweep_frequency: '
-                        'timeout_add(%d, _callback_sweep_frequency)' %
-                        options.duration)
+            logger.debug('[DmfControlBoardPlugin] _callback_sweep_frequency: '
+                         'timeout_add(%d, _callback_sweep_frequency)' %
+                         options.duration)
             self.timeout_id = \
                 gobject.timeout_add(options.duration,
                                     self._callback_sweep_frequency,
                                     options, results, state, frequencies)
         else:
-            emit_signal("on_step_complete", self.name)
+            self.step_complete()
         return False # stop the timeout from refiring
     
     def _callback_sweep_voltage(self, options, results, state, voltages,
                                 first_call=False):
-        logger.info('[DmfControlBoardPlugin] '
+        logger.debug('[DmfControlBoardPlugin] '
                      '_callback_sweep_voltage')
         app = get_app()
         app_values = self.get_app_values()
@@ -783,16 +790,20 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'],
                 state)
-            logger.info('[DmfControlBoardPlugin] _callback_sweep_voltage: '
-                        'timeout_add(%d, _callback_sweep_voltage)' %
-                        options.duration)
+            logger.debug('[DmfControlBoardPlugin] _callback_sweep_voltage: '
+                         'timeout_add(%d, _callback_sweep_voltage)' %
+                         options.duration)
             self.timeout_id = \
                 gobject.timeout_add(options.duration,
                                     self._callback_sweep_voltage,
                                     options, results, state, voltages)
         else:
-            emit_signal("on_step_complete", self.name)
+            self.step_complete()
         return False # stop the timeout from refiring
+    
+    def on_dmf_device_swapped(self, old_dmf_device, dmf_device):
+        self.feedback_options_controller. \
+            feedback_options_menu_item.set_sensitive(True)
     
     def on_protocol_run(self):
         """
@@ -942,13 +953,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             return getattr(options.feedback_options, name)
 
     def on_step_options_changed(self, plugin, step_number):
-        app = get_app()
         logger.debug('[DmfControlBoardPlugin] on_step_options_changed():'\
-                    '%s step #%d' % (plugin, step_number))
+                     '%s step #%d' % (plugin, step_number))
+        app = get_app()
         if self.feedback_options_controller:
             self.feedback_options_controller\
                 .on_step_options_changed(plugin, step_number)
-        if not app.running and \
+        if not app.running and not app.realtime_mode and \
             (plugin=='microdrop.gui.dmf_device_controller' or \
              plugin==self.name) and \
             app.protocol.current_step_number==step_number:
@@ -959,7 +970,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     'original_step_number=%d, new_step_number=%d' % \
                     (original_step_number, new_step_number))
         self.on_step_options_changed(self.name,
-            get_app().protocol.current_step_number)
+                                     get_app().protocol.current_step_number)
 
     def on_experiment_log_created(self, log):
         app = get_app()
@@ -981,9 +992,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         if function_name in ['on_step_options_changed']:
             return [ScheduleRequest(self.name,
                                     'microdrop.gui.protocol_grid_controller')]
-        elif function_name in ['on_dmf_device_changed']:
-            return [ScheduleRequest(self.name,
-                                    'microdrop.gui.dmf_device_controller')]
         return []
 
     def on_experiment_log_created(self, log):

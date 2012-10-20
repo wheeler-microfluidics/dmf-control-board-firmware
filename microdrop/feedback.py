@@ -237,10 +237,13 @@ class FeedbackOptionsController():
     def on_plugin_enable(self):
         if not self.initialized:
             app = get_app()
-            menu_item = gtk.MenuItem("Feedback Options")
-            self.plugin.control_board_menu.append(menu_item)
-            menu_item.connect("activate", self.on_window_show)
-            menu_item.show()
+            self.feedback_options_menu_item = gtk.MenuItem("Feedback Options")
+            self.plugin.control_board_menu.append(self.feedback_options_menu_item)
+            self.feedback_options_menu_item.connect("activate", self.on_window_show)
+            self.feedback_options_menu_item.show()
+            self.feedback_options_menu_item.set_sensitive(
+                app.dmf_device is not None)
+            
             self.measure_cap_filler_menu_item = gtk.MenuItem(
                     "Measure capacitance of filler media")
             app.dmf_device_controller.view.popup.add_item(
