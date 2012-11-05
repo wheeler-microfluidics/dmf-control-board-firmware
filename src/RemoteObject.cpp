@@ -777,7 +777,7 @@ void RemoteObject::Listen() {
 ////////////////////////////////////////////////////////////////////////////////
 
 void RemoteObject::begin() {
-  Serial.begin(57600);
+  Serial.begin(baud_rate_);
   Wire.begin();
   SPI.begin();
 }
