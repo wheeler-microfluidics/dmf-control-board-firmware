@@ -402,7 +402,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.connect()
 
     def update_connection_status(self):
-        self.connection_status = "Not Connected"
+        self.connection_status = "Not connected"
         app = get_app()
         connected = self.control_board.connected()
         if connected:
@@ -959,7 +959,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         if self.feedback_options_controller:
             self.feedback_options_controller\
                 .on_step_options_changed(plugin, step_number)
-        if not app.running and not app.realtime_mode and \
+        if app.protocol and not app.running and not app.realtime_mode and \
             (plugin=='microdrop.gui.dmf_device_controller' or \
              plugin==self.name) and \
             app.protocol.current_step_number==step_number:
