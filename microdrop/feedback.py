@@ -1452,6 +1452,11 @@ class FeedbackResultsController():
                 if self.plugin.name in row.keys() and \
                 "SweepFrequencyResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepFrequencyResults"]
+                    
+                    normalization = 1.0
+                    if self.checkbutton_normalize_by_area.get_active():
+                        normalization = results.area
+                    
                     self.export_data.append('step:, %d' % \
                                             (row['core']["step"]+1))
                     self.export_data.append('step time (s):, %f' % \
@@ -1505,6 +1510,11 @@ class FeedbackResultsController():
                 if self.plugin.name in row.keys() and \
                 "SweepVoltageResults" in row[self.plugin.name].keys():
                     results = row[self.plugin.name]["SweepVoltageResults"]
+                    
+                    normalization = 1.0
+                    if self.checkbutton_normalize_by_area.get_active():
+                        normalization = results.area
+                    
                     self.export_data.append('step:, %d' % \
                                             (row['core']["step"]+1))
                     self.export_data.append('step time (s):, %f' % \
