@@ -320,9 +320,12 @@ class FeedbackOptionsController():
             feedback_enabled=True, action=RetryAction())
         self.plugin.check_impedance(test_options)
         (V_hv, hv_resistor, V_fb, fb_resistor) = \
-            self.plugin.measure_impedance(state, test_options,
+            self.plugin.control_board.measure_impedance(
                 app_values['sampling_time_ms'],
-                app_values['delay_between_samples_ms'])
+                int(math.ceil(test_options.duration/ 
+                    app_values['sampling_time_ms'])),
+                app_values['delay_between_samples_ms'],
+                state)
         results = FeedbackResults(test_options,
             app_values['sampling_time_ms'],
             app_values['delay_between_samples_ms'],
@@ -1893,9 +1896,12 @@ class FeedbackCalibrationController():
                     emit_signal("set_voltage", options.voltage,
                                 interface=IWaveformGenerator)
                     (v_hv, hv_resistor, v_fb, fb_resistor) = \
-                        self.plugin.measure_impedance(state, options,
-                        app_values['sampling_time_ms'],
-                        app_values['delay_between_samples_ms'])
+                        self.plugin.control_board.measure_impedance(
+                            app_values['sampling_time_ms'],
+                            int(math.ceil(options.duration/ 
+                                app_values['sampling_time_ms'])),
+                            app_values['delay_between_samples_ms'],
+                            state)
 
                     # wait for the signal to settle
                     time.sleep(.2)
