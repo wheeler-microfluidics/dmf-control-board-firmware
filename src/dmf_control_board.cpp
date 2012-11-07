@@ -465,12 +465,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               uint16_t hv_min = 1024;
               uint16_t hv = 0;
               int16_t hv_pk_pk;
-              uint8_t hv_resistor = A0_series_resistor_index_;
+              int8_t hv_resistor = A0_series_resistor_index_;
               uint16_t fb_max = 0;
               uint16_t fb_min = 1024;
               uint16_t fb = 0;
               int16_t fb_pk_pk;
-              uint8_t fb_resistor = A1_series_resistor_index_;
+              int8_t fb_resistor = A1_series_resistor_index_;
               uint32_t t_sample = millis();
 
               while(millis()-t_sample<sampling_time_ms) {
