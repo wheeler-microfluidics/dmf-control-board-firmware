@@ -332,7 +332,8 @@ class FeedbackOptionsController():
             V_hv, hv_resistor,
             V_fb, fb_resistor,
             area,
-            self.plugin.control_board.calibration)
+            self.plugin.control_board.calibration,
+            0)
         logging.info('max(results.capacitance())/area=%s' % (max(results.capacitance()) / area))
         self.plugin.control_board.state_of_all_channels = current_state
         return max(results.capacitance()) / area
@@ -848,7 +849,7 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    class_version = str(Version(0,2))
+    class_version = str(Version(0,3))
     
     def __init__(self,
                  options,
@@ -859,7 +860,8 @@ class FeedbackResults():
                  V_fb,
                  fb_resistor,
                  area,
-                 calibration):
+                 calibration,
+                 attempt):
         self.options = options
         self.area = area
         self.frequency = options.frequency
@@ -871,6 +873,7 @@ class FeedbackResults():
                     (sampling_time_ms+delay_between_samples_ms)))* \
                     (sampling_time_ms+delay_between_samples_ms)
         self.calibration = calibration
+        attempt = attempt
         self.version = self.class_version
 
     def _upgrade(self):
@@ -900,6 +903,9 @@ class FeedbackResults():
                 self.version = str(Version(0,2))
                 self.fb_resistor[self.V_fb>5]=-1
                 self.hv_resistor[self.V_hv>5]=-1
+            if version < Version(0,3):
+                self.attempt=0
+                self.version = str(Version(0,3))
                 logging.info('[FeedbackResults] upgrade to version %s' % \
                             self.version)
         # else the versions are equal and don't need to be upgraded
@@ -1924,7 +1930,8 @@ class FeedbackCalibrationController():
                         v_fb,
                         fb_resistor,
                         self.plugin.get_actuated_area(),
-                        self.plugin.control_board.calibration)
+                        self.plugin.control_board.calibration,
+                        0)
                     V_hv[i, j] = results.V_total()[-1]
                     gain = self.plugin.control_board.amplifier_gain()
                     self.plugin.control_board.set_state_of_all_channels(state)

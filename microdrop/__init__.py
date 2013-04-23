@@ -429,14 +429,21 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             set_text(self.connection_status)
 
     def on_device_impedance_update(self, impedance):
-        get_app().main_window_controller.label_control_board_status. \
+        app = get_app()
+        app.main_window_controller.label_control_board_status. \
             set_text(self.connection_status + ", Voltage: %.1f V" % \
                      impedance.V_actuation()[-1])
+        options = impedance.options
+        feedback_options = impedance.options.feedback_options
 
         if impedance.V_actuation()[-1]<5.0:
             logger.error("Low voltage detected. Please check that the amplifier is on.")
         elif self.control_board.auto_adjust_amplifier_gain():
-            voltage = impedance.options.voltage
+            voltage = options.voltage
+            if feedback_options.action.__class__ == RetryAction:
+                attempt = app.protocol.current_step_attempt
+                voltage += feedback_options.action.increase_voltage * \
+                        attempt
             logger.info('[DmfControlBoardPlugin].on_device_impedance_update():')
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
                 'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
@@ -452,7 +459,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 self.n_voltage_adjustments)
                     emit_signal("set_voltage", voltage,
                         interface=IWaveformGenerator)
-                    self.check_impedance(impedance.options,
+                    self.check_impedance(options,
                                          self.n_voltage_adjustments+1)
                 else:
                     self.n_voltage_adjustments = None
@@ -656,7 +663,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             V_fb,
             fb_resistor,
             self.get_actuated_area(),
-            self.control_board.calibration)
+            self.control_board.calibration,
+            0)
         emit_signal("on_device_impedance_update", results)
         return (V_hv, hv_resistor, V_fb, fb_resistor)
 
@@ -688,7 +696,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             V_fb,
             fb_resistor,
             area,
-            self.control_board.calibration)
+            self.control_board.calibration,
+            app.protocol.current_step_attempt)
         logger.debug("V_actuation=%s" % \
                     results.V_actuation())
         logger.debug("Z_device=%s" % results.Z_device())
@@ -698,19 +707,19 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             max(results.capacitance())/area < \
             options.feedback_options.action.percent_threshold/ \
                 100.0*self.control_board.calibration.C_drop:
-            logger.debug('step=%d: attempt=%d, max(C)'
-                         '/A=%.1e F/mm^2. Repeat' % \
-                         (app.protocol.current_step_number,
-                          app.protocol.current_step_attempt,
-                          max(results.capacitance())/area))
+            logger.info('step=%d: attempt=%d, max(C)'
+                        '/A=%.1e F/mm^2. Repeat' % \
+                        (app.protocol.current_step_number,
+                         app.protocol.current_step_attempt,
+                         max(results.capacitance())/area))
             # signal that the step should be repeated
             return_value = 'Repeat'
         else:
-            logger.debug('step=%d: attempt=%d, max(C)'
-                         '/A=%.1e F/mm^2. OK' % \
-                         (app.protocol.current_step_number,
-                          app.protocol.current_step_attempt,
-                          max(results.capacitance())/area))
+            logger.info('step=%d: attempt=%d, max(C)'
+                        '/A=%.1e F/mm^2. OK' % \
+                        (app.protocol.current_step_number,
+                         app.protocol.current_step_attempt,
+                         max(results.capacitance())/area))
         self.step_complete(return_value)
         return False # stop the timeout from refiring
 
@@ -893,7 +902,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             V_fb,
             fb_resistor,
             self.get_actuated_area(),
-            self.control_board.calibration)
+            self.control_board.calibration,
+            0)
         emit_signal("on_device_impedance_update", results)
         return results
         
