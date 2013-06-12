@@ -435,174 +435,178 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint16_t n_samples = ReadUint16();
         uint16_t delay_between_samples_ms = ReadUint16();
 
-        if(n_samples >
-        MAX_PAYLOAD_LENGTH/(2*sizeof(int8_t)+2*sizeof(int16_t))) {
-          return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
-        } else {
-          if(payload_length()==3*sizeof(uint16_t) ||
-             (payload_length()==3*sizeof(uint16_t)
-             +number_of_channels_*sizeof(uint8_t))) {
-            return_code_ = RETURN_OK;
+        // only collect enough samples to fill the maximum payload length
+        uint16_t max_samples = MAX_PAYLOAD_LENGTH/ \
+                               (2*sizeof(int8_t)+2*sizeof(int16_t));
+        if(n_samples > max_samples) {
+          n_samples = max_samples;
+        }
 
-            uint8_t original_A0_index = A0_series_resistor_index_;
-            uint8_t original_A1_index = A1_series_resistor_index_;
-            
-            // set the resistors to their highest values
-            SetSeriesResistor(0,
-               sizeof(config_settings_.A0_series_resistance)/sizeof(float)-1);
-            SetSeriesResistor(1,
-               sizeof(config_settings_.A1_series_resistance)/sizeof(float)-1);
+        if(payload_length()==3*sizeof(uint16_t) ||
+           (payload_length()==3*sizeof(uint16_t)
+           +number_of_channels_*sizeof(uint8_t))) {
+          return_code_ = RETURN_OK;
 
-            // update the channels (if they were included in the packet)
-            if(payload_length()==3*sizeof(uint16_t)
-                +number_of_channels_*sizeof(uint8_t)){
-              UpdateAllChannels();
-            }
+          uint8_t original_A0_index = A0_series_resistor_index_;
+          uint8_t original_A1_index = A1_series_resistor_index_;
 
-            // sample the feedback voltage
-            for(uint16_t i=0; i<n_samples; i++) {
-              uint16_t hv_max = 0;
-              uint16_t hv_min = 1024;
-              uint16_t hv = 0;
-              int16_t hv_pk_pk;
-              int8_t hv_resistor = A0_series_resistor_index_;
-              uint16_t fb_max = 0;
-              uint16_t fb_min = 1024;
-              uint16_t fb = 0;
-              int16_t fb_pk_pk;
-              int8_t fb_resistor = A1_series_resistor_index_;
-              uint32_t t_sample = millis();
+          // set the resistors to their highest values
+          SetSeriesResistor(0,
+             sizeof(config_settings_.A0_series_resistance)/sizeof(float)-1);
+          SetSeriesResistor(1,
+             sizeof(config_settings_.A1_series_resistance)/sizeof(float)-1);
 
-              while(millis()-t_sample<sampling_time_ms) {
-                // hv_resistor == -1 if the smallest series resistor becomes
-                // saturated
-                if(hv_resistor != -1) {
-                  hv = analogRead(0);
-                  // if the ADC is saturated, use a smaller resistor
-                  // and reset the peak
-                  if(hv>820) {
-                    if(A0_series_resistor_index_>0) {
-                      SetSeriesResistor(0, \
-                        A0_series_resistor_index_-1);
-                      hv_max = 0;
-                      hv_min = 1024;
-                    } else {
-                      hv_resistor = -1;
-                    }
-                    continue;
-                  }
-                  if(hv>hv_max) {
-                    hv_max = hv;
-                  }
-                  if(hv<hv_min) {
-                    hv_min = hv;
-                  }
-                }
-
-                // hv_resistor == -1 if the smallest series resistor becomes
-                // saturated
-                if(fb_resistor != -1) {
-                  fb = analogRead(1);
-
-                  // if the ADC is saturated, use a smaller resistor
-                  // and reset the peak
-                  if(fb>820) {
-                    if(A1_series_resistor_index_>0) {
-                      SetSeriesResistor(1,
-                        A1_series_resistor_index_-1);
-                      fb_max = 0;
-                      fb_min = 1024;
-                    } else {
-                      fb_resistor = -1;
-                    }
-                    continue;
-                  }
-                  if(fb>fb_max) {
-                    fb_max = fb;
-                  }
-                  if(fb<fb_min) {
-                    fb_min = fb;
-                  }
-                }
-              }
-
-              hv_pk_pk = hv_max-hv_min;
-              fb_pk_pk = fb_max-fb_min;
-
-              // if we didn't get a valid feedback sample during the sampling
-              // time, return -1 as the index
-              if(fb_max==0 || fb_min==1024 && fb_resistor != -1) {
-                fb_resistor = -1;
-              } else {
-                fb_resistor = A1_series_resistor_index_;
-              }
-
-              // if we didn't get a valid high voltage sample during the
-              // sampling time, return -1 as the index
-              if(hv_max==0 || hv_min==1024 && hv_resistor != -1) {
-                hv_resistor = -1;
-              } else {
-                // adjust amplifier gain (only if the hv resistor is the same
-                // as on the previous reading; otherwise it may not have had
-                // enough time to get a good reading)
-                if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0 &&
-                    hv_resistor==A0_series_resistor_index_) {
-                  float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
-                  float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
-                  float V_fb;
-                  if(fb_resistor==-1) {
-                    V_fb = 0;
-                  } else {
-                    V_fb = fb_pk_pk*5.0/1024/sqrt(2)/2;
-                  }
-
-                  amplifier_gain_ =
-                      (hv_pk_pk*5.0/1024.0/sqrt(2)/2) / // measured Vrms /
-                      (R/sqrt(pow(10e6+R, 2)+       // transfer function /
-                          pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
-                      ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
-                      amplifier_gain_);             // previous gain setting)
-
-                  // enforce minimum gain of 1 because if gain goes to zero,
-                  // it cannot be adjusted further
-                  if(amplifier_gain_<1) {
-                    amplifier_gain_=1;
-                  }
-
-                  // update output voltage (accounting for amplifier gain and
-                  // for the voltage drop across the feedback resistor)
-                  float step = (waveform_voltage_+V_fb)/amplifier_gain_*2*
-                      sqrt(2)/4*255;
-                  // 255 is maximum for pot
-                  if(step>255) {
-                    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
-                  } else {
-                    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
-                  }
-                }
-                hv_resistor = A0_series_resistor_index_;
-              }
-
-              Serialize(&hv_pk_pk, sizeof(hv_pk_pk));
-              Serialize(&hv_resistor, sizeof(hv_resistor));
-              Serialize(&fb_pk_pk, sizeof(fb_pk_pk));
-              Serialize(&fb_resistor, sizeof(fb_resistor));
-
-              if(Serial.available()>0) {
-                break;
-              }
-
-              uint32_t t_delay = millis();
-              while(millis()-t_delay<delay_between_samples_ms) {
-              }
-            }
-
-            // set the resistors back to their original states            
-            SetSeriesResistor(0, original_A0_index);
-            SetSeriesResistor(1, original_A1_index);
-          } else {
-            return_code_ = RETURN_BAD_PACKET_SIZE;
+          // update the channels (if they were included in the packet)
+          if(payload_length()==3*sizeof(uint16_t)
+              +number_of_channels_*sizeof(uint8_t)){
+            UpdateAllChannels();
           }
+
+
+
+          // sample the feedback voltage
+          for(uint16_t i=0; i<n_samples; i++) {
+            uint16_t hv_max = 0;
+            uint16_t hv_min = 1024;
+            uint16_t hv = 0;
+            int16_t hv_pk_pk;
+            int8_t hv_resistor = A0_series_resistor_index_;
+            uint16_t fb_max = 0;
+            uint16_t fb_min = 1024;
+            uint16_t fb = 0;
+            int16_t fb_pk_pk;
+            int8_t fb_resistor = A1_series_resistor_index_;
+            uint32_t t_sample = millis();
+
+            while(millis()-t_sample<sampling_time_ms) {
+              // hv_resistor == -1 if the smallest series resistor becomes
+              // saturated
+              if(hv_resistor != -1) {
+                hv = analogRead(0);
+                // if the ADC is saturated, use a smaller resistor
+                // and reset the peak
+                if(hv>820) {
+                  if(A0_series_resistor_index_>0) {
+                    SetSeriesResistor(0, \
+                      A0_series_resistor_index_-1);
+                    hv_max = 0;
+                    hv_min = 1024;
+                  } else {
+                    hv_resistor = -1;
+                  }
+                  continue;
+                }
+                if(hv>hv_max) {
+                  hv_max = hv;
+                }
+                if(hv<hv_min) {
+                  hv_min = hv;
+                }
+              }
+
+              // hv_resistor == -1 if the smallest series resistor becomes
+              // saturated
+              if(fb_resistor != -1) {
+                fb = analogRead(1);
+
+                // if the ADC is saturated, use a smaller resistor
+                // and reset the peak
+                if(fb>820) {
+                  if(A1_series_resistor_index_>0) {
+                    SetSeriesResistor(1,
+                      A1_series_resistor_index_-1);
+                    fb_max = 0;
+                    fb_min = 1024;
+                  } else {
+                    fb_resistor = -1;
+                  }
+                  continue;
+                }
+                if(fb>fb_max) {
+                  fb_max = fb;
+                }
+                if(fb<fb_min) {
+                  fb_min = fb;
+                }
+              }
+            }
+
+            hv_pk_pk = hv_max-hv_min;
+            fb_pk_pk = fb_max-fb_min;
+
+            // if we didn't get a valid feedback sample during the sampling
+            // time, return -1 as the index
+            if(fb_max==0 || fb_min==1024 && fb_resistor != -1) {
+              fb_resistor = -1;
+            } else {
+              fb_resistor = A1_series_resistor_index_;
+            }
+
+            // if we didn't get a valid high voltage sample during the
+            // sampling time, return -1 as the index
+            if(hv_max==0 || hv_min==1024 && hv_resistor != -1) {
+              hv_resistor = -1;
+            } else {
+              // adjust amplifier gain (only if the hv resistor is the same
+              // as on the previous reading; otherwise it may not have had
+              // enough time to get a good reading)
+              if(auto_adjust_amplifier_gain_ && waveform_voltage_>0 && i>0 &&
+                  hv_resistor==A0_series_resistor_index_) {
+                float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
+                float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                float V_fb;
+                if(fb_resistor==-1) {
+                  V_fb = 0;
+                } else {
+                  V_fb = fb_pk_pk*5.0/1024/sqrt(2)/2;
+                }
+
+                amplifier_gain_ =
+                    (hv_pk_pk*5.0/1024.0/sqrt(2)/2) / // measured Vrms /
+                    (R/sqrt(pow(10e6+R, 2)+       // transfer function /
+                        pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
+                    ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
+                    amplifier_gain_);             // previous gain setting)
+
+                // enforce minimum gain of 1 because if gain goes to zero,
+                // it cannot be adjusted further
+                if(amplifier_gain_<1) {
+                  amplifier_gain_=1;
+                }
+
+                // update output voltage (accounting for amplifier gain and
+                // for the voltage drop across the feedback resistor)
+                float step = (waveform_voltage_+V_fb)/amplifier_gain_*2*
+                    sqrt(2)/4*255;
+                // 255 is maximum for pot
+                if(step>255) {
+                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
+                } else {
+                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
+                }
+              }
+              hv_resistor = A0_series_resistor_index_;
+            }
+
+            Serialize(&hv_pk_pk, sizeof(hv_pk_pk));
+            Serialize(&hv_resistor, sizeof(hv_resistor));
+            Serialize(&fb_pk_pk, sizeof(fb_pk_pk));
+            Serialize(&fb_resistor, sizeof(fb_resistor));
+
+            if(Serial.available()>0) {
+              break;
+            }
+
+            uint32_t t_delay = millis();
+            while(millis()-t_delay<delay_between_samples_ms) {
+            }
+          }
+
+          // set the resistors back to their original states
+          SetSeriesResistor(0, original_A0_index);
+          SetSeriesResistor(1, original_A1_index);
+        } else {
+          return_code_ = RETURN_BAD_PACKET_SIZE;
         }
       }
       break;
