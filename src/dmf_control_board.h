@@ -49,29 +49,44 @@ public:
     was written with.*/
     version_t version;
 
-    /**\brief This byte sets the maximum output voltage for the waveform
-    generator. It should be trimmed so that the output waveform is 4Vp-p when
-    POT_WAVEOUT_GAIN_2 is set to 255.*/
-    uint8_t waveout_gain_1;
-
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
       /**\brief This byte sets the value of the analog reference (between 0 and
       ~5V).*/
       uint8_t aref;
     #endif
 
-    /**\brief This byte sets the value of the virtual ground reference (between
-    0 and 5V).*/
-    uint8_t vgnd;
+    #if ___HARDWARE_MAJOR_VERSION___ == 1
+      /**\brief This byte sets the maximum output voltage for the waveform
+      generator. It should be trimmed so that the output waveform is 4Vp-p when
+      POT_WAVEOUT_GAIN_2 is set to 255.*/
+      uint8_t waveout_gain_1;
 
-    /**\brief Series resistor values for channel 0.*/
-    float A0_series_resistance[2];
-    /**\brief Series capacitance values for channel 0.*/
-    float A0_series_capacitance[2];
-    /**\brief Series resistor values for channel 1.*/
-    float A1_series_resistance[4];
-    /**\brief Series capacitance values for channel 1.*/
-    float A1_series_capacitance[4];
+      /**\brief This byte sets the value of the virtual ground reference (between
+      0 and 5V).*/
+      uint8_t vgnd;
+
+      /**\brief Series resistor values for channel 0.*/
+      float A0_series_resistance[2];
+      /**\brief Series capacitance values for channel 0.*/
+      float A0_series_capacitance[2];
+      /**\brief Series resistor values for channel 1.*/
+      float A1_series_resistance[4];
+      /**\brief Series capacitance values for channel 1.*/
+      float A1_series_capacitance[4];
+    #else
+      /**\brief Series resistor values for channel 0.*/
+      float A0_series_resistance[2];
+      /**\brief Series capacitance values for channel 0.*/
+      float A0_series_capacitance[2];
+      /**\brief Series resistor values for channel 1.*/
+      float A1_series_resistance[5];
+      /**\brief Series capacitance values for channel 1.*/
+      float A1_series_capacitance[5];
+      /**\brief Series resistor values for channel 2.*/
+      float A2_series_resistance[2];
+      /**\brief Series capacitance values for channel 2.*/
+      float A2_series_capacitance[2];
+    #endif
 
     /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
     adjusted based on the measured voltage from the amplifier.*/
@@ -213,14 +228,24 @@ private:
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
     static const uint8_t PWR_SUPPLY_ON_ = 8;
+  #elif ___HARDWARE_MAJOR_VERSION___ == 2
+    static const uint8_t PWR_SUPPLY_ON_ = 2;
   #endif
 
-  static const uint8_t WAVEFORM_SELECT_ = 9;
-
-  static const uint8_t A0_SERIES_RESISTOR_0_ = 13;
-  static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
-  static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
-  static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    static const uint8_t WAVEFORM_SELECT_ = 9;
+    static const uint8_t A0_SERIES_RESISTOR_0_ = 13;
+    static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
+    static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
+    static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
+  #else
+    static const uint8_t A0_SERIES_RESISTOR_0_ = 9;
+    static const uint8_t A1_SERIES_RESISTOR_0_ = 10;
+    static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
+    static const uint8_t A1_SERIES_RESISTOR_2_ = 12;
+    static const uint8_t A1_SERIES_RESISTOR_3_ = 13;
+    static const uint8_t A2_SERIES_RESISTOR_0_ = 8;
+  #endif
 
   static const float SAMPLING_RATES_[];
 
@@ -268,6 +293,9 @@ private:
   uint8_t sampling_rate_index_;
   uint8_t A0_series_resistor_index_;
   uint8_t A1_series_resistor_index_;
+  #if ___HARDWARE_MAJOR_VERSION___ == 2
+    uint8_t A2_series_resistor_index_;
+  #endif
   uint8_t peak_;
   float waveform_voltage_;
   float waveform_frequency_;

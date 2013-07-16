@@ -256,13 +256,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             if name != "Arduino DMF Controller":
                 raise Exception("Device is not an Arduino DMF Controller")
-            
-            if hardware_version.major != 1:
-                raise Exception("The currently installed DMF control board "
-                                "plugin is designed for hardware version 1.x, "
-                                "however the connected device is version %s."
-                                % (str(hardware_version)))
-            
+                        
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
 

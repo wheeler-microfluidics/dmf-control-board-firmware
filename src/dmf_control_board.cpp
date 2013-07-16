@@ -162,6 +162,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#if ___HARDWARE_MAJOR_VERSION___ == 1
     case CMD_GET_WAVEFORM:
       if(payload_length()==0) {
         return_code_ = RETURN_OK;
@@ -184,6 +185,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#endif
     case CMD_GET_WAVEFORM_VOLTAGE:
       if(payload_length()==0) {
         return_code_ = RETURN_OK;
@@ -644,15 +646,25 @@ void DmfControlBoard::begin() {
     analogReference(EXTERNAL);
   #endif
 
-  pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
-  pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
-  pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
-  pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
-  pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
-  pinMode(WAVEFORM_SELECT_, OUTPUT);
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
+    pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
+    pinMode(WAVEFORM_SELECT_, OUTPUT);
+  #else
+    pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
+    pinMode(A1_SERIES_RESISTOR_3_, OUTPUT);
+    pinMode(A2_SERIES_RESISTOR_0_, OUTPUT);
+  #endif
 
   // versions > 1.1 need to pull a pin low to turn on the power supply
-  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
+  #if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) \
+    || ___HARDWARE_MAJOR_VERSION___ > 1
     pinMode(PWR_SUPPLY_ON_, OUTPUT);
     digitalWrite(PWR_SUPPLY_ON_, LOW);
 
@@ -694,8 +706,10 @@ void DmfControlBoard::begin() {
   Serial.print(number_of_channels_);
   Serial.println(" channels available.");
 
-  // set waveform (SINE=0, SQUARE=1)
-  digitalWrite(WAVEFORM_SELECT_, SINE);
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    // set waveform (SINE=0, SQUARE=1)
+    digitalWrite(WAVEFORM_SELECT_, SINE);
+  #endif
 
   // default amplifier gain
   amplifier_gain_ = 100;
@@ -707,8 +721,6 @@ void DmfControlBoard::begin() {
   Serial.print(config_settings_.version.minor, DEC);
   Serial.print(".");
   Serial.println(config_settings_.version.micro, DEC);
-  Serial.print("waveout_gain_1=");
-  Serial.println(config_settings_.waveout_gain_1, DEC);
 
   // Versions > 1.2 use the built in 5V AREF
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -716,32 +728,74 @@ void DmfControlBoard::begin() {
     Serial.println(config_settings_.aref, DEC);
   #endif
 
-  Serial.print("vgnd=");
-  Serial.println(config_settings_.vgnd, DEC);
-  Serial.print("A0_series_resistance[0]=");
-  Serial.println(config_settings_.A0_series_resistance[0]);
-  Serial.print("A0_series_resistance[1]=");
-  Serial.println(config_settings_.A0_series_resistance[1]);
-  Serial.print("A0_series_capacitance[0]=");
-  printlne(config_settings_.A0_series_capacitance[0]);
-  Serial.print("A0_series_capacitance[1]=");
-  printlne(config_settings_.A0_series_capacitance[1]);
-  Serial.print("A1_series_resistance[0]=");
-  Serial.println(config_settings_.A1_series_resistance[0]);
-  Serial.print("A1_series_resistance[1]=");
-  Serial.println(config_settings_.A1_series_resistance[1]);
-  Serial.print("A1_series_resistance[2]=");
-  Serial.println(config_settings_.A1_series_resistance[2]);
-  Serial.print("A1_series_resistance[3]=");
-  Serial.println(config_settings_.A1_series_resistance[3]);
-  Serial.print("A1_series_capacitance[0]=");
-  printlne(config_settings_.A1_series_capacitance[0]);
-  Serial.print("A1_series_capacitance[1]=");
-  printlne(config_settings_.A1_series_capacitance[1]);
-  Serial.print("A1_series_capacitance[2]=");
-  printlne(config_settings_.A1_series_capacitance[2]);
-  Serial.print("A1_series_capacitance[3]=");
-  printlne(config_settings_.A1_series_capacitance[3]);
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    Serial.print("waveout_gain_1=");
+    Serial.println(config_settings_.waveout_gain_1, DEC);
+    Serial.print("vgnd=");
+    Serial.println(config_settings_.vgnd, DEC);
+    Serial.print("A0_series_resistance[0]=");
+    Serial.println(config_settings_.A0_series_resistance[0]);
+    Serial.print("A0_series_resistance[1]=");
+    Serial.println(config_settings_.A0_series_resistance[1]);
+    Serial.print("A0_series_capacitance[0]=");
+    printlne(config_settings_.A0_series_capacitance[0]);
+    Serial.print("A0_series_capacitance[1]=");
+    printlne(config_settings_.A0_series_capacitance[1]);
+    Serial.print("A1_series_resistance[0]=");
+    Serial.println(config_settings_.A1_series_resistance[0]);
+    Serial.print("A1_series_resistance[1]=");
+    Serial.println(config_settings_.A1_series_resistance[1]);
+    Serial.print("A1_series_resistance[2]=");
+    Serial.println(config_settings_.A1_series_resistance[2]);
+    Serial.print("A1_series_resistance[3]=");
+    Serial.println(config_settings_.A1_series_resistance[3]);
+    Serial.print("A1_series_capacitance[0]=");
+    printlne(config_settings_.A1_series_capacitance[0]);
+    Serial.print("A1_series_capacitance[1]=");
+    printlne(config_settings_.A1_series_capacitance[1]);
+    Serial.print("A1_series_capacitance[2]=");
+    printlne(config_settings_.A1_series_capacitance[2]);
+    Serial.print("A1_series_capacitance[3]=");
+    printlne(config_settings_.A1_series_capacitance[3]);
+  #else
+    Serial.print("A0_series_resistance[0]=");
+    Serial.println(config_settings_.A0_series_resistance[0]);
+    Serial.print("A0_series_resistance[1]=");
+    Serial.println(config_settings_.A0_series_resistance[1]);
+    Serial.print("A0_series_capacitance[0]=");
+    printlne(config_settings_.A0_series_capacitance[0]);
+    Serial.print("A0_series_capacitance[1]=");
+    printlne(config_settings_.A0_series_capacitance[1]);
+    Serial.print("A1_series_resistance[0]=");
+    Serial.println(config_settings_.A1_series_resistance[0]);
+    Serial.print("A1_series_resistance[1]=");
+    Serial.println(config_settings_.A1_series_resistance[1]);
+    Serial.print("A1_series_resistance[2]=");
+    Serial.println(config_settings_.A1_series_resistance[2]);
+    Serial.print("A1_series_resistance[3]=");
+    Serial.println(config_settings_.A1_series_resistance[3]);
+    Serial.print("A1_series_resistance[4]=");
+    Serial.println(config_settings_.A1_series_resistance[4]);
+    Serial.print("A1_series_capacitance[0]=");
+    printlne(config_settings_.A1_series_capacitance[0]);
+    Serial.print("A1_series_capacitance[1]=");
+    printlne(config_settings_.A1_series_capacitance[1]);
+    Serial.print("A1_series_capacitance[2]=");
+    printlne(config_settings_.A1_series_capacitance[2]);
+    Serial.print("A1_series_capacitance[3]=");
+    printlne(config_settings_.A1_series_capacitance[3]);
+    Serial.print("A1_series_capacitance[4]=");
+    printlne(config_settings_.A1_series_capacitance[4]);
+    Serial.print("A2_series_resistance[0]=");
+    Serial.println(config_settings_.A2_series_resistance[0]);
+    Serial.print("A2_series_resistance[1]=");
+    Serial.println(config_settings_.A2_series_resistance[1]);
+    Serial.print("A2_series_capacitance[0]=");
+    printlne(config_settings_.A2_series_capacitance[0]);
+    Serial.print("A2_series_capacitance[1]=");
+    printlne(config_settings_.A2_series_capacitance[1]);
+  #endif
+
   Serial.print("amplifier_gain=");
   printlne(config_settings_.amplifier_gain);
 
@@ -751,12 +805,17 @@ void DmfControlBoard::begin() {
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
     SetPot(POT_INDEX_AREF_, config_settings_.aref);
   #endif
-  SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
-  SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
-  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
+    SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
+    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
+  #endif
 
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
+  #if ___HARDWARE_MAJOR_VERSION___ == 2
+    SetSeriesResistor(2, 0);
+  #endif
   SetAdcPrescaler(4);
 }
 
@@ -853,22 +912,42 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
         digitalWrite(A1_SERIES_RESISTOR_0_, HIGH);
         digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
+        #endif
         break;
       case 1:
         digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_1_, HIGH);
         digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
+        #endif
         break;
       case 2:
         digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_2_, HIGH);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
+        #endif
         break;
       case 3:
         digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
         digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A1_SERIES_RESISTOR_3_, HIGH);
+        #endif
         break;
+      #if ___HARDWARE_MAJOR_VERSION___ == 2
+      case 4:
+        digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
+        digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
+        digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
+        digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
+        break;
+      #endif
       default:
         return_code = RETURN_BAD_INDEX;
         break;
@@ -876,6 +955,23 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
     if(return_code==RETURN_OK) {
       A1_series_resistor_index_ = index;
     }
+  #if ___HARDWARE_MAJOR_VERSION___ == 2
+  } else if(channel==2) {
+      switch(index) {
+        case 0:
+          digitalWrite(A2_SERIES_RESISTOR_0_, HIGH);
+          break;
+        case 1:
+          digitalWrite(A2_SERIES_RESISTOR_0_, LOW);
+          break;
+        default:
+          return_code = RETURN_BAD_INDEX;
+          break;
+      }
+      if(return_code==RETURN_OK) {
+        A2_series_resistor_index_ = index;
+      }
+  #endif
   } else { // bad channel
     return_code = RETURN_BAD_INDEX;
   }
@@ -969,9 +1065,10 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
       config_settings_.aref = 255;
     #endif
 
-    config_settings_.vgnd = 124;
-    config_settings_.waveout_gain_1 = 112;
-    config_settings_.vgnd = 124;
+    #if ___HARDWARE_MAJOR_VERSION___ == 1
+      config_settings_.vgnd = 124;
+      config_settings_.waveout_gain_1 = 112;
+    #endif
     config_settings_.A0_series_resistance[0] = 30e4;
     config_settings_.A0_series_resistance[1] = 3.3e5;
     config_settings_.A0_series_capacitance[0] = 0;
@@ -980,10 +1077,20 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
     config_settings_.A1_series_resistance[1] = 1e4;
     config_settings_.A1_series_resistance[2] = 1e5;
     config_settings_.A1_series_resistance[3] = 1e6;
+    #if ___HARDWARE_MAJOR_VERSION___ == 2
+      config_settings_.A1_series_resistance[4] = 1e6;
+    #endif
     config_settings_.A1_series_capacitance[0] = 0;
     config_settings_.A1_series_capacitance[1] = 0;
     config_settings_.A1_series_capacitance[2] = 0;
     config_settings_.A1_series_capacitance[3] = 0;
+    #if ___HARDWARE_MAJOR_VERSION___ == 2
+      config_settings_.A1_series_capacitance[4] = 0;
+      config_settings_.A2_series_resistance[0] = 30e4;
+      config_settings_.A2_series_resistance[1] = 3.3e5;
+      config_settings_.A2_series_capacitance[0] = 0;
+      config_settings_.A2_series_capacitance[1] = 0;
+    #endif
     config_settings_.amplifier_gain = amplifier_gain_;
     SaveConfig();
   }

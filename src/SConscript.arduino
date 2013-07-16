@@ -11,19 +11,21 @@ Import('SOFTWARE_VERSION')
 Import('HARDWARE_MAJOR_VERSION')
 Import('HARDWARE_MINOR_VERSION')
 
-minor_versions = range(4)
+versions = ((1, 0), (1, 1), (1, 2), (1, 3), (2, 0))
+#versions = ((2, 0),)
 hybrid_sources = re.split(r'\s+', 'dmf_control_board.cpp RemoteObject.cpp')
 
 arduino_hexes = {}
-for version in minor_versions:
-    version_str = '%s_%s' % (HARDWARE_MAJOR_VERSION, version)
+for major, minor in versions:
+    version_str = '%s_%s' % (major, minor)
     context = ArduinoBuildContext(ARGUMENTS,
             build_root='../build/arduino__%s' % version_str)
-    version_match = (int(HARDWARE_MINOR_VERSION) == int(version))
+    version_match = (int(HARDWARE_MAJOR_VERSION) == int(major) and \
+                     int(HARDWARE_MINOR_VERSION) == int(minor))
     arduino_hex = context.build(env_dict={'CPPDEFINES': {
             '___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION,
-            '___HARDWARE_MAJOR_VERSION___': HARDWARE_MAJOR_VERSION,
-            '___HARDWARE_MINOR_VERSION___': version}}, 
+            '___HARDWARE_MAJOR_VERSION___': major,
+            '___HARDWARE_MINOR_VERSION___': minor}}, 
             extra_sources=hybrid_sources, register_upload=version_match)
     arduino_hexes[version_str] = arduino_hex
 
