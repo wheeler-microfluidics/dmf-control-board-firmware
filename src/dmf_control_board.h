@@ -276,7 +276,6 @@ private:
 #ifdef AVR
   uint8_t UpdateChannel(const uint16_t channel, const uint8_t state);
   void UpdateAllChannels();
-  void SendI2C(uint8_t row, uint8_t cmd, uint8_t data);
   void SendSPI(uint8_t pin, uint8_t address, uint8_t data);
   uint8_t SetPot(uint8_t index, uint8_t value);
   uint8_t SetSeriesResistor(const uint8_t channel,
@@ -299,6 +298,9 @@ private:
   uint8_t peak_;
   float waveform_voltage_;
   float waveform_frequency_;
+#if ___HARDWARE_MAJOR_VERSION___ > 1
+  uint8_t signal_generator_board_address_;
+#endif
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;

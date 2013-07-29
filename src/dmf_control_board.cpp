@@ -188,14 +188,37 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #endif
     case CMD_GET_WAVEFORM_VOLTAGE:
       if(payload_length()==0) {
+#if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
+#else
+        i2c_write(signal_generator_board_address_, cmd);
+        delay(I2C_DELAY);
+        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        if(Wire.available()) {
+          uint8_t n_bytes_to_read = Wire.receive();
+          if(n_bytes_to_read==sizeof(float)+1) {
+            uint8_t n_bytes_read = 0;
+            float vrms;
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     (uint8_t*)&vrms,
+                                     sizeof(float));
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     &return_code_, 1);
+            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
+              waveform_voltage_ = vrms;
+              Serialize(&waveform_voltage_,sizeof(float));
+            }
+          }
+        }
+#endif
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(float)) {
+#if ___HARDWARE_MAJOR_VERSION___ == 1
         waveform_voltage_ = ReadFloat();
         float step = waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255;
         // 255 is maximum for pot
@@ -205,20 +228,64 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
         }
         return_code_ = RETURN_OK;
+#else
+        float vrms = ReadFloat();
+        uint8_t data[5];
+        data[0] = cmd;
+        memcpy(&data[1], &vrms, sizeof(float));
+        i2c_write(signal_generator_board_address_, data, 5);
+        delay(I2C_DELAY);
+        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        if(Wire.available()) {
+          uint8_t n_bytes_to_read = Wire.receive();
+          if(n_bytes_to_read==1) {
+            uint8_t n_bytes_read = 0;
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     (uint8_t*)&return_code_,
+                                     sizeof(return_code_));
+            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
+              waveform_voltage_ = vrms;
+            }
+          }
+        }
+#endif
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_GET_WAVEFORM_FREQUENCY:
       if(payload_length()==0) {
+#if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
+#else
+        i2c_write(signal_generator_board_address_, cmd);
+        delay(I2C_DELAY);
+        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        if(Wire.available()) {
+          uint8_t n_bytes_to_read = Wire.receive();
+          if(n_bytes_to_read==sizeof(float)+1) {
+            uint8_t n_bytes_read = 0;
+            float frequency;
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     (uint8_t*)&frequency,
+                                     sizeof(float));
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     &return_code_, 1);
+            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
+              waveform_frequency_ = frequency;
+              Serialize(&waveform_frequency_,sizeof(float));
+            }
+          }
+        }
+#endif
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_SET_WAVEFORM_FREQUENCY:
       if(payload_length()==sizeof(float)) {
+#if ___HARDWARE_MAJOR_VERSION___ == 1
         // the frequency of the LTC6904 oscillator needs to be set to 50x
         // the fundamental frequency
         waveform_frequency_ = ReadFloat();
@@ -240,6 +307,27 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           Wire.endTransmission();     // stop transmitting
           return_code_ = RETURN_OK;
         }
+#else
+        float frequency = ReadFloat();
+        uint8_t data[5];
+        data[0] = cmd;
+        memcpy(&data[1], &frequency, sizeof(float));
+        i2c_write(signal_generator_board_address_, data, 5);
+        delay(I2C_DELAY);
+        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        if(Wire.available()) {
+          uint8_t n_bytes_to_read = Wire.receive();
+          if(n_bytes_to_read==1) {
+            uint8_t n_bytes_read = 0;
+            n_bytes_read += i2c_read(signal_generator_board_address_,
+                                     (uint8_t*)&return_code_,
+                                     sizeof(return_code_));
+            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
+              waveform_frequency_ = frequency;
+            }
+          }
+        }
+#endif
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -463,8 +551,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               +number_of_channels_*sizeof(uint8_t)){
             UpdateAllChannels();
           }
-
-
 
           // sample the feedback voltage
           for(uint16_t i=0; i<n_samples; i++) {
@@ -696,10 +782,15 @@ void DmfControlBoard::begin() {
       Serial.print("HV board ");
       Serial.print((int)chip);
       Serial.println(" connected.");
+      uint8_t data[2];
       // set all PCA0505 ports in output mode and initialize to ground
       for(uint8_t port=0; port<5; port++) {
-        SendI2C(PCA9505_ADDRESS_+chip, PCA9505_CONFIG_IO_REGISTER_+port, 0x00);
-        SendI2C(PCA9505_ADDRESS_+chip, PCA9505_OUTPUT_PORT_REGISTER_+port, 0xFF);
+        data[0] = PCA9505_CONFIG_IO_REGISTER_+port;
+        data[1] = 0x00;
+        i2c_write(PCA9505_ADDRESS_+chip, data, 2);
+        data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
+        data[1] = 0xFF;
+        i2c_write(PCA9505_ADDRESS_+chip, data, 2);
       }
     }
   }
@@ -809,27 +900,18 @@ void DmfControlBoard::begin() {
     SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
     SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
     SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
+  #else
+    // TODO add to EEPROM config
+    signal_generator_board_address_ = 10;
   #endif
 
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
-  #if ___HARDWARE_MAJOR_VERSION___ == 2
-    SetSeriesResistor(2, 0);
-  #endif
   SetAdcPrescaler(4);
 }
 
 const char* DmfControlBoard::hardware_version() {
   return ___HARDWARE_VERSION___;
-}
-
-// send a command and some data to one of the I2C chips
-// (code based on http://gdallaire.net/blog/?p=18)
-void DmfControlBoard::SendI2C(uint8_t row, uint8_t cmd, uint8_t data) {
-  Wire.beginTransmission(row);
-  Wire.send(cmd);
-  Wire.send(data);
-  Wire.endTransmission();
 }
 
 void DmfControlBoard::SendSPI(uint8_t pin, uint8_t address, uint8_t data) {
@@ -988,14 +1070,15 @@ void DmfControlBoard::UpdateAllChannels() {
   //   Each register represent 8 channels (i.e. the first register on the
   // first PCA9505 chip stores the state of channels 0-7, the second register
   // represents channels 8-15, etc.).
-  uint8_t data = 0;
+  uint8_t data[2];
   for(uint8_t chip=0; chip<number_of_channels_/40; chip++) {
     for(uint8_t port=0; port<5; port++) {
-      data = 0;
+      data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
+      data[1] = 0;
       for(uint8_t i=0; i<8; i++) {
-        data += (ReadUint8()==0)<<i;
+        data[1] += (ReadUint8()==0)<<i;
       }
-      SendI2C(PCA9505_ADDRESS_+chip, PCA9505_OUTPUT_PORT_REGISTER_+port, data);
+      i2c_write(PCA9505_ADDRESS_+chip, data, 2);
     }
   }
 }
@@ -1006,7 +1089,6 @@ void DmfControlBoard::UpdateAllChannels() {
 //       instead because it will be 8x more efficient.
 uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
                                        const uint8_t state) {
-  uint8_t data = 0;
   uint8_t chip = channel/40;
   uint8_t port = (channel%40)/8;
   uint8_t bit = (channel%40)%8;
@@ -1015,11 +1097,11 @@ uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
   Wire.endTransmission();
   Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
   if (Wire.available()) {
-    uint8_t data = Wire.receive();
-    bitWrite(data, bit, state==0);
-    SendI2C(PCA9505_ADDRESS_+chip,
-            PCA9505_OUTPUT_PORT_REGISTER_+port,
-            data);
+    uint8_t data[2];
+    data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
+    data[1] = Wire.receive();
+    bitWrite(data[1], bit, state==0);
+    i2c_write(PCA9505_ADDRESS_+chip, data, 2);
     return RETURN_OK;
   } else {
     return RETURN_GENERAL_ERROR;

@@ -557,15 +557,9 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       }
       break;
     case CMD_I2C_READ:
-      if(payload_length()>=2) {
+      if(payload_length()==2) {
         uint8_t n_bytes_read=0;
         uint8_t address = ReadUint8();
-        Wire.beginTransmission(address);
-        for(uint8_t i=0; i<payload_length()-2; i++) {
-          Wire.send(ReadUint8());
-        }
-        Wire.endTransmission();
-        delay(1);
         uint8_t n_bytes_to_read = ReadUint8();
         Wire.requestFrom(address, n_bytes_to_read);
         while(Wire.available()) {
@@ -780,6 +774,31 @@ void RemoteObject::begin() {
   Serial.begin(baud_rate_);
   Wire.begin();
   SPI.begin();
+}
+
+void RemoteObject::i2c_write(const uint8_t address, const uint8_t data) {
+  Wire.beginTransmission(address);
+  Wire.send(data);
+  Wire.endTransmission();
+}
+
+void RemoteObject::i2c_write(const uint8_t address, const uint8_t* data,
+                             const uint8_t n_bytes) {
+  Wire.beginTransmission(address);
+  for(uint8_t i=0; i<n_bytes; i++) {
+    Wire.send(data[i]);
+  }
+  Wire.endTransmission();
+}
+
+uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
+                               const uint8_t n_bytes_to_read) {
+  uint8_t n_bytes_read = 0;
+  Wire.requestFrom(address, n_bytes_to_read);
+  while(Wire.available()) {
+    data[n_bytes_read++] = Wire.receive();
+  }
+  return n_bytes_read;
 }
 
 #else
@@ -1122,13 +1141,11 @@ void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
 }
 
 std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
-                                            std::vector<uint8_t> send_data,
                                             uint8_t n_bytes_to_read) {
   const char* function_name = "i2c_read()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
-  Serialize(&send_data[0],send_data.size()*sizeof(uint8_t));
   Serialize(&n_bytes_to_read,sizeof(n_bytes_to_read));
   if(SendCommand(CMD_I2C_READ)==RETURN_OK) {
     LogMessage(str(format("address %d") % address).c_str(), function_name);

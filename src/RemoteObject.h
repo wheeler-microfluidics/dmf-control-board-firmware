@@ -79,6 +79,8 @@ class RemoteObject {
 public:
 #ifndef AVR
   static const uint32_t TIMEOUT_MILLISECONDS =   1000; // TODO: this should be configurable
+#else
+  static const uint8_t I2C_DELAY = 2; // delay between i2c write/reads
 #endif
   // EEPROM addresses
   static const uint16_t EEPROM_PIN_MODE_ADDRESS =        0;
@@ -153,6 +155,12 @@ public:
   virtual const char* software_version() = 0;
   virtual const char* hardware_version() = 0;
   virtual const char* url() = 0;
+  void i2c_write(const uint8_t address, const uint8_t data);
+  void i2c_write(const uint8_t address,
+                 const uint8_t* data,
+                 const uint8_t n_bytes);
+  uint8_t i2c_read(const uint8_t address, uint8_t* data,
+                   const uint8_t n_bytes_to_read);
 #else
   virtual std::string host_name() = 0;
   virtual std::string host_software_version() = 0;
@@ -196,7 +204,6 @@ public:
                      uint8_t value, uint8_t power);
   void i2c_write(uint8_t address, std::vector<uint8_t> data);
   std::vector<uint8_t> i2c_read(uint8_t address,
-                                std::vector<uint8_t> send_data,
                                 uint8_t n_bytes_to_read);
 
   /**Set the order of the bits shifted out of and into the SPI bus, either
