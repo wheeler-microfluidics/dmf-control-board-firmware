@@ -94,10 +94,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_OK;
         for(uint8_t chip=0; chip<number_of_channels_/40; chip++) {
           for(uint8_t port=0; port<5; port++) {
-            Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+            Wire.beginTransmission(
+              config_settings_.switching_board_i2c_address+chip);
             Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
             Wire.endTransmission();
-            Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+            Wire.requestFrom(
+              config_settings_.switching_board_i2c_address+chip,1);
             if (Wire.available()) {
               uint8_t data = Wire.receive();
               uint8_t state;
@@ -132,10 +134,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           uint8_t chip = channel/40;
           uint8_t port = (channel%40)/8;
           uint8_t bit = (channel%40)%8;
-          Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+          Wire.beginTransmission(
+            config_settings_.switching_board_i2c_address+chip);
           Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
           Wire.endTransmission();
-          Wire.requestFrom(PCA9505_ADDRESS_+chip, 1);
+          Wire.requestFrom(
+            config_settings_.switching_board_i2c_address+chip, 1);
           if(Wire.available()) {
             uint8_t data = Wire.receive();
             data = (data >> bit & 0x01)==0;
@@ -192,19 +196,22 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_OK;
         Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
 #else
-        i2c_write(signal_generator_board_address_, cmd);
+        i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
-        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+          (uint8_t)1);
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==sizeof(float)+1) {
             uint8_t n_bytes_read = 0;
             float vrms;
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     (uint8_t*)&vrms,
-                                     sizeof(float));
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     &return_code_, 1);
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              (uint8_t*)&vrms,
+              sizeof(float));
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              &return_code_, 1);
             if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
               waveform_voltage_ = vrms;
               Serialize(&waveform_voltage_,sizeof(float));
@@ -233,16 +240,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint8_t data[5];
         data[0] = cmd;
         memcpy(&data[1], &vrms, sizeof(float));
-        i2c_write(signal_generator_board_address_, data, 5);
+        i2c_write(config_settings_.signal_generator_board_i2c_address,
+                  data, 5);
         delay(I2C_DELAY);
-        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                         (uint8_t)1);
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==1) {
             uint8_t n_bytes_read = 0;
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     (uint8_t*)&return_code_,
-                                     sizeof(return_code_));
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              (uint8_t*)&return_code_,
+              sizeof(return_code_));
             if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
               waveform_voltage_ = vrms;
             }
@@ -259,19 +269,22 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_OK;
         Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
 #else
-        i2c_write(signal_generator_board_address_, cmd);
+        i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
-        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                         (uint8_t)1);
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==sizeof(float)+1) {
             uint8_t n_bytes_read = 0;
             float frequency;
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     (uint8_t*)&frequency,
-                                     sizeof(float));
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     &return_code_, 1);
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              (uint8_t*)&frequency,
+              sizeof(float));
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              &return_code_, 1);
             if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
               waveform_frequency_ = frequency;
               Serialize(&waveform_frequency_,sizeof(float));
@@ -312,16 +325,19 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         uint8_t data[5];
         data[0] = cmd;
         memcpy(&data[1], &frequency, sizeof(float));
-        i2c_write(signal_generator_board_address_, data, 5);
+        i2c_write(config_settings_.signal_generator_board_i2c_address,
+                  data, 5);
         delay(I2C_DELAY);
-        Wire.requestFrom(signal_generator_board_address_, (uint8_t)1);
+        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                         (uint8_t)1);
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==1) {
             uint8_t n_bytes_read = 0;
-            n_bytes_read += i2c_read(signal_generator_board_address_,
-                                     (uint8_t*)&return_code_,
-                                     sizeof(return_code_));
+            n_bytes_read += i2c_read(
+              config_settings_.signal_generator_board_i2c_address,
+              (uint8_t*)&return_code_,
+              sizeof(return_code_));
             if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
               waveform_frequency_ = frequency;
             }
@@ -770,10 +786,12 @@ void DmfControlBoard::begin() {
   // address must equal the previous boards address +1 to be valid.
   number_of_channels_ = 0;
   for(uint8_t chip=0; chip<8; chip++) {
-    Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+    Wire.beginTransmission(
+      config_settings_.switching_board_i2c_address+chip);
     Wire.send(PCA9505_CONFIG_IO_REGISTER_);
     Wire.endTransmission();
-    Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+    Wire.requestFrom(
+      config_settings_.switching_board_i2c_address+chip,1);
     if (Wire.available()) {
       Wire.receive();
       if(number_of_channels_==40*chip) {
@@ -787,10 +805,12 @@ void DmfControlBoard::begin() {
       for(uint8_t port=0; port<5; port++) {
         data[0] = PCA9505_CONFIG_IO_REGISTER_+port;
         data[1] = 0x00;
-        i2c_write(PCA9505_ADDRESS_+chip, data, 2);
+        i2c_write(config_settings_.switching_board_i2c_address+chip,
+                  data, 2);
         data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
         data[1] = 0xFF;
-        i2c_write(PCA9505_ADDRESS_+chip, data, 2);
+        i2c_write(config_settings_.switching_board_i2c_address+chip,
+                  data, 2);
       }
     }
   }
@@ -853,10 +873,14 @@ void DmfControlBoard::begin() {
     Serial.println(config_settings_.A0_series_resistance[0]);
     Serial.print("A0_series_resistance[1]=");
     Serial.println(config_settings_.A0_series_resistance[1]);
+    Serial.print("A0_series_resistance[2]=");
+    Serial.println(config_settings_.A0_series_resistance[2]);
     Serial.print("A0_series_capacitance[0]=");
     printlne(config_settings_.A0_series_capacitance[0]);
     Serial.print("A0_series_capacitance[1]=");
     printlne(config_settings_.A0_series_capacitance[1]);
+    Serial.print("A0_series_capacitance[2]=");
+    printlne(config_settings_.A0_series_capacitance[2]);
     Serial.print("A1_series_resistance[0]=");
     Serial.println(config_settings_.A1_series_resistance[0]);
     Serial.print("A1_series_resistance[1]=");
@@ -877,18 +901,14 @@ void DmfControlBoard::begin() {
     printlne(config_settings_.A1_series_capacitance[3]);
     Serial.print("A1_series_capacitance[4]=");
     printlne(config_settings_.A1_series_capacitance[4]);
-    Serial.print("A2_series_resistance[0]=");
-    Serial.println(config_settings_.A2_series_resistance[0]);
-    Serial.print("A2_series_resistance[1]=");
-    Serial.println(config_settings_.A2_series_resistance[1]);
-    Serial.print("A2_series_capacitance[0]=");
-    printlne(config_settings_.A2_series_capacitance[0]);
-    Serial.print("A2_series_capacitance[1]=");
-    printlne(config_settings_.A2_series_capacitance[1]);
+    Serial.print("signal_generator_board_i2c_address=");
+    Serial.println(config_settings_.signal_generator_board_i2c_address, DEC);
   #endif
 
+  Serial.print("switching_board_i2c_address=");
+  Serial.println(config_settings_.switching_board_i2c_address, DEC);
   Serial.print("amplifier_gain=");
-  printlne(config_settings_.amplifier_gain);
+  Serial.println(config_settings_.amplifier_gain);
 
   // set all digital pots
 
@@ -900,9 +920,6 @@ void DmfControlBoard::begin() {
     SetPot(POT_INDEX_VGND_, config_settings_.vgnd);
     SetPot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
     SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
-  #else
-    // TODO add to EEPROM config
-    signal_generator_board_address_ = 10;
   #endif
 
   SetSeriesResistor(0, 0);
@@ -1078,7 +1095,8 @@ void DmfControlBoard::UpdateAllChannels() {
       for(uint8_t i=0; i<8; i++) {
         data[1] += (ReadUint8()==0)<<i;
       }
-      i2c_write(PCA9505_ADDRESS_+chip, data, 2);
+      i2c_write(config_settings_.switching_board_i2c_address+chip,
+                data, 2);
     }
   }
 }
@@ -1092,16 +1110,19 @@ uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
   uint8_t chip = channel/40;
   uint8_t port = (channel%40)/8;
   uint8_t bit = (channel%40)%8;
-  Wire.beginTransmission(PCA9505_ADDRESS_+chip);
+  Wire.beginTransmission(
+    config_settings_.switching_board_i2c_address+chip);
   Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
   Wire.endTransmission();
-  Wire.requestFrom(PCA9505_ADDRESS_+chip,1);
+  Wire.requestFrom(
+    config_settings_.switching_board_i2c_address+chip, 1);
   if (Wire.available()) {
     uint8_t data[2];
     data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
     data[1] = Wire.receive();
     bitWrite(data[1], bit, state==0);
-    i2c_write(PCA9505_ADDRESS_+chip, data, 2);
+    i2c_write(config_settings_.switching_board_i2c_address+chip,
+              data, 2);
     return RETURN_OK;
   } else {
     return RETURN_GENERAL_ERROR;
@@ -1127,20 +1148,28 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
   if(config_settings_.version.major==0 &&
      config_settings_.version.minor==0 &&
      config_settings_.version.micro==0) {
-      config_settings_.amplifier_gain = amplifier_gain_;
-      config_settings_.version.micro = 1;
-      SaveConfig();
+    config_settings_.amplifier_gain = amplifier_gain_;
+    config_settings_.version.micro = 1;
+    SaveConfig();
+  }
+
+  if(config_settings_.version.major==0 &&
+     config_settings_.version.minor==0 &&
+     config_settings_.version.micro==1) {
+    config_settings_.switching_board_i2c_address = 0x20;
+    config_settings_.version.micro = 2;
+    SaveConfig();
   }
 
   // If we're not at the expected version by the end of the upgrade path,
   // set everything to default values.
   if(!(config_settings_.version.major==0 &&
      config_settings_.version.minor==0 &&
-     config_settings_.version.micro==1) || use_defaults) {
+     config_settings_.version.micro==2) || use_defaults) {
 
     config_settings_.version.major=0;
     config_settings_.version.minor=0;
-    config_settings_.version.micro=1;
+    config_settings_.version.micro=2;
 
     // Versions > 1.2 use the built in 5V AREF
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -1150,30 +1179,33 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
     #if ___HARDWARE_MAJOR_VERSION___ == 1
       config_settings_.vgnd = 124;
       config_settings_.waveout_gain_1 = 112;
+      config_settings_.A0_series_resistance[0] = 30e4;
+      config_settings_.A0_series_resistance[1] = 3.3e5;
+      config_settings_.A1_series_resistance[0] = 1e3;
+      config_settings_.A1_series_resistance[1] = 1e4;
+      config_settings_.A1_series_resistance[2] = 1e5;
+      config_settings_.A1_series_resistance[3] = 1e6;
+    #else
+      config_settings_.A0_series_resistance[0] = 20e3;
+      config_settings_.A0_series_resistance[1] = 200e3;
+      config_settings_.A0_series_resistance[2] = 2e6;
+      config_settings_.A1_series_resistance[0] = 1e2;
+      config_settings_.A1_series_resistance[1] = 1e3;
+      config_settings_.A1_series_resistance[2] = 1e4;
+      config_settings_.A1_series_resistance[3] = 1e5;
+      config_settings_.A1_series_resistance[4] = 1e6;
+      config_settings_.A0_series_capacitance[2] = 0;
+      config_settings_.A1_series_capacitance[4] = 0;
+      config_settings_.signal_generator_board_i2c_address = 10;
     #endif
-    config_settings_.A0_series_resistance[0] = 30e4;
-    config_settings_.A0_series_resistance[1] = 3.3e5;
     config_settings_.A0_series_capacitance[0] = 0;
     config_settings_.A0_series_capacitance[1] = 0;
-    config_settings_.A1_series_resistance[0] = 1e3;
-    config_settings_.A1_series_resistance[1] = 1e4;
-    config_settings_.A1_series_resistance[2] = 1e5;
-    config_settings_.A1_series_resistance[3] = 1e6;
-    #if ___HARDWARE_MAJOR_VERSION___ == 2
-      config_settings_.A1_series_resistance[4] = 1e6;
-    #endif
     config_settings_.A1_series_capacitance[0] = 0;
     config_settings_.A1_series_capacitance[1] = 0;
     config_settings_.A1_series_capacitance[2] = 0;
     config_settings_.A1_series_capacitance[3] = 0;
-    #if ___HARDWARE_MAJOR_VERSION___ == 2
-      config_settings_.A1_series_capacitance[4] = 0;
-      config_settings_.A2_series_resistance[0] = 30e4;
-      config_settings_.A2_series_resistance[1] = 3.3e5;
-      config_settings_.A2_series_capacitance[0] = 0;
-      config_settings_.A2_series_capacitance[1] = 0;
-    #endif
     config_settings_.amplifier_gain = amplifier_gain_;
+    config_settings_.switching_board_i2c_address = 0x20;
     SaveConfig();
   }
 

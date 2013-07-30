@@ -302,15 +302,33 @@ class DmfControlBoard(Base, SerialDevice):
             raise
 
     @property
-    def EEPROM_WAVEOUT_GAIN_1_ADDRESS(self):
-        return self.EEPROM_CONFIG_SETTINGS+6
-
-    @property
     def EEPROM_AREF_ADDRESS(self):
         hardware_version = self.hardware_version()
         if hardware_version == '1.0' or \
             hardware_version == '1.1' or \
             hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+6
+        else:
+            raise EepromSettingDoesNotExist()
+
+    @property
+    def EEPROM_SWITCHING_BOARD_I2C_ADDRESS(self):
+        hardware_version = self.hardware_version()
+        if hardware_version == '1.0' or \
+            hardware_version == '1.1' or \
+            hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+7
+        else:
+            return self.EEPROM_CONFIG_SETTINGS+6
+
+    @property
+    def EEPROM_WAVEOUT_GAIN_1_ADDRESS(self):
+        hardware_version = self.hardware_version()
+        if hardware_version == '1.0' or \
+            hardware_version == '1.1' or \
+            hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+8
+        elif hardware_version == '1.3':
             return self.EEPROM_CONFIG_SETTINGS+7
         else:
             raise EepromSettingDoesNotExist()
@@ -321,6 +339,16 @@ class DmfControlBoard(Base, SerialDevice):
         if hardware_version == '1.0' or \
             hardware_version == '1.1' or \
             hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+9
+        elif hardware_version == '1.3':
             return self.EEPROM_CONFIG_SETTINGS+8
         else:
+            raise EepromSettingDoesNotExist()
+    
+    @property
+    def EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS(self):
+        hardware_version = self.hardware_version()
+        if hardware_version >= '2.0':
             return self.EEPROM_CONFIG_SETTINGS+7
+        else:
+            raise EepromSettingDoesNotExist()

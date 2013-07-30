@@ -55,6 +55,9 @@ public:
       uint8_t aref;
     #endif
 
+    /**\brief i2c address of first high-voltage switching board.*/
+    uint8_t switching_board_i2c_address;
+
     #if ___HARDWARE_MAJOR_VERSION___ == 1
       /**\brief This byte sets the maximum output voltage for the waveform
       generator. It should be trimmed so that the output waveform is 4Vp-p when
@@ -74,18 +77,16 @@ public:
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[4];
     #else
+      /**\brief i2c address of first signal generator board.*/
+      uint8_t signal_generator_board_i2c_address;
       /**\brief Series resistor values for channel 0.*/
-      float A0_series_resistance[2];
+      float A0_series_resistance[3];
       /**\brief Series capacitance values for channel 0.*/
-      float A0_series_capacitance[2];
+      float A0_series_capacitance[3];
       /**\brief Series resistor values for channel 1.*/
       float A1_series_resistance[5];
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[5];
-      /**\brief Series resistor values for channel 2.*/
-      float A2_series_resistance[2];
-      /**\brief Series capacitance values for channel 2.*/
-      float A2_series_capacitance[2];
     #endif
 
     /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
@@ -261,7 +262,6 @@ private:
   // D13 SCK
 
   // PCA9505 (gpio) chip/register addresses
-  static const uint8_t PCA9505_ADDRESS_ = 0x20;
   static const uint8_t PCA9505_CONFIG_IO_REGISTER_ = 0x18;
   static const uint8_t PCA9505_OUTPUT_PORT_REGISTER_ = 0x08;
 
@@ -298,9 +298,6 @@ private:
   uint8_t peak_;
   float waveform_voltage_;
   float waveform_frequency_;
-#if ___HARDWARE_MAJOR_VERSION___ > 1
-  uint8_t signal_generator_board_address_;
-#endif
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;
