@@ -80,7 +80,10 @@ public:
 #ifndef AVR
   static const uint32_t TIMEOUT_MILLISECONDS =   1000; // TODO: this should be configurable
 #else
-  static const uint8_t I2C_DELAY = 2; // delay between i2c write/reads
+  static const uint8_t I2C_DELAY = 100; // delay between i2c write/reads
+                                        // in future, we can avoid this by
+                                        // adding interrupts on the
+                                        // communication bus
 #endif
   // EEPROM addresses
   static const uint16_t EEPROM_PIN_MODE_ADDRESS =        0;
@@ -161,6 +164,10 @@ public:
                  const uint8_t n_bytes);
   uint8_t i2c_read(const uint8_t address, uint8_t* data,
                    const uint8_t n_bytes_to_read);
+  uint8_t send_i2c_command(uint8_t address,
+                           uint8_t cmd,
+                           uint8_t* data,
+                           uint8_t delay_ms);
 #else
   virtual std::string host_name() = 0;
   virtual std::string host_software_version() = 0;
@@ -205,6 +212,10 @@ public:
   void i2c_write(uint8_t address, std::vector<uint8_t> data);
   std::vector<uint8_t> i2c_read(uint8_t address,
                                 uint8_t n_bytes_to_read);
+  std::vector<uint8_t> send_i2c_command(uint8_t address,
+                                        uint8_t cmd,
+                                        std::vector<uint8_t> data,
+                                        uint8_t delay_ms);
 
   /**Set the order of the bits shifted out of and into the SPI bus, either
   LSBFIRST (least-significant bit first) or MSBFIRST (most-significant bit

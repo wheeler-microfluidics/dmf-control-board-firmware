@@ -1160,6 +1160,27 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
   return std::vector<uint8_t>();
 }
 
+std::vector<uint8_t> RemoteObject::send_i2c_command(uint8_t address,
+                                                    uint8_t cmd,
+                                                    std::vector<uint8_t> data,
+                                                    uint8_t delay_ms) {
+  const char* function_name = "send_i2c_command()";
+  data.insert(data.begin(), cmd);
+  i2c_write(address, data);
+  boost::this_thread::sleep(boost::posix_time::milliseconds(delay_ms));
+  uint8_t n_bytes = i2c_read(address, 1)[0];
+  std::vector<uint8_t> out = i2c_read(address, n_bytes);
+  uint8_t return_code = out.back();
+  LogMessage(str(format("Return code=%d") % (int)return_code).c_str(),
+             function_name);
+  out.pop_back();
+  if(return_code != RETURN_OK) {
+    throw runtime_error(str(format("Error sending command 0x%0X (%d). "
+        "Return code=%d.") % (int)cmd % (int)cmd % (int)return_code).c_str());
+  }
+  return out;
+}
+
 void RemoteObject::spi_set_bit_order(bool order) {
   const char* function_name = "spi_set_bit_order()";
   LogSeparator();

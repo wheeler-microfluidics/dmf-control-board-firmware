@@ -96,6 +96,7 @@ object DmfControlBoard_class
     .def("onewire_write",&DmfControlBoard::onewire_write)
     .def("i2c_read",&DmfControlBoard::i2c_read)
     .def("i2c_write",&DmfControlBoard::i2c_write)
+    .def("send_i2c_command",&DmfControlBoard::send_i2c_command)
     .def("spi_set_bit_order",&DmfControlBoard::spi_set_bit_order)
     .def("spi_set_clock_divider",&DmfControlBoard::spi_set_clock_divider)
     .def("spi_set_data_mode",&DmfControlBoard::spi_set_data_mode)
