@@ -203,17 +203,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==sizeof(float)+1) {
-            uint8_t n_bytes_read = 0;
-            float vrms;
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              (uint8_t*)&vrms,
-              sizeof(float));
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              &return_code_, 1);
-            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
-              waveform_voltage_ = vrms;
+            uint8_t data[5];
+            i2c_read(config_settings_.signal_generator_board_i2c_address,
+              (uint8_t*)&data[0], 5);
+            return_code_ = data[4];
+            if(return_code_ == RETURN_OK) {
+              memcpy(&waveform_voltage_, &data[0], sizeof(float));
               Serialize(&waveform_voltage_,sizeof(float));
             }
           }
@@ -276,21 +271,16 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         if(Wire.available()) {
           uint8_t n_bytes_to_read = Wire.receive();
           if(n_bytes_to_read==sizeof(float)+1) {
-            uint8_t n_bytes_read = 0;
-            float frequency;
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              (uint8_t*)&frequency,
-              sizeof(float));
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              &return_code_, 1);
-            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
-              waveform_frequency_ = frequency;
-              Serialize(&waveform_frequency_,sizeof(float));
+              uint8_t data[5];
+              i2c_read(config_settings_.signal_generator_board_i2c_address,
+                (uint8_t*)&data[0], 5);
+              return_code_ = data[4];
+              if(return_code_ == RETURN_OK) {
+                memcpy(&waveform_frequency_, &data[0], sizeof(float));
+                Serialize(&waveform_frequency_,sizeof(float));
+              }
             }
           }
-        }
 #endif
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -757,6 +747,7 @@ void DmfControlBoard::begin() {
     pinMode(WAVEFORM_SELECT_, OUTPUT);
   #else
     pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
+    pinMode(A0_SERIES_RESISTOR_1_, OUTPUT);
     pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
     pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
     pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
