@@ -761,7 +761,6 @@ void DmfControlBoard::begin() {
     pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
     pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
     pinMode(A1_SERIES_RESISTOR_3_, OUTPUT);
-    pinMode(A2_SERIES_RESISTOR_0_, OUTPUT);
   #endif
 
   // versions > 1.1 need to pull a pin low to turn on the power supply
@@ -782,40 +781,7 @@ void DmfControlBoard::begin() {
   Serial.print("Firmware version: ");
   Serial.println(software_version());
 
-  // Check how many switching boards are connected.  Each additional board's
-  // address must equal the previous boards address +1 to be valid.
-  number_of_channels_ = 0;
-  for(uint8_t chip=0; chip<8; chip++) {
-    Wire.beginTransmission(
-      config_settings_.switching_board_i2c_address+chip);
-    Wire.send(PCA9505_CONFIG_IO_REGISTER_);
-    Wire.endTransmission();
-    Wire.requestFrom(
-      config_settings_.switching_board_i2c_address+chip,1);
-    if (Wire.available()) {
-      Wire.receive();
-      if(number_of_channels_==40*chip) {
-        number_of_channels_ = 40*(chip+1);
-      }
-      Serial.print("HV board ");
-      Serial.print((int)chip);
-      Serial.println(" connected.");
-      uint8_t data[2];
-      // set all PCA0505 ports in output mode and initialize to ground
-      for(uint8_t port=0; port<5; port++) {
-        data[0] = PCA9505_CONFIG_IO_REGISTER_+port;
-        data[1] = 0x00;
-        i2c_write(config_settings_.switching_board_i2c_address+chip,
-                  data, 2);
-        data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
-        data[1] = 0xFF;
-        i2c_write(config_settings_.switching_board_i2c_address+chip,
-                  data, 2);
-      }
-    }
-  }
-  Serial.print(number_of_channels_);
-  Serial.println(" channels available.");
+  i2c_scan();
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1
     // set waveform (SINE=0, SQUARE=1)
@@ -910,6 +876,41 @@ void DmfControlBoard::begin() {
   Serial.print("amplifier_gain=");
   Serial.println(config_settings_.amplifier_gain);
 
+  // Check how many switching boards are connected.  Each additional board's
+  // address must equal the previous boards address +1 to be valid.
+  number_of_channels_ = 0;
+  for(uint8_t chip=0; chip<8; chip++) {
+    Wire.beginTransmission(
+      config_settings_.switching_board_i2c_address+chip);
+    Wire.send(PCA9505_CONFIG_IO_REGISTER_);
+    Wire.endTransmission();
+    Wire.requestFrom(
+      config_settings_.switching_board_i2c_address+chip,1);
+    if (Wire.available()) {
+      Wire.receive();
+      if(number_of_channels_==40*chip) {
+        number_of_channels_ = 40*(chip+1);
+      }
+      Serial.print("HV board ");
+      Serial.print((int)chip);
+      Serial.println(" connected.");
+      uint8_t data[2];
+      // set all PCA0505 ports in output mode and initialize to ground
+      for(uint8_t port=0; port<5; port++) {
+        data[0] = PCA9505_CONFIG_IO_REGISTER_+port;
+        data[1] = 0x00;
+        i2c_write(config_settings_.switching_board_i2c_address+chip,
+                  data, 2);
+        data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
+        data[1] = 0xFF;
+        i2c_write(config_settings_.switching_board_i2c_address+chip,
+                  data, 2);
+      }
+    }
+  }
+  Serial.print(number_of_channels_);
+  Serial.println(" channels available.");
+
   // set all digital pots
 
   // Versions > 1.2 use the built in 5V AREF
@@ -994,10 +995,22 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
     switch(index) {
       case 0:
         digitalWrite(A0_SERIES_RESISTOR_0_, HIGH);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A0_SERIES_RESISTOR_1_, LOW);
+        #endif
         break;
       case 1:
         digitalWrite(A0_SERIES_RESISTOR_0_, LOW);
+        #if ___HARDWARE_MAJOR_VERSION___ == 2
+          digitalWrite(A0_SERIES_RESISTOR_1_, HIGH);
+        #endif
         break;
+#if ___HARDWARE_MAJOR_VERSION___ == 2
+      case 2:
+        digitalWrite(A0_SERIES_RESISTOR_0_, LOW);
+        digitalWrite(A0_SERIES_RESISTOR_1_, LOW);
+        break;
+#endif
       default:
         return_code = RETURN_BAD_INDEX;
         break;
@@ -1054,23 +1067,6 @@ uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
     if(return_code==RETURN_OK) {
       A1_series_resistor_index_ = index;
     }
-  #if ___HARDWARE_MAJOR_VERSION___ == 2
-  } else if(channel==2) {
-      switch(index) {
-        case 0:
-          digitalWrite(A2_SERIES_RESISTOR_0_, HIGH);
-          break;
-        case 1:
-          digitalWrite(A2_SERIES_RESISTOR_0_, LOW);
-          break;
-        default:
-          return_code = RETURN_BAD_INDEX;
-          break;
-      }
-      if(return_code==RETURN_OK) {
-        A2_series_resistor_index_ = index;
-      }
-  #endif
   } else { // bad channel
     return_code = RETURN_BAD_INDEX;
   }

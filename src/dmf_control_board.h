@@ -240,12 +240,12 @@ private:
     static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
     static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
   #else
-    static const uint8_t A0_SERIES_RESISTOR_0_ = 9;
+    static const uint8_t A0_SERIES_RESISTOR_0_ = 8;
+    static const uint8_t A0_SERIES_RESISTOR_1_ = 9;
     static const uint8_t A1_SERIES_RESISTOR_0_ = 10;
     static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
     static const uint8_t A1_SERIES_RESISTOR_2_ = 12;
     static const uint8_t A1_SERIES_RESISTOR_3_ = 13;
-    static const uint8_t A2_SERIES_RESISTOR_0_ = 8;
   #endif
 
   static const float SAMPLING_RATES_[];
@@ -292,9 +292,6 @@ private:
   uint8_t sampling_rate_index_;
   uint8_t A0_series_resistor_index_;
   uint8_t A1_series_resistor_index_;
-  #if ___HARDWARE_MAJOR_VERSION___ == 2
-    uint8_t A2_series_resistor_index_;
-  #endif
   uint8_t peak_;
   float waveform_voltage_;
   float waveform_frequency_;
