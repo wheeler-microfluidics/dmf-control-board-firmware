@@ -261,11 +261,11 @@ class DmfControlBoard(Base, SerialDevice):
     def i2c_read(self, address, n_bytes_to_read):
         return np.array(Base.i2c_read(self, address, n_bytes_to_read))
 
-    def send_i2c_command(self, address, cmd, data, delay_ms=100):
+    def i2c_send_command(self, address, cmd, data, delay_ms=100):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
             data_.append(int(data[i]))
-        return np.array(Base.send_i2c_command(self, address, cmd, data_,
+        return np.array(Base.i2c_send_command(self, address, cmd, data_,
                                               delay_ms))
 
     def test_connection(self, port):

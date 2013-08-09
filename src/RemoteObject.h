@@ -165,7 +165,7 @@ public:
                  const uint8_t n_bytes);
   uint8_t i2c_read(const uint8_t address, uint8_t* data,
                    const uint8_t n_bytes_to_read);
-  uint8_t send_i2c_command(uint8_t address,
+  uint8_t i2c_send_command(uint8_t address,
                            uint8_t cmd,
                            uint8_t* data,
                            uint8_t delay_ms);
@@ -213,7 +213,7 @@ public:
   void i2c_write(uint8_t address, std::vector<uint8_t> data);
   std::vector<uint8_t> i2c_read(uint8_t address,
                                 uint8_t n_bytes_to_read);
-  std::vector<uint8_t> send_i2c_command(uint8_t address,
+  std::vector<uint8_t> i2c_send_command(uint8_t address,
                                         uint8_t cmd,
                                         std::vector<uint8_t> data,
                                         uint8_t delay_ms);

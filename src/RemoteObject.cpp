@@ -1174,11 +1174,11 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
   return std::vector<uint8_t>();
 }
 
-std::vector<uint8_t> RemoteObject::send_i2c_command(uint8_t address,
+std::vector<uint8_t> RemoteObject::i2c_send_command(uint8_t address,
                                                     uint8_t cmd,
                                                     std::vector<uint8_t> data,
                                                     uint8_t delay_ms) {
-  const char* function_name = "send_i2c_command()";
+  const char* function_name = "i2c_send_command()";
   data.insert(data.begin(), cmd);
   i2c_write(address, data);
   boost::this_thread::sleep(boost::posix_time::milliseconds(delay_ms));
