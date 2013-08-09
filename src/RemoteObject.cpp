@@ -776,6 +776,20 @@ void RemoteObject::begin() {
   SPI.begin();
 }
 
+void RemoteObject::i2c_scan() {
+  for(uint8_t i=8; i<120; i++) {
+    Wire.beginTransmission(i);
+    if(Wire.endTransmission() == 0) {
+      Serial.print ("Found i2c address: ");
+      Serial.print (i, DEC);
+      Serial.print (" (0x");
+      Serial.print (i, HEX);
+      Serial.println (")");
+      delay (1);  // maybe unneeded?
+    }
+  }
+}
+
 void RemoteObject::i2c_write(const uint8_t address, const uint8_t data) {
   Wire.beginTransmission(address);
   Wire.send(data);

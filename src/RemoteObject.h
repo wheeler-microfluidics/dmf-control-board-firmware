@@ -148,6 +148,7 @@ public:
 
 #ifdef AVR
   virtual void begin();
+  void i2c_scan();
 
   // These methods force the derived class to define functions that
   // return the following attributes:
