@@ -231,7 +231,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         }
         return_code_ = RETURN_OK;
 #else
-        float vrms = ReadFloat();
+        waveform_voltage_ = ReadFloat();
+        float vrms = waveform_voltage_/amplifier_gain_;
         uint8_t data[5];
         data[0] = cmd;
         memcpy(&data[1], &vrms, sizeof(float));
@@ -248,9 +249,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               config_settings_.signal_generator_board_i2c_address,
               (uint8_t*)&return_code_,
               sizeof(return_code_));
-            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
-              waveform_voltage_ = vrms;
-            }
           }
         }
 #endif
@@ -311,10 +309,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           return_code_ = RETURN_OK;
         }
 #else
-        float frequency = ReadFloat();
+        waveform_frequency_ = ReadFloat();
         uint8_t data[5];
         data[0] = cmd;
-        memcpy(&data[1], &frequency, sizeof(float));
+        memcpy(&data[1], &waveform_frequency_, sizeof(float));
         i2c_write(config_settings_.signal_generator_board_i2c_address,
                   data, 5);
         delay(I2C_DELAY);
@@ -328,9 +326,6 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               config_settings_.signal_generator_board_i2c_address,
               (uint8_t*)&return_code_,
               sizeof(return_code_));
-            if(n_bytes_read == n_bytes_to_read && return_code_ == RETURN_OK) {
-              waveform_frequency_ = frequency;
-            }
           }
         }
 #endif
