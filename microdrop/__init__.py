@@ -298,6 +298,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                           "edit calibration settings.")
             return
 
+        hardware_version = utility.Version.fromstring(
+            self.control_board.hardware_version())
+
         schema_entries = []
         settings = {}
         settings['amplifier_gain'] = self.control_board.amplifier_gain()
@@ -312,22 +315,42 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             Boolean.named('auto_adjust_amplifier_gain').using(
                 default=settings['auto_adjust_amplifier_gain'], optional=True),
         )
-        settings['WAVEOUT_GAIN_1'] = self.control_board \
-            .eeprom_read(self.control_board.EEPROM_WAVEOUT_GAIN_1_ADDRESS)
-        schema_entries.append(
-            Integer.named('WAVEOUT_GAIN_1').using(
-                default=settings['WAVEOUT_GAIN_1'], optional=True,
-                validators=[ValueAtLeast(minimum=0),
-                            ValueAtMost(maximum=255),]),
-        )
-        settings['VGND'] = self.control_board \
-            .eeprom_read(self.control_board.EEPROM_VGND_ADDRESS)
-        schema_entries.append(
-            Integer.named('VGND').using(
-                default=settings['VGND'], optional=True,
-                validators=[ValueAtLeast(minimum=0),
-                            ValueAtMost(maximum=255),]),
-        )
+        
+        if hardware_version.major == 1:        
+            settings['WAVEOUT_GAIN_1'] = self.control_board \
+                .eeprom_read(self.control_board.EEPROM_WAVEOUT_GAIN_1_ADDRESS)
+            schema_entries.append(
+                Integer.named('WAVEOUT_GAIN_1').using(
+                    default=settings['WAVEOUT_GAIN_1'], optional=True,
+                    validators=[ValueAtLeast(minimum=0),
+                                ValueAtMost(maximum=255),]),
+            )
+            settings['VGND'] = self.control_board \
+                .eeprom_read(self.control_board.EEPROM_VGND_ADDRESS)
+            schema_entries.append(
+                Integer.named('VGND').using(
+                    default=settings['VGND'], optional=True,
+                    validators=[ValueAtLeast(minimum=0),
+                                ValueAtMost(maximum=255),]),
+            )
+        else:
+            settings['EEPROM_SWITCHING_BOARD_I2C_ADDRESS'] = self.control_board \
+                .eeprom_read(self.control_board.EEPROM_SWITCHING_BOARD_I2C_ADDRESS)
+            schema_entries.append(
+                Integer.named('EEPROM_SWITCHING_BOARD_I2C_ADDRESS').using(
+                    default=settings['EEPROM_SWITCHING_BOARD_I2C_ADDRESS'], optional=True,
+                    validators=[ValueAtLeast(minimum=0),
+                                ValueAtMost(maximum=255),]),
+            )
+            settings['EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'] = self.control_board \
+                .eeprom_read(self.control_board.EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS)
+            schema_entries.append(
+                Integer.named('EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS').using(
+                    default=settings['EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'], optional=True,
+                    validators=[ValueAtLeast(minimum=0),
+                                ValueAtMost(maximum=255),]),
+            )
+            
         for i in range(len(self.control_board.calibration.R_hv)):
             settings['R_hv_%d' % i] = self.control_board.calibration.R_hv[i]
             schema_entries.append(
@@ -370,6 +393,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     elif k=='VGND':
                         self.control_board.eeprom_write(
                             self.control_board.EEPROM_VGND_ADDRESS, v)
+                    elif k=='EEPROM_SWITCHING_BOARD_I2C_ADDRESS':
+                        self.control_board.eeprom_write(
+                            self.control_board.EEPROM_SWITCHING_BOARD_I2C_ADDRESS, v)
+                    elif k=='EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS':
+                        self.control_board.eeprom_write(
+                            self.control_board.EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS, v)
                     elif m:
                         series_resistor = int(m.group(3))
                         if m.group(2)=='hv':
