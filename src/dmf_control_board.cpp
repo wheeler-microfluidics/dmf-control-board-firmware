@@ -220,40 +220,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(float)) {
-        float output_voltage = ReadFloat();
-#if ___HARDWARE_MAJOR_VERSION___ == 1
-        float step = output_voltage/amplifier_gain_*2*sqrt(2)/4*255;
-        if(output_voltage<0 || step>255) {
-          return_code_ = RETURN_BAD_VALUE;
-        } else {
-          waveform_voltage_ = output_voltage;
-          SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
-          return_code_ = RETURN_OK;
-        }
-#else
-        float signal_voltage = output_voltage/amplifier_gain_;
-        uint8_t data[5];
-        data[0] = cmd;
-        memcpy(&data[1], &signal_voltage, sizeof(float));
-        i2c_write(config_settings_.signal_generator_board_i2c_address,
-                  data, 5);
-        delay(I2C_DELAY);
-        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
-                         (uint8_t)1);
-        if(Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.receive();
-          if(n_bytes_to_read==1) {
-            uint8_t n_bytes_read = 0;
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              (uint8_t*)&return_code_,
-              sizeof(return_code_));
-            if(return_code_==RETURN_OK) {
-              waveform_voltage_ = output_voltage;
-            }
-          }
-        }
-#endif
+        return_code_ = SetWaveformVoltage(ReadFloat());
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -558,12 +525,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           // sample the feedback voltage
           for(uint16_t i=0; i<n_samples; i++) {
             uint16_t hv_max = 0;
-            uint16_t hv_min = 1024;
+            uint16_t hv_min = 1023;
             uint16_t hv = 0;
             int16_t hv_pk_pk;
             int8_t hv_resistor = A0_series_resistor_index_;
             uint16_t fb_max = 0;
-            uint16_t fb_min = 1024;
+            uint16_t fb_min = 1023;
             uint16_t fb = 0;
             int16_t fb_pk_pk;
             int8_t fb_resistor = A1_series_resistor_index_;
@@ -581,7 +548,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                     SetSeriesResistor(0, \
                       A0_series_resistor_index_-1);
                     hv_max = 0;
-                    hv_min = 1024;
+                    hv_min = 1023;
                   } else {
                     hv_resistor = -1;
                   }
@@ -607,7 +574,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                     SetSeriesResistor(1,
                       A1_series_resistor_index_-1);
                     fb_max = 0;
-                    fb_min = 1024;
+                    fb_min = 1023;
                   } else {
                     fb_resistor = -1;
                   }
@@ -627,7 +594,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid feedback sample during the sampling
             // time, return -1 as the index
-            if(fb_max==0 || fb_min==1024 && fb_resistor != -1) {
+            if(fb_max==0 || fb_min==1023 && fb_resistor != -1) {
               fb_resistor = -1;
             } else {
               fb_resistor = A1_series_resistor_index_;
@@ -635,7 +602,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid high voltage sample during the
             // sampling time, return -1 as the index
-            if(hv_max==0 || hv_min==1024 && hv_resistor != -1) {
+            if(hv_max==0 || hv_min==1023 && hv_resistor != -1) {
               hv_resistor = -1;
             } else {
               // adjust amplifier gain (only if the hv resistor is the same
@@ -645,19 +612,27 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   hv_resistor==A0_series_resistor_index_) {
                 float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
                 float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+#if ___HARDWARE_MAJOR_VERSION___ == 1
                 float V_fb;
-                if(fb_resistor==-1) {
+                if(fb_resistor==-1 || fb_pk_pk<0) {
                   V_fb = 0;
                 } else {
-                  V_fb = fb_pk_pk*5.0/1024/sqrt(2)/2;
+                  V_fb = fb_pk_pk*5.0/1023/sqrt(2)/2;
                 }
-
                 amplifier_gain_ =
-                    (hv_pk_pk*5.0/1024.0/sqrt(2)/2) / // measured Vrms /
-                    (R/sqrt(pow(10e6+R, 2)+       // transfer function /
-                        pow(10e6*R*C*2*M_PI*waveform_frequency_, 2)))/
+                    (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
+                    (1/sqrt(pow(10e6/R+1, 2)+         // transfer function /
+                        pow(10e6*C*2*M_PI*waveform_frequency_, 2)))/
                     ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
                     amplifier_gain_);             // previous gain setting)
+#else
+                amplifier_gain_ =
+                    (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
+                    (1/sqrt(pow(10e6/R, 2)+           // transfer function /
+                        pow(10e6*C*2*M_PI*waveform_frequency_, 2)))/
+                    (waveform_voltage_/      // (set voltage) /
+                    amplifier_gain_);        // previous gain setting)
+#endif
 
                 // enforce minimum gain of 1 because if gain goes to zero,
                 // it cannot be adjusted further
@@ -665,16 +640,14 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   amplifier_gain_=1;
                 }
 
+#if ___HARDWARE_MAJOR_VERSION___ == 1
                 // update output voltage (accounting for amplifier gain and
                 // for the voltage drop across the feedback resistor)
-                float step = (waveform_voltage_+V_fb)/amplifier_gain_*2*
-                    sqrt(2)/4*255;
-                // 255 is maximum for pot
-                if(step>255) {
-                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
-                } else {
-                  SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
-                }
+                SetWaveformVoltage(waveform_voltage_+V_fb);
+#else
+                // update output voltage (but don't wait for i2c response)
+                SetWaveformVoltage(waveform_voltage_, false);
+#endif
               }
               hv_resistor = A0_series_resistor_index_;
             }
@@ -1210,6 +1183,50 @@ void DmfControlBoard::SaveConfig() {
   }
 }
 
+uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
+                                            const bool wait_for_reply) {
+  uint8_t return_code;
+#if ___HARDWARE_MAJOR_VERSION___ == 1
+  float step = output_vrms/amplifier_gain_*2*sqrt(2)/4*255;
+  if(output_vrms<0 || step>255) {
+    return_code = RETURN_BAD_VALUE;
+  } else {
+    waveform_voltage_ = output_vrms;
+    SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
+    return_code = RETURN_OK;
+  }
+#else
+  float vrms = output_vrms/amplifier_gain_;
+  uint8_t data[5];
+  data[0] = CMD_SET_WAVEFORM_VOLTAGE;
+  memcpy(&data[1], &vrms, sizeof(float));
+  i2c_write(config_settings_.signal_generator_board_i2c_address,
+            data, 5);
+  if(wait_for_reply) {
+    delay(I2C_DELAY);
+    Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                     (uint8_t)1);
+    if(Wire.available()) {
+      uint8_t n_bytes_to_read = Wire.receive();
+      if(n_bytes_to_read==1) {
+        uint8_t n_bytes_read = 0;
+        n_bytes_read += i2c_read(
+          config_settings_.signal_generator_board_i2c_address,
+          (uint8_t*)&return_code,
+          sizeof(return_code));
+        if(return_code==RETURN_OK) {
+          waveform_voltage_ = output_vrms;
+        }
+      }
+    }
+  } else {
+    waveform_voltage_ = output_vrms;
+    return_code = RETURN_OK;
+  }
+#endif
+  return return_code;
+}
+
 #else
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1650,9 +1667,9 @@ std::vector<float> DmfControlBoard::GetImpedanceData() {
       function_name);
     std::vector<float> impedance_buffer(4*n_samples);
     for(uint16_t i=0; i<n_samples; i++) {
-      impedance_buffer[4*i] = (float)ReadInt16()*5.0/1024/sqrt(2)/2;   // V_hv
+      impedance_buffer[4*i] = (float)ReadInt16()*5.0/1023/sqrt(2)/2;   // V_hv
       impedance_buffer[4*i+1] = ReadInt8(); // hv_resistor
-      impedance_buffer[4*i+2] = (float)ReadInt16()*5.0/1024/sqrt(2)/2; // V_fb
+      impedance_buffer[4*i+2] = (float)ReadInt16()*5.0/1023/sqrt(2)/2; // V_fb
       impedance_buffer[4*i+3] = ReadInt8(); // fb_resistor
     }
     LogMessage(str(format("payload_length()=%d") % payload_length()).c_str(),

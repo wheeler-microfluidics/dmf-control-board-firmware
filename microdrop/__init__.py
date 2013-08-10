@@ -477,7 +477,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             if abs(impedance.V_actuation()[-1]-voltage) > \
                 app_values['voltage_tolerance']:
                 # allow maximum of 5 adjustment attempts
-                if self.n_voltage_adjustments and self.n_voltage_adjustments<5:
+                if self.n_voltage_adjustments is not None and \
+                self.n_voltage_adjustments<5:
                     logger.info('\tn_voltage_adjustments=%d' % \
                                 self.n_voltage_adjustments)
                     emit_signal("set_voltage", voltage,

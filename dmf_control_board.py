@@ -41,10 +41,10 @@ class EepromSettingDoesNotExist(Exception):
 
 
 class FeedbackCalibration():
-    class_version = str(Version(0,1))
+    class_version = str(Version(0,2))
     
     def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None, C_drop=None,
-                 C_filler=None):
+                 C_filler=None, hw_version=None):
         if R_hv:
             self.R_hv = np.array(R_hv)
         else:
@@ -69,6 +69,10 @@ class FeedbackCalibration():
             self.C_filler = C_filler
         else:
             self.C_filler = None
+        if hw_version:
+            self.hw_version = hw_version;
+        else:
+            self.hw_version = Version(1)
         self.version = self.class_version
         
     def __getstate__(self):
@@ -110,6 +114,9 @@ class FeedbackCalibration():
                 self.C_filler = None
                 self.C_drop = None
                 self.version = str(Version(0,1))
+            if version < Version(0,2):
+                self.hw_version = Version(1)
+                self.version = str(Version(0,2))
                 logging.info('[FeedbackCalibration] upgrade to version %s' \
                              % self.version)
         # else the versions are equal and don't need to be upgraded

@@ -70,10 +70,12 @@ class AmplifierGainNotCalibrated(Exception):
     pass
 
 
-def feedback_signal(p, frequency, Z):
+def feedback_signal(p, frequency, Z, hw_version):
     """p[0]=C, p[1]=R"""
-    return np.abs(p[1]/(Z+p[1]+Z*p[1]*2*np.pi*p[0]*complex(0,1)*frequency))
-
+    if hw_version.major==1:
+        return np.abs(1/(Z/p[1]+1+Z*2*np.pi*p[0]*complex(0,1)*frequency))
+    else:
+        return np.abs(1/(Z/p[1]+Z*2*np.pi*p[0]*complex(0,1)*frequency))
 
 class RetryAction():
     class_version = str(Version(0,1))
@@ -931,11 +933,14 @@ class FeedbackResults():
         T = np.zeros(self.hv_resistor.shape)
         T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
                              self.calibration.R_hv[self.hv_resistor[ind]]],
-                            self.frequency, 10e6)
+                            self.frequency, 10e6, self.calibration.hw_version)
         return self.V_hv/T
 
     def V_actuation(self):
-        return self.V_total()-np.array(self.V_fb)
+        if self.calibration.hw_version.major == 1:
+            return self.V_total()-np.array(self.V_fb)
+        else:
+            return self.V_total()
 
     def Z_device(self):
         ind = mlab.find(self.fb_resistor!=-1)
@@ -943,8 +948,12 @@ class FeedbackResults():
         C_fb = np.zeros(self.fb_resistor.shape)
         R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
         C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
-        return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
-            (self.V_total()/self.V_fb - 1)
+        if self.calibration.hw_version.major == 1:
+            return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
+                (self.V_total()/self.V_fb - 1)
+        else:
+            return R_fb/np.sqrt(1+np.square(R_fb*C_fb*self.frequency*2*math.pi))* \
+                (self.V_total()/self.V_fb)
         
     def min_impedance(self):
         return min(self.Z_device())
@@ -1093,12 +1102,16 @@ class SweepFrequencyResults():
             C_hv = np.zeros(hv_resistor.shape)
             R_hv[ind] = self.calibration.R_hv[hv_resistor[ind]]
             C_hv[ind] = self.calibration.C_hv[hv_resistor[ind]]
-            T = feedback_signal([C_hv, R_hv], self.frequency[i], 10e6)
+            T = feedback_signal([C_hv, R_hv], self.frequency[i],
+                                10e6, self.calibration.hw_version)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
     def V_actuation(self):
-        return self.V_total()-np.array(self.V_fb)
+        if self.calibration.hw_version.major == 1:
+            return self.V_total()-np.array(self.V_fb)
+        else:
+            return self.V_total()
 
     def Z_device(self):
         Z = []
@@ -1110,8 +1123,14 @@ class SweepFrequencyResults():
             C_fb = np.zeros(fb_resistor.shape)
             R_fb[ind] = self.calibration.R_fb[fb_resistor[ind]]
             C_fb[ind] = self.calibration.C_fb[fb_resistor[ind]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
-                     self.frequency[i]*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
+            if self.calibration.hw_version.major == 1:
+                Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
+                         self.frequency[i]*2*math.pi))* \
+                         (V_total[i]/self.V_fb[i]-1))
+            else:
+                Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
+                         self.frequency[i]*2*math.pi))* \
+                         (V_total[i]/self.V_fb[i]))
         return Z
     
     def capacitance(self):
@@ -1210,12 +1229,16 @@ class SweepVoltageResults():
             C_hv = np.zeros(hv_resistor.shape)
             R_hv[ind] = self.calibration.R_hv[hv_resistor[ind]]
             C_hv[ind] = self.calibration.C_hv[hv_resistor[ind]]
-            T = feedback_signal([C_hv, R_hv], self.frequency, 10e6)
+            T = feedback_signal([C_hv, R_hv], self.frequency,
+                                10e6, self.calibration.hw_version)
             V.append(np.array(self.V_hv[i])/T)
         return V
 
     def V_actuation(self):
-        return self.V_total()-np.array(self.V_fb)
+        if self.calibration.hw_version.major == 1:
+            return self.V_total()-np.array(self.V_fb)
+        else:
+            return self.V_total()
 
     def Z_device(self):
         Z = []
@@ -1227,8 +1250,14 @@ class SweepVoltageResults():
             C_fb = np.zeros(fb_resistor.shape)
             R_fb[ind] = self.calibration.R_fb[fb_resistor[ind]]
             C_fb[ind] = self.calibration.C_fb[fb_resistor[ind]]
-            Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
-                     self.frequency*2*math.pi))*(V_total[i]/self.V_fb[i]-1))
+            if self.calibration.hw_version.major == 1:
+                Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
+                         self.frequency*2*math.pi))* \
+                         (V_total[i]/self.V_fb[i]-1))
+            else:
+                Z.append(R_fb/np.sqrt(1+np.square(R_fb*C_fb* \
+                         self.frequency*2*math.pi))* \
+                         (V_total[i]/self.V_fb[i]))
         return Z
 
     def capacitance(self):
@@ -2132,28 +2161,23 @@ class FeedbackCalibrationController():
 
         # fit parameters
         C_device = response['C_device_pF']*1e-12
-        p0 = np.array([calibration.R_fb[0],
-                       calibration.R_fb[1],
-                       calibration.R_fb[2],
-                       calibration.R_fb[3],
-                       calibration.C_fb[0],
-                       calibration.C_fb[1],
-                       calibration.C_fb[2],
-                       calibration.C_fb[3],
-        ])
+        p0 = np.concatenate((calibration.R_fb, calibration.C_fb))
 
         def e(p0, V_hv, V_fb, frequencies, C):
-            R_fb = np.concatenate((p0[0]*np.ones([V_fb.shape[0], 1]),
-                                   p0[1]*np.ones([V_fb.shape[0], 1]),
-                                   p0[2]*np.ones([V_fb.shape[0], 1]),
-                                   p0[3]*np.ones([V_fb.shape[0], 1])), 1)
-            C_fb = np.concatenate((p0[4]*np.ones([V_fb.shape[0], 1]),
-                                   p0[5]*np.ones([V_fb.shape[0], 1]),
-                                   p0[6]*np.ones([V_fb.shape[0], 1]),
-                                   p0[7]*np.ones([V_fb.shape[0], 1])), 1)
+            R_fb = []
+            for i in range(0, len(p0)/2):
+                R_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
+            R_fb = np.array(R_fb).transpose()
+            C_fb = []
+            for i in range(len(p0)/2, len(p0)):
+                C_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
+            C_fb = np.array(C_fb).transpose()
             f = np.tile(np.reshape(frequencies, (len(frequencies), 1)),
                         (1, V_fb.shape[1]))
-            error = V_fb-V_hv*R_fb*C*2*np.pi*f/np.sqrt(1+np.square(2*np.pi*R_fb*(C_fb+C)*f))
+            if calibration.hw_version.major == 1:
+                error = V_fb-V_hv*R_fb*C*2*np.pi*f/np.sqrt(1+np.square(2*np.pi*R_fb*(C_fb+C)*f))
+            else:
+                error = V_fb-V_hv*R_fb*C*2*np.pi*f/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))
             return error.flatten()[mlab.find(np.logical_and(V_hv.flatten(), V_fb.flatten()))]
 
         p1, cov_x, infodict, mesg, ier = optimize.leastsq(
@@ -2240,7 +2264,7 @@ class FeedbackCalibrationController():
 
         canvas, a = self.create_plot('V_fb/V_hv')
         legend = []
-        colors = ['b','r','c','m']
+        colors = ['b','r','c','m','g']
         for i in range(Z_1.shape[1]):
             ind = mlab.find(np.logical_and(V_hv[:, i], V_fb[:, i]))
             if len(ind):
@@ -2265,18 +2289,20 @@ class FeedbackCalibrationController():
         self.plugin.control_board.connect()
         
     def device_impedance(self, p0, V_hv, V_fb, frequencies):
-        R_fb = np.concatenate((p0[0]*np.ones([V_fb.shape[0], 1]),
-                               p0[1]*np.ones([V_fb.shape[0], 1]),
-                               p0[2]*np.ones([V_fb.shape[0], 1]),
-                               p0[3]*np.ones([V_fb.shape[0], 1])), 1)
-        C_fb = np.concatenate((p0[4]*np.ones([V_fb.shape[0], 1]),
-                               p0[5]*np.ones([V_fb.shape[0], 1]),
-                               p0[6]*np.ones([V_fb.shape[0], 1]),
-                               p0[7]*np.ones([V_fb.shape[0], 1])), 1)
+        R_fb = []
+        for i in range(0, len(p0)/2):
+            R_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
+        R_fb = np.array(R_fb).transpose()
+        C_fb = []
+        for i in range(len(p0)/2, len(p0)):
+            C_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
+        C_fb = np.array(C_fb).transpose()
         f = np.tile(np.reshape(frequencies, (len(frequencies), 1)),
                     (1, V_fb.shape[1]))
-
-        return R_fb/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))*(V_hv/V_fb-1)
+        if self.plugin.control_board.calibration.hw_version.major == 1:
+            return R_fb/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))*(V_hv/V_fb-1)
+        else:
+            return R_fb/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))*(V_hv/V_fb)
 
     def process_hv_calibration(self, results):
         hardware_version = utility.Version.fromstring(

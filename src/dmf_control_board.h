@@ -223,9 +223,11 @@ private:
     static const uint8_t POT_INDEX_AREF_ = 0;
   #endif
 
-  static const uint8_t POT_INDEX_VGND_ = 1;
-  static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
-  static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    static const uint8_t POT_INDEX_VGND_ = 1;
+    static const uint8_t POT_INDEX_WAVEOUT_GAIN_1_ = 2;
+    static const uint8_t POT_INDEX_WAVEOUT_GAIN_2_ = 3;
+  #endif
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
     static const uint8_t PWR_SUPPLY_ON_ = 8;
@@ -284,6 +286,8 @@ private:
   void LoadConfig(bool use_defaults=false);
   void SaveConfig();
   version_t ConfigVersion();
+  uint8_t SetWaveformVoltage(const float output_vrms,
+                             const bool wait_for_reply=true);
 #endif
 
   //private members
