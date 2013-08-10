@@ -220,22 +220,21 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SET_WAVEFORM_VOLTAGE:
       if(payload_length()==sizeof(float)) {
+        float output_voltage = ReadFloat();
 #if ___HARDWARE_MAJOR_VERSION___ == 1
-        waveform_voltage_ = ReadFloat();
-        float step = waveform_voltage_/amplifier_gain_*2*sqrt(2)/4*255;
-        // 255 is maximum for pot
-        if(step>255) {
-          SetPot(POT_INDEX_WAVEOUT_GAIN_2_, 255);
+        float step = output_voltage/amplifier_gain_*2*sqrt(2)/4*255;
+        if(output_voltage<0 || step>255) {
+          return_code_ = RETURN_BAD_VALUE;
         } else {
+          waveform_voltage_ = output_voltage;
           SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
+          return_code_ = RETURN_OK;
         }
-        return_code_ = RETURN_OK;
 #else
-        waveform_voltage_ = ReadFloat();
-        float vrms = waveform_voltage_/amplifier_gain_;
+        float signal_voltage = output_voltage_/amplifier_gain_;
         uint8_t data[5];
         data[0] = cmd;
-        memcpy(&data[1], &vrms, sizeof(float));
+        memcpy(&data[1], &signal_voltage, sizeof(float));
         i2c_write(config_settings_.signal_generator_board_i2c_address,
                   data, 5);
         delay(I2C_DELAY);
@@ -249,6 +248,9 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               config_settings_.signal_generator_board_i2c_address,
               (uint8_t*)&return_code_,
               sizeof(return_code_));
+            if(return_code_==RETURN_OK) {
+              waveform_voltage_ = output_voltage;
+            }
           }
         }
 #endif
