@@ -1993,8 +1993,8 @@ class FeedbackCalibrationController():
         hv_measurements = np.zeros([n_attenuation_steps,
                                     len(frequencies),                                    
                                     n_samples])
-        
-        self.plugin.control_board.set_amplifier_gain(1.0)        
+        gain = self.plugin.control_board.amplifier_gain()
+        self.plugin.control_board.set_amplifier_gain(1.0)
 
         for i in range(0, n_attenuation_steps):
             self.plugin.control_board.set_series_resistor_index(0,i)
@@ -2048,6 +2048,8 @@ class FeedbackCalibrationController():
                 hv_measurements[i,j,:] = self.plugin.control_board. \
                     analog_reads(0, n_samples)
 
+        # reset amplifier gain to previous value
+        self.plugin.control_board.set_amplifier_gain(gain)
 
         results = dict(input_voltage=input_voltage.tolist(),
                        frequencies = frequencies.tolist(), 

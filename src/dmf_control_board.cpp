@@ -231,7 +231,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           return_code_ = RETURN_OK;
         }
 #else
-        float signal_voltage = output_voltage_/amplifier_gain_;
+        float signal_voltage = output_voltage/amplifier_gain_;
         uint8_t data[5];
         data[0] = cmd;
         memcpy(&data[1], &signal_voltage, sizeof(float));
