@@ -2277,6 +2277,9 @@ class FeedbackCalibrationController():
         return R_fb/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))*(V_hv/V_fb-1)
 
     def process_hv_calibration(self, results):
+        hardware_version = utility.Version.fromstring(
+            self.plugin.control_board.hardware_version()
+        )
         input_voltage = np.array(results['input_voltage'])
         frequencies = np.array(results['frequencies'])
         hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
@@ -2292,12 +2295,14 @@ class FeedbackCalibrationController():
 
         # p[0]=C, p[1]=R2
         R1=10e6
-        f = lambda p, x, R1: np.abs(p[1]/(R1+p[1]+R1*p[1]*2*np.pi*p[0]*complex(0,1)*x))
+        f = lambda p, x, R1: np.abs(1/(R1/p[1]+1+R1*2*np.pi*p[0]*complex(0,1)*x))
+        if hardware_version.major == 2:
+            f = lambda p, x, R1: np.abs(1/(R1/p[1]+R1*2*np.pi*p[0]*complex(0,1)*x))
         e = lambda p, x, y, R1: f(p, x, R1) - y
         fit_params = []
     
         canvas, a = self.create_plot('HV attenuation')
-        colors = ['b', 'r']
+        colors = ['b', 'r', 'g']
         legend = []
         for i in range(0, np.size(hv_rms,0)):
             ind = mlab.find(hv_rms[i,:]>.1)
@@ -2305,7 +2310,7 @@ class FeedbackCalibrationController():
                   self.plugin.control_board.calibration.R_hv[i]
             ]
             a.loglog(frequencies[ind], f(p0, frequencies[ind], R1), colors[i]+'--')
-            legend.append('Ch%d, previous fit' % i)
+            legend.append('R$_{%d}$ (previous fit)' % i)
 
             if 'voltages' in results:
                 voltages = np.array(results['voltages'])
@@ -2313,21 +2318,21 @@ class FeedbackCalibrationController():
                 p1, success = optimize.leastsq(e, p0, args=(frequencies[ind], T, R1))
                 fit_params.append(p1)
                 a.loglog(frequencies[ind], f(p1, frequencies[ind], R1), colors[i]+'-')
-                legend.append('Ch%d, new fit' % i)
+                legend.append('R$_{%d}$ (new fit)' % i)
 
                 a.plot(frequencies, attenuation[i], colors[i]+'o')
-                legend.append('Ch%d, oscilloscope measurements' % i)
+                legend.append('R$_{%d}$ (scope measurements)' % i)
 
                 # update control board calibration
                 self.plugin.control_board.set_series_resistor_index(0,i)
                 self.plugin.control_board.set_series_resistance(0, p1[1])
-                self.plugin.control_board.set_series_capacitance(0, p1[0])
+                self.plugin.control_board.set_series_capacitance(0, abs(p1[0]))
                 # reconnnect to update calibration data
                 self.plugin.control_board.connect()
-            else:
+            else: # control board measurements
                 fit_params.append(p0)
                 a.plot(frequencies, attenuation[i], colors[i]+'o')
-                legend.append('Ch%d, CB measurements' % i)
+                legend.append('R$_{%d}$ (CB measurements)' % i)
                 
         a.legend(legend)
         a.set_xlabel('Frequency (Hz)')
