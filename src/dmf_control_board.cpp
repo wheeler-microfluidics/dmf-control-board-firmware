@@ -209,6 +209,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             return_code_ = data[4];
             if(return_code_ == RETURN_OK) {
               memcpy(&waveform_voltage_, &data[0], sizeof(float));
+              waveform_voltage_*=amplifier_gain_;
               Serialize(&waveform_voltage_,sizeof(float));
             }
           }
