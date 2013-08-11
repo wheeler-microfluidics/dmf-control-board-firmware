@@ -1775,8 +1775,8 @@ class FeedbackCalibrationController():
 
         def get_field_value(name, multiplier=1):
             try:
-                print 'response[%s]=' % name, response[name]
-                print 'settings[%s]=' % name, settings[name]
+                logger.debug('response[%s]=' % name, response[name])
+                logger.debug('settings[%s]=' % name, settings[name])
                 if response[name] and \
                     (settings[name] is None or abs(float(response[name])/multiplier-settings[name])/ \
                     settings[name] > .0001):
@@ -2176,18 +2176,21 @@ class FeedbackCalibrationController():
             args=(V_hv, V_fb, frequencies, C_device),
             full_output=True
         )
-        p1 = abs(p1)
+        p1 = np.abs(p1)
         
-        print "p0=", p0
-        print "SOS before=", np.sum(e(p0, V_hv, V_fb, frequencies, C_device)**2)
-
-        print "p1=", p1, mesg, ier
-        print "SOS after=", np.sum(e(p1, V_hv, V_fb, frequencies, C_device)**2)
-        print "diff=", p1-p0
+        logger.info("p0=%s" % p0)
+        logger.info("SOS before=%s" % np.sum(e(p0, V_hv, V_fb, frequencies, C_device)**2))
+        logger.info("p1=%s" % p1)
+        logger.info(mesg)
+        logger.info("SOS after=%s" % np.sum(e(p1, V_hv, V_fb, frequencies, C_device)**2))
+        logger.info("diff=%s" % (p1-p0))
         
         canvas, a = self.create_plot('residuals')
         legend = []
         a.plot(e(p1, V_hv, V_fb, frequencies, C_device), 'o')
+        a.set_xlabel('data point')
+        a.set_ylabel('residual')
+        a.set_title('Residuals from fit')
         canvas.draw()
 
         Z_0 = self.device_impedance(p0, V_hv, V_fb, frequencies)
@@ -2200,6 +2203,9 @@ class FeedbackCalibrationController():
                 legend.append("R$_{fb,%d}$" % i)
                 a.semilogx(frequencies[ind], V_hv[ind, i], 'o')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('V$_{hv}$ (V$_{RMS}$)')
+        a.set_title('V$_{hv}$')
         canvas.draw()
 
         canvas, a = self.create_plot('V_fb')
@@ -2210,6 +2216,9 @@ class FeedbackCalibrationController():
                 legend.append("R$_{fb,%d}$" % i)
                 a.semilogx(frequencies[ind], V_fb[ind, i], 'o')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('V$_{fb}$ (V$_{RMS}$)')
+        a.set_title('V$_{fb}$')
         canvas.draw()
 
         canvas, a = self.create_plot('Device impedance')
@@ -2221,6 +2230,9 @@ class FeedbackCalibrationController():
                 a.loglog(frequencies[ind], Z_0[ind, i], 'o')
         a.plot(frequencies, 1/(2*np.pi*C_device*frequencies), 'k--')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Z$_{device}$ ($\Omega$)')
+        a.set_title('Z$_{device}$')
         canvas.draw()
 
         canvas, a = self.create_plot('Device capacitance')
@@ -2229,9 +2241,12 @@ class FeedbackCalibrationController():
             ind = mlab.find(np.logical_and(V_hv[:, i], V_fb[:, i]))
             if len(ind):
                 legend.append("R$_{fb,%d}$" % i)
-                a.semilogx(frequencies[ind], 1/(Z_0[ind, i]*frequencies[ind]*2*np.pi), 'o')
+                a.semilogx(frequencies[ind], 1e12/(Z_0[ind, i]*frequencies[ind]*2*np.pi), 'o')
         a.plot(frequencies, C_device*np.ones(frequencies.shape), 'k--')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('C$_{device}$ (pF)')
+        a.set_title('C$_{device}$')
         canvas.draw()
 
         Z_1 = self.device_impedance(p1, V_hv, V_fb, frequencies)
@@ -2245,6 +2260,9 @@ class FeedbackCalibrationController():
                 a.loglog(frequencies[ind], Z_1[ind, i], 'o')
         a.plot(frequencies, 1/(2*np.pi*C_device*frequencies), 'k--')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('Z$_{device}$ ($\Omega$)')
+        a.set_title('Z$_{device}$ (after fit)')
         canvas.draw()
         
         canvas, a = self.create_plot('Device capacitance (after fit)')
@@ -2254,8 +2272,11 @@ class FeedbackCalibrationController():
             if len(ind):
                 legend.append("R$_{fb,%d}$" % i)
                 a.semilogx(frequencies[ind], 1/(Z_1[ind, i]*frequencies[ind]*2*np.pi), 'o')
-        a.plot(frequencies, C_device*np.ones(frequencies.shape), 'k--')
+        a.plot(frequencies, 1e12*C_device*np.ones(frequencies.shape), 'k--')
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('C$_{device}$ (pF)')
+        a.set_title('C$_{device}$ (after fit)')
         canvas.draw()
 
         canvas, a = self.create_plot('V_fb/V_hv')
@@ -2282,6 +2303,9 @@ class FeedbackCalibrationController():
                              np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*frequencies[ind])), colors[color_index]+'--')
                 color_index+=1
         a.legend(legend)
+        a.set_xlabel('Frequency (Hz)')
+        a.set_ylabel('V$_{fb}$/V$_{hv}$')
+        a.set_title('V$_{fb}$/V$_{hv}$ for a %.1fpF load' % (C_device*1e12))
         canvas.draw()
 
         # write new calibration parameters to the control board
