@@ -1832,7 +1832,6 @@ class FeedbackCalibrationController():
         if response == gtk.RESPONSE_YES:
             self.calibrate_attenuators()
 
-        """
         response = yesno("Would you like to calibrate the feedback resistors? "
                          "Please note that you must have an electrode covered "
                          "by a drop and that electrode should be actuated. If "
@@ -1841,7 +1840,6 @@ class FeedbackCalibrationController():
         
         if response == gtk.RESPONSE_YES:
             self.calibrate_feedback_resistors()
-        """
 
     def calibrate_attenuators(self):
         frequencies, valid = self.prompt_for_frequency_range()
@@ -1922,6 +1920,8 @@ class FeedbackCalibrationController():
                 assert(len(state) == max_channels)
         
         frequencies, valid = self.prompt_for_frequency_range()
+        if not valid:
+            return
         n_samples = 1000
         calibration = self.plugin.control_board.calibration
         V_hv = np.zeros([len(frequencies),
@@ -1932,27 +1932,28 @@ class FeedbackCalibrationController():
 
         for i, frequency in enumerate(frequencies):
             options.frequency = frequency
+            sampling_time_ms = int(max(1000.0/frequency*5, 10))
+            options.duration = 10*sampling_time_ms
             emit_signal("set_frequency", frequency,
                 interface=IWaveformGenerator)
-            for j in range(len(calibration.R_fb)):
+            for j in range(0, len(calibration.R_fb)):
+                logging.info("set_series_resistor_index(1, %d)" % j)
                 self.plugin.control_board.set_series_resistor_index(1,j)
-                options.voltage=100
+                # start with the minimum voltage
+                options.voltage=2.0
                 while True:
                     emit_signal("set_voltage", options.voltage,
                                 interface=IWaveformGenerator)
                     (v_hv, hv_resistor, v_fb, fb_resistor) = \
                         self.plugin.control_board.measure_impedance(
-                            app_values['sampling_time_ms'],
+                            sampling_time_ms,
                             int(math.ceil(options.duration/ 
-                                app_values['sampling_time_ms'])),
+                                sampling_time_ms)),
                             app_values['delay_between_samples_ms'],
                             state)
 
-                    # wait for the signal to settle
-                    time.sleep(.2)
-                    
                     results = FeedbackResults(options,
-                        app_values['sampling_time_ms'],
+                        sampling_time_ms,
                         app_values['delay_between_samples_ms'],
                         v_hv,
                         hv_resistor,
@@ -1961,21 +1962,17 @@ class FeedbackCalibrationController():
                         self.plugin.get_actuated_area(),
                         self.plugin.control_board.calibration,
                         0)
-                    V_hv[i, j] = results.V_total()[-1]
-                    gain = self.plugin.control_board.amplifier_gain()
-                    self.plugin.control_board.set_state_of_all_channels(state)
+                    logging.info("gain=%.1f" % self.plugin.control_board.amplifier_gain())
+                    V_hv[i, j] = np.mean(results.V_total()[5:])
                     
-                    # wait for the signal to settle
-                    time.sleep(.2)
+                    time.sleep(.1)
                     
-                    V = np.array(self.plugin.control_board.analog_reads(1,
-                        n_samples))/1024.0*5-2.5
-                    V_rms = (np.max(V)-np.min(V))/np.sqrt(2)/2
+                    V = self.plugin.control_board.analog_reads(1,
+                        n_samples)/1023.0*5-2.5
+                    V_rms = (np.max(V)-np.min(V))/2/np.sqrt(2)
                     logging.info("V_rms=%.1f" % V_rms)
-                    if V_rms > 1.4:
-                        logging.info("divide input voltage by 2")
-                        options.voltage /= 2
-                    elif V_rms < .3 and options.voltage/gain < np.sqrt(2)/2:
+                    # TODO check for max voltage (or catch errors when setting voltage)
+                    if V_rms < .3 and options.voltage < 400.0/2:
                         logging.info("double voltage")
                         options.voltage *= 2
                     else:
@@ -2042,7 +2039,7 @@ class FeedbackCalibrationController():
                         # wait for the signal to settle
                         time.sleep(.1)
                         V = np.array(self.plugin.control_board.analog_reads(0,
-                            n_samples))/1024.0*5-2.5
+                            n_samples))/1023.0*5-2.5
                         V_rms = np.sqrt(np.mean(V**2)-np.mean(V)**2)
                         logging.info("V_rms=%.1f" % V_rms)
                         if V_rms > 1.3:
@@ -2099,8 +2096,9 @@ class FeedbackCalibrationController():
         )
         dialog.set_default_response(gtk.RESPONSE_OK)
         response = dialog.run()
+        filename = path(dialog.get_filename())
+        dialog.destroy()
         if response == gtk.RESPONSE_OK:
-            filename = path(dialog.get_filename())
             results = None
             with open(filename, 'rb') as f:
                 try:
@@ -2116,13 +2114,12 @@ class FeedbackCalibrationController():
                     except Exception, e:
                         logging.debug("Not a valid YAML file. %s." % e)
             if not results:
-                raise TypeError
+                logging.error("Not a valid calibration file")
             if 'V_fb' in results and 'V_hv' in results and \
                 'frequencies' in results:
                 self.process_fb_calibration(results)
             else:
                 self.process_hv_calibration(results)
-        dialog.destroy()
 
     def process_fb_calibration(self, results):
         calibration = self.plugin.control_board.calibration
@@ -2130,7 +2127,7 @@ class FeedbackCalibrationController():
         V_hv = np.array(results['V_hv'])
         V_fb = np.array(results['V_fb'])
 
-        voltage_filter = [.5, 1.3]
+        voltage_filter = [.1, 1.3]
         # only include data points where the voltage falls within a specified
         # range
         x,y = np.nonzero(np.logical_or(V_fb<voltage_filter[0],
@@ -2138,13 +2135,6 @@ class FeedbackCalibrationController():
         V_fb[x, y] = 0
 
         schema_entries = []
-        for i in range(len(self.plugin.control_board.calibration.R_hv)):
-            schema_entries.append(
-                Boolean.named('Fit R_hv_%d' % i).using(
-                    default=True, optional=True))
-            schema_entries.append(
-                Boolean.named('Fit C_hv_%d' % i).using(
-                    default=True, optional=True))
         for i in range(len(self.plugin.control_board.calibration.R_fb)):
             schema_entries.append(
                 Boolean.named('Fit R_fb_%d' % i).using(
@@ -2167,11 +2157,11 @@ class FeedbackCalibrationController():
             R_fb = []
             for i in range(0, len(p0)/2):
                 R_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
-            R_fb = np.array(R_fb).transpose()
+            R_fb = np.abs(np.array(R_fb).transpose())
             C_fb = []
             for i in range(len(p0)/2, len(p0)):
                 C_fb.append((p0[i]*np.ones(V_fb.shape[0])).tolist())
-            C_fb = np.array(C_fb).transpose()
+            C_fb = np.abs(np.array(C_fb).transpose())
             f = np.tile(np.reshape(frequencies, (len(frequencies), 1)),
                         (1, V_fb.shape[1]))
             if calibration.hw_version.major == 1:
@@ -2179,13 +2169,14 @@ class FeedbackCalibrationController():
             else:
                 error = V_fb-V_hv*R_fb*C*2*np.pi*f/np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*f))
             return error.flatten()[mlab.find(np.logical_and(V_hv.flatten(), V_fb.flatten()))]
-
+        
         p1, cov_x, infodict, mesg, ier = optimize.leastsq(
             e,
             p0,
             args=(V_hv, V_fb, frequencies, C_device),
             full_output=True
         )
+        p1 = abs(p1)
         
         print "p0=", p0
         print "SOS before=", np.sum(e(p0, V_hv, V_fb, frequencies, C_device)**2)
@@ -2193,6 +2184,11 @@ class FeedbackCalibrationController():
         print "p1=", p1, mesg, ier
         print "SOS after=", np.sum(e(p1, V_hv, V_fb, frequencies, C_device)**2)
         print "diff=", p1-p0
+        
+        canvas, a = self.create_plot('residuals')
+        legend = []
+        a.plot(e(p1, V_hv, V_fb, frequencies, C_device), 'o')
+        canvas.draw()
 
         Z_0 = self.device_impedance(p0, V_hv, V_fb, frequencies)
 
@@ -2264,27 +2260,35 @@ class FeedbackCalibrationController():
 
         canvas, a = self.create_plot('V_fb/V_hv')
         legend = []
-        colors = ['b','r','c','m','g']
+        colors = ['b','g','r','c','m']
+        color_index = 0
         for i in range(Z_1.shape[1]):
             ind = mlab.find(np.logical_and(V_hv[:, i], V_fb[:, i]))
             if len(ind):
                 legend.append("R$_{fb,%d}$" % i)
-                a.loglog(frequencies[ind], V_fb[ind, i]/V_hv[ind, i], colors[i]+'o')
+                a.loglog(frequencies[ind], V_fb[ind, i]/V_hv[ind, i], colors[color_index]+'o')
+                color_index+=1
+        color_index = 0
         for i in range(Z_1.shape[1]):
             ind = mlab.find(np.logical_and(V_hv[:, i], V_fb[:, i]))
             if len(ind):
                 R_fb = p1[0+i]
-                C_fb = p1[4+i]
-                a.plot(frequencies[ind], R_fb*C_device*2*np.pi*frequencies[ind]/ \
-                         np.sqrt(1+np.square(2*np.pi*R_fb*(C_fb+C_device)*frequencies[ind])), colors[i]+'--')
+                C_fb = p1[len(calibration.R_fb)+i]
+                if self.plugin.control_board.calibration.hw_version.major == 1:
+                    a.plot(frequencies[ind], R_fb*C_device*2*np.pi*frequencies[ind]/ \
+                             np.sqrt(1+np.square(2*np.pi*R_fb*(C_fb+C_device)*frequencies[ind])), colors[i]+'--')
+                else:
+                    a.plot(frequencies[ind], R_fb*C_device*2*np.pi*frequencies[ind]/ \
+                             np.sqrt(1+np.square(2*np.pi*R_fb*C_fb*frequencies[ind])), colors[color_index]+'--')
+                color_index+=1
         a.legend(legend)
         canvas.draw()
 
         # write new calibration parameters to the control board
         for i in range(0, len(calibration.R_fb)):
             self.plugin.control_board.set_series_resistor_index(1,i)
-            self.plugin.control_board.set_series_resistance(1, abs(p1[i]))
-            self.plugin.control_board.set_series_capacitance(1, abs(p1[4+i]))
+            self.plugin.control_board.set_series_resistance(1, p1[i])
+            self.plugin.control_board.set_series_capacitance(1,p1[len(calibration.R_fb)+i])
         # reconnect to update settings
         self.plugin.control_board.connect()
         
@@ -2310,7 +2314,7 @@ class FeedbackCalibrationController():
         )
         input_voltage = np.array(results['input_voltage'])
         frequencies = np.array(results['frequencies'])
-        hv_measurements = np.array(results['hv_measurements'])/1024.0*5-2.5
+        hv_measurements = np.array(results['hv_measurements'])/1023.0*5-2.5
         hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) - \
                            np.min(hv_measurements[:, j, :],1) \
                            for j in range(0, len(frequencies))])/2./np.sqrt(2))
@@ -2353,7 +2357,7 @@ class FeedbackCalibrationController():
 
                 # update control board calibration
                 self.plugin.control_board.set_series_resistor_index(0,i)
-                self.plugin.control_board.set_series_resistance(0, p1[1])
+                self.plugin.control_board.set_series_resistance(0, abs(p1[1]))
                 self.plugin.control_board.set_series_capacitance(0, abs(p1[0]))
                 # reconnnect to update calibration data
                 self.plugin.control_board.connect()
