@@ -163,7 +163,8 @@ class DmfControlBoard(Base, SerialDevice):
         except:
             logger.info("Feedback series resistors=%s" % R_fb)
             logger.info("Feedback series capacitance=%s" % C_fb)
-        self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb)
+        self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb,
+            hw_version=Version.fromstring(self.hardware_version()))
         self.set_series_resistor_index(0,0)
         self.set_series_resistor_index(1,0)
         return self.RETURN_OK
