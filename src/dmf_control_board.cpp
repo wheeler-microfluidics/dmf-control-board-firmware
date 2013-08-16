@@ -613,6 +613,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   hv_resistor==A0_series_resistor_index_) {
                 float R = config_settings_.A0_series_resistance[A0_series_resistor_index_];
                 float C = config_settings_.A0_series_capacitance[A0_series_resistor_index_];
+                float measured_voltage, set_voltage;
 #if ___HARDWARE_MAJOR_VERSION___ == 1
                 float V_fb;
                 if(fb_resistor==-1 || fb_pk_pk<0) {
@@ -620,35 +621,35 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                 } else {
                   V_fb = fb_pk_pk*5.0/1023/sqrt(2)/2;
                 }
-                amplifier_gain_ =
-                    (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
-                    (1/sqrt(pow(10e6/R+1, 2)+         // transfer function /
-                        pow(10e6*C*2*M_PI*waveform_frequency_, 2)))/
-                    ((waveform_voltage_+V_fb)/    // (set voltage+V_fb) /
-                    amplifier_gain_);             // previous gain setting)
+                measured_voltage = (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
+                                   (1/sqrt(pow(10e6/R+1, 2)+         // transfer function
+                                    pow(10e6*C*2*M_PI*waveform_frequency_, 2)));
+                set_voltage = waveform_voltage_+V_fb;
 #else
-                amplifier_gain_ =
-                    (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
-                    (1/sqrt(pow(10e6/R, 2)+           // transfer function /
-                        pow(10e6*C*2*M_PI*waveform_frequency_, 2)))/
-                    (waveform_voltage_/      // (set voltage) /
-                    amplifier_gain_);        // previous gain setting)
+                measured_voltage = (hv_pk_pk*5.0/1023.0/sqrt(2)/2) / // measured Vrms /
+                                   (1/sqrt(pow(10e6/R, 2)+           // transfer function
+                                    pow(10e6*C*2*M_PI*waveform_frequency_, 2)));
+                set_voltage = waveform_voltage_;
 #endif
+                // if we're outside of the voltage tolerance, update the gain
+                if(abs(measured_voltage-set_voltage) > \
+                   config_settings_.voltage_tolerance) {
+                  amplifier_gain_ *= measured_voltage/set_voltage;
 
-                // enforce minimum gain of 1 because if gain goes to zero,
-                // it cannot be adjusted further
-                if(amplifier_gain_<1) {
-                  amplifier_gain_=1;
-                }
-
+                  // enforce minimum gain of 1 because if gain goes to zero,
+                  // it cannot be adjusted further
+                  if(amplifier_gain_<1) {
+                    amplifier_gain_=1;
+                  }
 #if ___HARDWARE_MAJOR_VERSION___ == 1
-                // update output voltage (accounting for amplifier gain and
-                // for the voltage drop across the feedback resistor)
-                SetWaveformVoltage(waveform_voltage_+V_fb);
+                  // update output voltage (accounting for amplifier gain and
+                  // for the voltage drop across the feedback resistor)
+                  SetWaveformVoltage(waveform_voltage_+V_fb);
 #else
-                // update output voltage (but don't wait for i2c response)
-                SetWaveformVoltage(waveform_voltage_, false);
+                  // update output voltage (but don't wait for i2c response)
+                  SetWaveformVoltage(waveform_voltage_, false);
 #endif
+                }
               }
               hv_resistor = A0_series_resistor_index_;
             }
@@ -837,6 +838,8 @@ void DmfControlBoard::begin() {
   Serial.println(config_settings_.switching_board_i2c_address, DEC);
   Serial.print("amplifier_gain=");
   Serial.println(config_settings_.amplifier_gain);
+  Serial.print("voltage_tolerance=");
+  Serial.println(config_settings_.voltage_tolerance);
 
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
@@ -1102,6 +1105,8 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
     p[i] = EEPROM.read(EEPROM_CONFIG_SETTINGS+i);
   }
 
+  float default_voltage_tolerance = 5.0;
+
   // Upgrade config settings if necessary
   if(config_settings_.version.major==0 &&
      config_settings_.version.minor==0 &&
@@ -1119,15 +1124,23 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
     SaveConfig();
   }
 
+  if(config_settings_.version.major==0 &&
+     config_settings_.version.minor==0 &&
+     config_settings_.version.micro==2) {
+    config_settings_.voltage_tolerance = default_voltage_tolerance;
+    config_settings_.version.micro = 3;
+    SaveConfig();
+  }
+
   // If we're not at the expected version by the end of the upgrade path,
   // set everything to default values.
   if(!(config_settings_.version.major==0 &&
      config_settings_.version.minor==0 &&
-     config_settings_.version.micro==2) || use_defaults) {
+     config_settings_.version.micro==3) || use_defaults) {
 
     config_settings_.version.major=0;
     config_settings_.version.minor=0;
-    config_settings_.version.micro=2;
+    config_settings_.version.micro=3;
 
     // Versions > 1.2 use the built in 5V AREF
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -1164,6 +1177,7 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
     config_settings_.A1_series_capacitance[3] = 50e-12;
     config_settings_.amplifier_gain = amplifier_gain_;
     config_settings_.switching_board_i2c_address = 0x20;
+    config_settings_.voltage_tolerance = default_voltage_tolerance;
     SaveConfig();
   }
 

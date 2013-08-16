@@ -23,6 +23,7 @@ import math
 import re
 import copy
 import logging
+from struct import pack, unpack
 
 from path import path
 import numpy as np
@@ -137,12 +138,17 @@ class DmfControlBoard(Base, SerialDevice):
         else:
             self.get_port()
         logger.info("Poll control board for series resistors and "
-                    "capacitance values.")            
+                    "capacitance values.")
+
+        data = np.zeros(4)
+        for i in range(0, 4):
+            data[i] = self.eeprom_read(self.EEPROM_VOLTAGE_TOLERANCE+i)
+        self.__voltage_tolerance = unpack('f', pack('BBBB', *data))[0]
 
         R_hv = []
         C_hv = []
         R_fb = []
-        C_fb = []        
+        C_fb = []
         try:
             i=0
             while True:
@@ -168,6 +174,14 @@ class DmfControlBoard(Base, SerialDevice):
         self.set_series_resistor_index(0,0)
         self.set_series_resistor_index(1,0)
         return self.RETURN_OK
+    
+    def voltage_tolerance(self):
+        return self.__voltage_tolerance
+    
+    def set_voltage_tolerance(self, tolerance):
+        data = unpack('BBBB', pack('f', tolerance))
+        for i in range(0, 4):
+            self.eeprom_write(self.EEPROM_VOLTAGE_TOLERANCE+i, data[i])
     
     @property
     def state_of_all_channels(self):
@@ -367,3 +381,15 @@ class DmfControlBoard(Base, SerialDevice):
             return self.EEPROM_CONFIG_SETTINGS+7
         else:
             raise EepromSettingDoesNotExist()
+
+    @property
+    def EEPROM_VOLTAGE_TOLERANCE(self):
+        hardware_version = self.hardware_version()
+        if hardware_version == '1.0' or \
+            hardware_version == '1.1' or \
+            hardware_version == '1.2':
+            return self.EEPROM_CONFIG_SETTINGS+62
+        elif hardware_version == '1.3':
+            return self.EEPROM_CONFIG_SETTINGS+61
+        else: # hardware_version >= 2.0
+            return self.EEPROM_CONFIG_SETTINGS+76

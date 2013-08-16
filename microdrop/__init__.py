@@ -98,8 +98,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             validators=[ValueAtLeast(minimum=0), ],),
         Integer.named('delay_between_samples_ms').using(default=0,
             optional=True, validators=[ValueAtLeast(minimum=0), ],),
-        Float.named('voltage_tolerance').using(default=2, optional=True,
-            validators=[ValueAtLeast(minimum=0), ],),
         Enum.named('serial_port').using(default=default_port_, optional=True)\
             .valued(*serial_ports_),
     )
@@ -315,6 +313,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             Boolean.named('auto_adjust_amplifier_gain').using(
                 default=settings['auto_adjust_amplifier_gain'], optional=True),
         )
+        settings['voltage_tolerance'] = \
+            self.control_board.voltage_tolerance();
+        schema_entries.append(
+            Float.named('voltage_tolerance').using(
+                default=settings['voltage_tolerance'], optional=True,
+                validators=[ValueAtLeast(minimum=0),]),
+        )
         
         if hardware_version.major == 1:        
             settings['WAVEOUT_GAIN_1'] = self.control_board \
@@ -334,23 +339,22 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 ValueAtMost(maximum=255),]),
             )
         else:
-            settings['EEPROM_SWITCHING_BOARD_I2C_ADDRESS'] = self.control_board \
+            settings['SWITCHING_BOARD_I2C_ADDRESS'] = self.control_board \
                 .eeprom_read(self.control_board.EEPROM_SWITCHING_BOARD_I2C_ADDRESS)
             schema_entries.append(
-                Integer.named('EEPROM_SWITCHING_BOARD_I2C_ADDRESS').using(
-                    default=settings['EEPROM_SWITCHING_BOARD_I2C_ADDRESS'], optional=True,
+                Integer.named('SWITCHING_BOARD_I2C_ADDRESS').using(
+                    default=settings['SWITCHING_BOARD_I2C_ADDRESS'], optional=True,
                     validators=[ValueAtLeast(minimum=0),
                                 ValueAtMost(maximum=255),]),
             )
-            settings['EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'] = self.control_board \
+            settings['SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'] = self.control_board \
                 .eeprom_read(self.control_board.EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS)
             schema_entries.append(
-                Integer.named('EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS').using(
-                    default=settings['EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'], optional=True,
+                Integer.named('SIGNAL_GENERATOR_BOARD_I2C_ADDRESS').using(
+                    default=settings['SIGNAL_GENERATOR_BOARD_I2C_ADDRESS'], optional=True,
                     validators=[ValueAtLeast(minimum=0),
                                 ValueAtMost(maximum=255),]),
             )
-            
         for i in range(len(self.control_board.calibration.R_hv)):
             settings['R_hv_%d' % i] = self.control_board.calibration.R_hv[i]
             schema_entries.append(
@@ -393,12 +397,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     elif k=='VGND':
                         self.control_board.eeprom_write(
                             self.control_board.EEPROM_VGND_ADDRESS, v)
-                    elif k=='EEPROM_SWITCHING_BOARD_I2C_ADDRESS':
+                    elif k=='SWITCHING_BOARD_I2C_ADDRESS':
                         self.control_board.eeprom_write(
                             self.control_board.EEPROM_SWITCHING_BOARD_I2C_ADDRESS, v)
-                    elif k=='EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS':
+                    elif k=='SIGNAL_GENERATOR_BOARD_I2C_ADDRESS':
                         self.control_board.eeprom_write(
                             self.control_board.EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS, v)
+                    elif k=='voltage_tolerance':
+                        self.control_board.set_voltage_tolerance(v)
                     elif m:
                         series_resistor = int(m.group(3))
                         if m.group(2)=='hv':
@@ -459,9 +465,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         options = impedance.options
         feedback_options = impedance.options.feedback_options
 
+        app_values = self.get_app_values()            
+
         if impedance.V_actuation()[-1]<5.0:
             logger.error("Low voltage detected. Please check that the amplifier is on.")
-        elif self.control_board.auto_adjust_amplifier_gain():
+        else:
             voltage = options.voltage
             if feedback_options.action.__class__ == RetryAction:
                 attempt = app.protocol.current_step_attempt
@@ -471,24 +479,28 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
                 'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
                 100*(impedance.V_actuation()[-1]-voltage)/voltage))
-            app_values = self.get_app_values()            
             
             # check that the signal is within tolerance
             if abs(impedance.V_actuation()[-1]-voltage) > \
-                app_values['voltage_tolerance']:
+                self.control_board.voltage_tolerance():
+                
                 # allow maximum of 5 adjustment attempts
-                if self.n_voltage_adjustments is not None and \
+                if self.control_board.auto_adjust_amplifier_gain() and \
+                self.n_voltage_adjustments is not None and \
                 self.n_voltage_adjustments<5:
-                    logger.info('\tn_voltage_adjustments=%d' % \
-                                self.n_voltage_adjustments)
-                    emit_signal("set_voltage", voltage,
-                        interface=IWaveformGenerator)
-                    self.check_impedance(options,
-                                         self.n_voltage_adjustments+1)
+                        logger.info('\tn_voltage_adjustments=%d' % \
+                                    self.n_voltage_adjustments)
+                        emit_signal("set_voltage", voltage,
+                            interface=IWaveformGenerator)
+                        self.check_impedance(options,
+                                             self.n_voltage_adjustments+1)
                 else:
                     self.n_voltage_adjustments = None
                     logger.error("Unable to achieve the specified voltage.")
-            else:
+             
+             
+            if self.control_board.auto_adjust_amplifier_gain() and not \
+            self.amplifier_gain_initialized:
                 self.amplifier_gain_initialized = True
                 logger.info('Amplifier gain initialized (gain=%.1f)' % \
                             self.control_board.amplifier_gain())

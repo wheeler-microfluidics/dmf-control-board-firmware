@@ -92,6 +92,9 @@ public:
     /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
     adjusted based on the measured voltage from the amplifier.*/
     float amplifier_gain;
+
+    /**\brief voltage tolerance for amplifier gain adjustment.*/
+    float voltage_tolerance;
   };
 #endif
 
