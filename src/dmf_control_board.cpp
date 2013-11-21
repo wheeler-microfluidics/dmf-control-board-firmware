@@ -24,8 +24,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   using namespace std;
   using boost::format;
 #else
-  #include "WProgram.h"
+  #include "Arduino.h"
   #include <Wire.h>
+  #include <OneWire.h>
   #include <SPI.h>
   #include <EEPROM.h>
   #include <math.h>
@@ -59,6 +60,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
+#ifndef ___SOFTWARE_VERSION___
+#define ___SOFTWARE_VERSION___    "0.1"
+#endif
 const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_control_board";
 
@@ -96,12 +100,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           for(uint8_t port=0; port<5; port++) {
             Wire.beginTransmission(
               config_settings_.switching_board_i2c_address+chip);
-            Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+            Wire.write(PCA9505_OUTPUT_PORT_REGISTER_+port);
             Wire.endTransmission();
             Wire.requestFrom(
               config_settings_.switching_board_i2c_address+chip,1);
             if (Wire.available()) {
-              uint8_t data = Wire.receive();
+              uint8_t data = Wire.read();
               uint8_t state;
               for(uint8_t bit=0; bit<8; bit++) {
                 state = (data >> bit & 0x01)==0;
@@ -136,12 +140,12 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           uint8_t bit = (channel%40)%8;
           Wire.beginTransmission(
             config_settings_.switching_board_i2c_address+chip);
-          Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+          Wire.write(PCA9505_OUTPUT_PORT_REGISTER_+port);
           Wire.endTransmission();
           Wire.requestFrom(
             config_settings_.switching_board_i2c_address+chip, 1);
           if(Wire.available()) {
-            uint8_t data = Wire.receive();
+            uint8_t data = Wire.read();
             data = (data >> bit & 0x01)==0;
             Serialize(&data, sizeof(data));
             return_code_ = RETURN_OK;
@@ -201,7 +205,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
           (uint8_t)1);
         if(Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.receive();
+          uint8_t n_bytes_to_read = Wire.read();
           if(n_bytes_to_read==sizeof(float)+1) {
             uint8_t data[5];
             i2c_read(config_settings_.signal_generator_board_i2c_address,
@@ -237,7 +241,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
                          (uint8_t)1);
         if(Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.receive();
+          uint8_t n_bytes_to_read = Wire.read();
           if(n_bytes_to_read==sizeof(float)+1) {
               uint8_t data[5];
               i2c_read(config_settings_.signal_generator_board_i2c_address,
@@ -273,8 +277,8 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           // lsb =  DAC5 DAC4 DAC3 DAC2 DAC1 DAC0 CNF1 CNF0
           uint8_t lsb = (dac << 2) | cnf;
           Wire.beginTransmission(LTC6904_);
-          Wire.send(msb);
-          Wire.send(lsb);
+          Wire.write(msb);
+          Wire.write(lsb);
           Wire.endTransmission();     // stop transmitting
           return_code_ = RETURN_OK;
         }
@@ -289,7 +293,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
                          (uint8_t)1);
         if(Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.receive();
+          uint8_t n_bytes_to_read = Wire.read();
           if(n_bytes_to_read==1) {
             uint8_t n_bytes_read = 0;
             n_bytes_read += i2c_read(
@@ -847,12 +851,12 @@ void DmfControlBoard::begin() {
   for(uint8_t chip=0; chip<8; chip++) {
     Wire.beginTransmission(
       config_settings_.switching_board_i2c_address+chip);
-    Wire.send(PCA9505_CONFIG_IO_REGISTER_);
+    Wire.write(PCA9505_CONFIG_IO_REGISTER_);
     Wire.endTransmission();
     Wire.requestFrom(
       config_settings_.switching_board_i2c_address+chip,1);
     if (Wire.available()) {
-      Wire.receive();
+      Wire.read();
       if(number_of_channels_==40*chip) {
         number_of_channels_ = 40*(chip+1);
       }
@@ -1073,14 +1077,14 @@ uint8_t DmfControlBoard::UpdateChannel(const uint16_t channel,
   uint8_t bit = (channel%40)%8;
   Wire.beginTransmission(
     config_settings_.switching_board_i2c_address+chip);
-  Wire.send(PCA9505_OUTPUT_PORT_REGISTER_+port);
+  Wire.write(PCA9505_OUTPUT_PORT_REGISTER_+port);
   Wire.endTransmission();
   Wire.requestFrom(
     config_settings_.switching_board_i2c_address+chip, 1);
   if (Wire.available()) {
     uint8_t data[2];
     data[0] = PCA9505_OUTPUT_PORT_REGISTER_+port;
-    data[1] = Wire.receive();
+    data[1] = Wire.read();
     bitWrite(data[1], bit, state==0);
     i2c_write(config_settings_.switching_board_i2c_address+chip,
               data, 2);
@@ -1222,7 +1226,7 @@ uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
     Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
                      (uint8_t)1);
     if(Wire.available()) {
-      uint8_t n_bytes_to_read = Wire.receive();
+      uint8_t n_bytes_to_read = Wire.read();
       if(n_bytes_to_read==1) {
         uint8_t n_bytes_read = 0;
         n_bytes_read += i2c_read(
