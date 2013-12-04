@@ -2271,8 +2271,8 @@ class FeedbackCalibrationController():
             ind = mlab.find(np.logical_and(V_hv[:, i], V_fb[:, i]))
             if len(ind):
                 legend.append("R$_{fb,%d}$" % i)
-                a.semilogx(frequencies[ind], 1/(Z_1[ind, i]*frequencies[ind]*2*np.pi), 'o')
-        a.plot(frequencies, 1e12*C_device*np.ones(frequencies.shape), 'k--')
+                a.semilogx(frequencies[ind], 1e12/(Z_1[ind, i]*frequencies[ind]*2*np.pi), 'o')
+        a.plot(frequencies, C_device*np.ones(frequencies.shape), 'k--')
         a.legend(legend)
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('C$_{device}$ (pF)')
