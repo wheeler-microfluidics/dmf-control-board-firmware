@@ -14,13 +14,14 @@ class GitUtil(object):
         self.root_path = path(root_path)
         if root_path is None:
             dir_node = path(os.getcwd())
-            while not dir_node.dirs('.git') and dir_node:
+            while ((not dir_node.dirs('.git') and not dir_node.files('.git'))
+                   and dir_node):
                 dir_node = dir_node.parent
             if not dir_node:
                 raise GitError('No git root found.')
             self.root_path = dir_node
         self._git = None
-        assert(self.root_path.dirs('.git'))
+        assert(self.root_path.dirs('.git') or self.root_path.files('.git'))
 
 
     @property
@@ -60,11 +61,13 @@ class GitUtil(object):
 
         os.chdir(self.root_path)
         cmd = [self.git] + x
-        stdout, stderr = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE).communicate()
+        stdout, stderr = Popen(cmd, stdout=PIPE, stderr=PIPE,
+                               stdin=PIPE).communicate()
         os.chdir(cwd)
 
         if stderr:
-            raise GitError('Error executing git %s' % x)
+            raise GitError('# Error executing git %s #\n\n%s\n%s'
+                           % (x, self.root_path, stderr.strip()))
         return stdout.strip()
 
 
