@@ -21,7 +21,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef AVR
   #include <util/crc16.h>
-  #include "WProgram.h"
+  #include "Arduino.h"
   #include <Wire.h>
   #include <SPI.h>
   #include <OneWire.h>
@@ -563,7 +563,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t n_bytes_to_read = ReadUint8();
         Wire.requestFrom(address, n_bytes_to_read);
         while(Wire.available()) {
-          uint8_t data = Wire.receive();
+          uint8_t data = Wire.read();
           Serialize(&data, sizeof(uint8_t));
           n_bytes_read++;
         }
@@ -581,7 +581,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t address = ReadUint8();
         Wire.beginTransmission(address);
         for(uint8_t i=0; i<payload_length()-1; i++) {
-          Wire.send(ReadUint8());
+          Wire.write(ReadUint8());
         }
         Wire.endTransmission();
         return_code_ = RETURN_OK;
@@ -792,7 +792,7 @@ void RemoteObject::i2c_scan() {
 
 void RemoteObject::i2c_write(const uint8_t address, const uint8_t data) {
   Wire.beginTransmission(address);
-  Wire.send(data);
+  Wire.write(data);
   Wire.endTransmission();
 }
 
@@ -800,7 +800,7 @@ void RemoteObject::i2c_write(const uint8_t address, const uint8_t* data,
                              const uint8_t n_bytes) {
   Wire.beginTransmission(address);
   for(uint8_t i=0; i<n_bytes; i++) {
-    Wire.send(data[i]);
+    Wire.write(data[i]);
   }
   Wire.endTransmission();
 }
@@ -810,7 +810,7 @@ uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
   uint8_t n_bytes_read = 0;
   Wire.requestFrom(address, n_bytes_to_read);
   while(Wire.available()) {
-    data[n_bytes_read++] = Wire.receive();
+    data[n_bytes_read++] = Wire.read();
   }
   return n_bytes_read;
 }
