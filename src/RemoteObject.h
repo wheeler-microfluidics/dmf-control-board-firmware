@@ -69,7 +69,7 @@ __________________________________________________________________________
 
 #include <stdint.h>
 
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
@@ -77,7 +77,7 @@ __________________________________________________________________________
 
 class RemoteObject {
 public:
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   static const uint32_t TIMEOUT_MILLISECONDS =   1000; // TODO: this should be configurable
 #else
   static const uint8_t I2C_DELAY = 100; // delay between i2c write/reads
@@ -133,7 +133,7 @@ public:
 
   RemoteObject(uint32_t baud_rate,
                  bool crc_enabled_
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
                  ,const char* class_name
 #endif
                  );
@@ -146,7 +146,7 @@ public:
   uint16_t bytes_read() { return bytes_read_; }
   bool waiting_for_reply() { Listen(); return waiting_for_reply_to_>0; }
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   virtual void begin();
   void i2c_scan();
 
@@ -287,7 +287,7 @@ protected:
   void SendReply(const uint8_t return_code);
 
   template<typename T> void ReadArray(T* array, const uint16_t size) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage("","ReadArray()");
 #endif
     bytes_read_ += size;
@@ -311,7 +311,7 @@ protected:
   void SendNonBlockingCommand(const uint8_t cmd);
   uint8_t ValidateReply(const uint8_t cmd);
 
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   inline void LogMessage(const char* msg,
                          const char* function_name,
                          uint8_t level=5) {
@@ -359,7 +359,7 @@ private:
   uint16_t tx_crc_;
   uint16_t rx_crc_;
   bool debug_;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   SimpleSerial Serial;
   std::string class_name_;
   boost::posix_time::ptime time_cmd_sent_;

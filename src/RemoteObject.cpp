@@ -19,13 +19,20 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "RemoteObject.h"
 
-#ifdef AVR
+#if defined(AVR)
   #include <util/crc16.h>
+#endif
+#if defined(AVR) || defined(__SAM3X8E__)
   #include "Arduino.h"
   #include <Wire.h>
   #include <SPI.h>
   #include <OneWire.h>
-  #include <EEPROM.h>
+  #ifdef AVR
+    #include <EEPROM.h>
+  #elif defined(__SAM3X8E__)
+    #include <DueFlashStorage.h>
+    extern DueFlashStorage EEPROM;
+  #endif
   extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
   void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #else
@@ -40,12 +47,12 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 RemoteObject::RemoteObject(uint32_t baud_rate,
                                bool crc_enabled
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
                                ,const char* class_name //used for logging
 #endif
                                ) : baud_rate_(baud_rate),
                                 crc_enabled_(crc_enabled)
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
                                 ,class_name_(class_name)
 #endif
                                 {
@@ -56,7 +63,7 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
   bytes_written_ = 0;
   debug_ = false;
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   // initialize pin mode and state of digital pins
   // from EEPROM
   for(uint8_t i=0; i<=54/8; i++) {
@@ -76,17 +83,17 @@ RemoteObject::~RemoteObject() {
 }
 
 void RemoteObject::SendByte(const uint8_t b) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "SendByte()";
 #endif
   if(b==FRAME_BOUNDARY || b==CONTROL_ESCAPE) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage(str(format("write escape (0x%0X)") % (int)b).c_str(), function_name);
 #endif
     Serial.write(CONTROL_ESCAPE);
     Serial.write(b^ESCAPE_XOR);
   } else {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage(str(format("write (0x%0X)") % (int)b).c_str(), function_name);
 #endif
     Serial.write(b);
@@ -94,7 +101,7 @@ void RemoteObject::SendByte(const uint8_t b) {
 }
 
 uint16_t RemoteObject::UpdateCrc(uint16_t crc, uint8_t data) {
-#ifdef AVR
+#if defined(AVR)
   crc = _crc16_update(crc,data);
 #else
   crc ^= data;
@@ -111,7 +118,7 @@ uint16_t RemoteObject::UpdateCrc(uint16_t crc, uint8_t data) {
 
 void RemoteObject::SendPreamble(const uint8_t cmd) {
   payload_length_ = bytes_written_;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "SendPreamble()";
   LogMessage(str(format("command=0x%0X (%d), payload_length=%d") %
     (int)cmd % (int)cmd % payload_length_).c_str(), function_name);
@@ -138,7 +145,7 @@ void RemoteObject::SendPreamble(const uint8_t cmd) {
 }
 
 uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "SendCommand()";
   LogSeparator();
   LogMessage("",function_name);
@@ -152,7 +159,7 @@ uint8_t RemoteObject::SendCommand(const uint8_t cmd) {
 }
 
 void RemoteObject::SendNonBlockingCommand(const uint8_t cmd) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "SendNonBlockingCommand()";
   LogSeparator();
   LogMessage("",function_name);
@@ -169,13 +176,13 @@ void RemoteObject::SendInterrupt() {
 }
 
 void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "Serialize()";
   LogMessage(str(format("%d bytes.") % size).c_str(), function_name);
 #endif
   //TODO check that MAX_PAYLOAD_LENGTH isn't exceeded
   for(uint16_t i=0;i<size;i++) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage(str(format("(0x%0X) byte %d") % int(u[i]) % i).c_str(),
       function_name);
 #endif
@@ -185,7 +192,7 @@ void RemoteObject::Serialize(const uint8_t* u,const uint16_t size) {
 }
 
 void RemoteObject::SendPayload() {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "SendPayload()";
   LogMessage(str(format("%d bytes") % payload_length_).c_str(), function_name);
 #endif
@@ -214,7 +221,7 @@ const char* RemoteObject::ReadString() {
   // TODO check that we're not reading past the end of the buffer
   uint8_t length = strlen((const char*)payload_)+1;
   bytes_read_ += length;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   LogMessage(str(format("=\"%s\", bytes_read_=%d") %
     (const char*)(payload_+bytes_read_-length) % bytes_read_).c_str(),
     function_name);
@@ -225,7 +232,7 @@ const char* RemoteObject::ReadString() {
 uint8_t RemoteObject::ReadUint8() {
   // TODO check that we're not reading past the end of the buffer
   bytes_read_ += sizeof(uint8_t);
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "ReadUint8()";
   LogMessage(str(format("=%d, bytes_read_=%d") %
     int(*(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t))) %
@@ -242,7 +249,7 @@ int8_t RemoteObject::ReadInt8() {
 uint16_t RemoteObject::ReadUint16() {
   // TODO check that we're not reading past the end of the buffer
   bytes_read_ += sizeof(uint16_t);
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "ReadUint16()";
   LogMessage(str(format("=%d, bytes_read_=%d") %
     *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t)) % bytes_read_).c_str(),
@@ -258,7 +265,7 @@ int16_t RemoteObject::ReadInt16() {
 float RemoteObject::ReadFloat() {
   // TODO check that we're not reading past the end of the buffer
   bytes_read_ += sizeof(float);
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "ReadFloat()";
   LogMessage(str(format("=%.1f, bytes_read_=%d") %
     *(float*)(payload_+bytes_read_-sizeof(float)) % bytes_read_).c_str(),
@@ -268,7 +275,7 @@ float RemoteObject::ReadFloat() {
 }
 
 uint8_t RemoteObject::WaitForReply() {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "WaitForReply()";
   LogMessage("", function_name);
   time_cmd_sent_ = boost::posix_time::microsec_clock::universal_time();
@@ -276,7 +283,7 @@ uint8_t RemoteObject::WaitForReply() {
   uint8_t cmd = packet_cmd_;
   while(waiting_for_reply_to_) {
     Listen();
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     if((boost::posix_time::microsec_clock::universal_time()
        -time_cmd_sent_).total_milliseconds()>TIMEOUT_MILLISECONDS) {
       return_code_ = RETURN_TIMEOUT;
@@ -285,7 +292,7 @@ uint8_t RemoteObject::WaitForReply() {
     }
 #endif
   }
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   LogMessage(str(format("return code=%d, cmd returned in %d us") %
     (int)return_code_ % (boost::posix_time::microsec_clock::universal_time()
     -time_cmd_sent_).total_microseconds()).c_str(), function_name);
@@ -300,7 +307,7 @@ uint8_t RemoteObject::WaitForReply() {
 uint8_t RemoteObject::ValidateReply(const uint8_t cmd) {
   if(WaitForReply()==RETURN_OK) {
     if(cmd!=(packet_cmd_^0x80)) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       throw runtime_error(str(format("Requesting for data from command 0x%0X "
         "(%d), but the previously sent command was 0x%0X (%d).") % int(cmd) %
         int(cmd) % int(packet_cmd_) % int(packet_cmd_)).c_str());
@@ -309,7 +316,7 @@ uint8_t RemoteObject::ValidateReply(const uint8_t cmd) {
 
     // if we've previously read bytes from the buffer, throw an error
     } else if(bytes_read()) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       throw runtime_error("Data from this command has already been retrieved.");
 #endif
       return RETURN_GENERAL_ERROR;
@@ -323,13 +330,13 @@ void RemoteObject::ProcessPacket() {
     packet_cmd_ = packet_cmd_^0x80; // Flip the MSB for reply
     return_code_ = RETURN_UNKNOWN_COMMAND;
     ProcessCommand(packet_cmd_^0x80);
-  #ifndef AVR
+  #if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogSeparator();
   #endif
   } else {
     return_code_ = payload_[payload_length_-1];
     payload_length_--;// -1 because we've already read the return code
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     const char* function_name = "ProcessPacket()";
     LogMessage(str(format("(0x%0X). This packet is a reply to command (%d)") %
       (packet_cmd_^0x80) % (packet_cmd_^0x80)).c_str(), function_name);
@@ -343,13 +350,13 @@ void RemoteObject::ProcessPacket() {
 }
 
 uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "ProcessCommand()";
   LogMessage(str(format("command=0x%0X (%d)") % cmd % cmd).c_str(),
     function_name);
 #endif
   switch(cmd) {
-#ifdef AVR // Commands that only the Arduino handles
+#if defined(AVR) || defined(__SAM3X8E__) // Commands that only the Arduino handles
     case CMD_GET_PROTOCOL_NAME:
       if(payload_length()==0) {
         Serialize(protocol_name(),strlen(protocol_name()));
@@ -592,7 +599,11 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
     case CMD_SPI_SET_BIT_ORDER:
       if(payload_length()==1) {
         uint8_t order = ReadUint8();
+#ifdef __SAM3X8E__
+        SPI.setBitOrder((BitOrder)order);
+#else
         SPI.setBitOrder(order);
+#endif
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -641,30 +652,30 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
 }
 
 void RemoteObject::ProcessSerialInput(uint8_t b) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
   const char* function_name = "ProcessSerialInput()";
 #endif
   // deal with escapes
   if (b==CONTROL_ESCAPE) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage(str(format("(0x%0X) Escape") % (int)b).c_str(), function_name);
 #endif
     un_escaping_ = true;
     return;
   } else if(un_escaping_) {
     b^=ESCAPE_XOR;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogMessage(str(format("(0x%0X) Un-escaping") % (int)b).c_str(), function_name);
 #endif
   }
   if (b==FRAME_BOUNDARY && !un_escaping_) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     LogSeparator();
     LogMessage(str(format("(0x%0X) Frame Boundary") % (int)b).c_str(),
       function_name);
 #endif
     if(bytes_received_>0) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       LogMessage(str(format("(0x%0X) Invalid packet") % (int)b).c_str(),
         function_name);
 #endif
@@ -672,7 +683,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
     bytes_received_ = 0;
   } else {
     if(bytes_received_==0) { // command byte
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       LogMessage(str(format("(0x%0X) Command byte (%d)") % (int)b % (int)b).c_str(),
         function_name);
 #endif
@@ -698,7 +709,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
     } else {
       // TODO: error
     }
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     if(bytes_received_==header_length_) {
       LogMessage(str(format("Payload length=%d") % payload_length_).c_str(),
         function_name);
@@ -708,7 +719,7 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
       rx_crc_ = UpdateCrc(rx_crc_, b);
     }
     bytes_received_++;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
     if(b>=0x20&&b<=0x7E) {
       LogMessage(str(format("(0x%0X) %d bytes received (\'%c\')") % (int)b %
         bytes_received_ % b).c_str(), function_name);
@@ -723,29 +734,29 @@ void RemoteObject::ProcessSerialInput(uint8_t b) {
       bytes_written_ = 0;
       if(crc_enabled_) {
         if(rx_crc_==0) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
           LogMessage("End of Packet. CRC OK.", function_name);
 #endif
           ProcessPacket();
         } else {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
           LogMessage("End of Packet. CRC Error.", function_name);
 #endif
         }
       } else {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
         LogMessage("End of Packet", function_name);
 #endif
         ProcessPacket();
       }
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       LogSeparator();
 #endif
       // if we're not expecting something else, stop waiting
       if(waiting_for_reply_to_ && packet_cmd_==(waiting_for_reply_to_^0x80)) {
         waiting_for_reply_to_ = 0;
       }
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) ) 
       else {
         LogMessage("Not the expected reply, keep waiting.", function_name);
       }
@@ -763,7 +774,7 @@ void RemoteObject::Listen() {
   }
 }
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
 ////////////////////////////////////////////////////////////////////////////////
 //
 // These functions are only defined on the Arduino

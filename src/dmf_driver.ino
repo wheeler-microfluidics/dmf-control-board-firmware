@@ -19,9 +19,14 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Wire.h>
 #include <SPI.h>
-#include <EEPROM.h>
+#if defined(AVR)
+  #include "Memory.h"
+  #include <EEPROM.h>
+#elif defined(__SAM3X8E__)
+  #include <DueFlashStorage.h>
+  DueFlashStorage EEPROM;
+#endif
 #include <OneWire.h>
-#include "Memory.h"
 #include "RemoteObject.h"
 #include "dmf_control_board.h"
 
@@ -29,12 +34,14 @@ DmfControlBoard dmf_control_board;
 
 void setup() {
   dmf_control_board.begin();
+#ifdef AVR
   Serial.print("ram="); Serial.println(ram_size(), DEC);
   Serial.print(".data="); Serial.println(data_size(), DEC);
   Serial.print(".bss="); Serial.println(bss_size(), DEC);
   Serial.print("heap="); Serial.println(heap_size(), DEC);
   Serial.print("stack="); Serial.println(stack_size(), DEC);
   Serial.print("free memory="); Serial.println(free_memory(), DEC);
+#endif
 }
 
 void loop() {

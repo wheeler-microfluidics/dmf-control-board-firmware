@@ -19,7 +19,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdint.h>
 #include "dmf_control_board.h"
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
   #include <boost/format.hpp>
   using namespace std;
   using boost::format;
@@ -27,7 +27,12 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include "Arduino.h"
   #include <Wire.h>
   #include <SPI.h>
-  #include <EEPROM.h>
+  #ifdef AVR
+    #include <EEPROM.h>
+  #elif defined(__SAM3X8E__)
+    #include <DueFlashStorage.h>
+    extern DueFlashStorage EEPROM;
+  #endif
   #include <math.h>
 
   // macros for converting hardware major/minor versions to a version string
@@ -36,7 +41,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #define ___HARDWARE_VERSION___ DEFINE_TO_STRING(___HARDWARE_MAJOR_VERSION___.___HARDWARE_MINOR_VERSION___)
 #endif
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   const float DmfControlBoard::SAMPLING_RATES_[] = { 8908, 16611, 29253, 47458,
                                                      68191, 90293, 105263 };
   const char DmfControlBoard::PROTOCOL_NAME_[] = "DMF Control Protocol";
@@ -64,7 +69,7 @@ const char DmfControlBoard::URL_[] = "http://microfluidics.utoronto.ca/dmf_contr
 
 DmfControlBoard::DmfControlBoard()
   : RemoteObject(BAUD_RATE,true
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
                    ,"DmfControlBoard" //used for logging
 #endif
                    ) {
@@ -74,13 +79,13 @@ DmfControlBoard::~DmfControlBoard() {
 }
 
 uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
   const char* function_name = "ProcessCommand()";
   LogMessage(str(format("command=0x%0X (%d)") % cmd % cmd).c_str(),
     function_name);
 #endif
   switch(cmd) {
-#ifdef AVR // Commands that only the Arduino handles
+#if defined(AVR) || defined(__SAM3X8E__) // Commands that only the Arduino handles
     case CMD_GET_NUMBER_OF_CHANNELS:
       if(payload_length()==0) {
         Serialize(&number_of_channels_,sizeof(number_of_channels_));
@@ -303,6 +308,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#ifdef AVR // only on Arduino Mega 2560
     case CMD_GET_SAMPLING_RATE:
       if(payload_length()==0) {
         Serialize(&SAMPLING_RATES_[sampling_rate_index_],sizeof(float));
@@ -318,6 +324,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#endif
     case CMD_GET_SERIES_RESISTOR_INDEX:
       if(payload_length()==sizeof(uint8_t)) {
         uint8_t channel = ReadUint8();
@@ -687,7 +694,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #endif
   }
   RemoteObject::ProcessCommand(cmd);
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
   if(return_code_ == RETURN_UNKNOWN_COMMAND) {
     LogError("Unrecognized command", function_name);
   }
@@ -695,7 +702,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
   return return_code_;
 }
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
 ////////////////////////////////////////////////////////////////////////////////
 //
 // These functions are only defined on the Arduino.
@@ -890,7 +897,9 @@ void DmfControlBoard::begin() {
 
   SetSeriesResistor(0, 0);
   SetSeriesResistor(1, 0);
+#ifdef AVR // only on Arduino Mega 2560
   SetAdcPrescaler(4);
+#endif
 }
 
 const char* DmfControlBoard::hardware_version() {
@@ -911,47 +920,6 @@ uint8_t DmfControlBoard::SetPot(uint8_t index, uint8_t value) {
   }
   return RETURN_BAD_INDEX;
 }
-
-uint8_t DmfControlBoard::SetAdcPrescaler(const uint8_t index) {
-  uint8_t return_code = RETURN_OK;
-  switch(128>>index) {
-    case 128:
-      ADCSRA |= _BV(ADPS2) | _BV(ADPS1) | _BV(ADPS0);
-      break;
-    case 64:
-      ADCSRA |= _BV(ADPS2) | _BV(ADPS1);
-      ADCSRA &= ~(_BV(ADPS0));
-      break;
-    case 32:
-      ADCSRA |= _BV(ADPS2) | _BV(ADPS0);
-      ADCSRA &= ~_BV(ADPS1);
-      break;
-    case 16:
-      ADCSRA |= _BV(ADPS2);
-      ADCSRA &= ~(_BV(ADPS1) | _BV(ADPS0));
-      break;
-    case 8:
-      ADCSRA |= _BV(ADPS1) | _BV(ADPS0);
-      ADCSRA &= ~_BV(ADPS2);
-      break;
-    case 4:
-      ADCSRA |= _BV(ADPS1);
-      ADCSRA &= ~(_BV(ADPS2) | _BV(ADPS0));
-      break;
-    case 2:
-      ADCSRA |= _BV(ADPS0);
-      ADCSRA &= ~(_BV(ADPS2) | _BV(ADPS1));
-      break;
-    default:
-      return_code = RETURN_GENERAL_ERROR;
-      break;
-  }
-  if(return_code==RETURN_OK){
-    sampling_rate_index_ = index;
-  }
-  return return_code;
-}
-
 
 uint8_t DmfControlBoard::SetSeriesResistor(const uint8_t channel,
                                            const uint8_t index) {
@@ -1706,4 +1674,46 @@ uint8_t DmfControlBoard::ResetConfigToDefaults() {
   return return_code();
 }
 
+#endif // defined(AVR) || defined(__SAM3X8E__)
+
+#ifdef AVR // only on Arduino Mega 2560
+uint8_t DmfControlBoard::SetAdcPrescaler(const uint8_t index) {
+  uint8_t return_code = RETURN_OK;
+  switch(128>>index) {
+    case 128:
+      ADCSRA |= _BV(ADPS2) | _BV(ADPS1) | _BV(ADPS0);
+      break;
+    case 64:
+      ADCSRA |= _BV(ADPS2) | _BV(ADPS1);
+      ADCSRA &= ~(_BV(ADPS0));
+      break;
+    case 32:
+      ADCSRA |= _BV(ADPS2) | _BV(ADPS0);
+      ADCSRA &= ~_BV(ADPS1);
+      break;
+    case 16:
+      ADCSRA |= _BV(ADPS2);
+      ADCSRA &= ~(_BV(ADPS1) | _BV(ADPS0));
+      break;
+    case 8:
+      ADCSRA |= _BV(ADPS1) | _BV(ADPS0);
+      ADCSRA &= ~_BV(ADPS2);
+      break;
+    case 4:
+      ADCSRA |= _BV(ADPS1);
+      ADCSRA &= ~(_BV(ADPS2) | _BV(ADPS0));
+      break;
+    case 2:
+      ADCSRA |= _BV(ADPS0);
+      ADCSRA &= ~(_BV(ADPS2) | _BV(ADPS1));
+      break;
+    default:
+      return_code = RETURN_GENERAL_ERROR;
+      break;
+  }
+  if(return_code==RETURN_OK){
+    sampling_rate_index_ = index;
+  }
+  return return_code;
+}
 #endif // AVR

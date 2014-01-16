@@ -20,7 +20,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef _DMF_CONTROL_BOARD_H_
 #define _DMF_CONTROL_BOARD_H_
 
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
   #include <iostream>
   #include <fstream>
   #include <string>
@@ -43,7 +43,7 @@ public:
     uint16_t micro;
   };
 
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   struct config_settings_t {
     /**\brief This is the software version that the EEPROM configuration data
     was written with.*/
@@ -149,7 +149,7 @@ public:
   ~DmfControlBoard();
 
 // In our case, the PC is the only one sending commands
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
@@ -216,7 +216,7 @@ private:
   static const char HARDWARE_VERSION_[];
   static const char MANUFACTURER_[];
   static const char URL_[];
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   static const char PROTOCOL_NAME_[];
   static const char PROTOCOL_VERSION_[];
 
@@ -278,23 +278,25 @@ private:
 
   // private functions
   virtual uint8_t ProcessCommand(uint8_t cmd);
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   uint8_t UpdateChannel(const uint16_t channel, const uint8_t state);
   void UpdateAllChannels();
   void SendSPI(uint8_t pin, uint8_t address, uint8_t data);
   uint8_t SetPot(uint8_t index, uint8_t value);
   uint8_t SetSeriesResistor(const uint8_t channel,
                             const uint8_t index);
-  uint8_t SetAdcPrescaler(const uint8_t index);
   void LoadConfig(bool use_defaults=false);
   void SaveConfig();
   version_t ConfigVersion();
   uint8_t SetWaveformVoltage(const float output_vrms,
                              const bool wait_for_reply=true);
 #endif
+#ifdef AVR
+  uint8_t SetAdcPrescaler(const uint8_t index);
+#endif
 
   //private members
-#ifdef AVR
+#if defined(AVR) || defined(__SAM3X8E__)
   uint16_t number_of_channels_;
   uint8_t sampling_rate_index_;
   uint8_t A0_series_resistor_index_;
