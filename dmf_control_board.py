@@ -571,18 +571,63 @@ class DmfControlBoard(Base, SerialDevice):
                 break
         return values
 
+    def write_all_series_channel_values(self, read_f, write_f, channel,
+                                        values):
+        '''
+        Return all values for the specified channel of the type corresponding
+        to the function `f`, where `f` is either `self.series_resistance` or
+        `self.series_capacitance`.
+        '''
+        # Read the current values, and only update the values that are
+        # different.
+        original_values = self.read_all_series_channel_values(read_f, channel)
+
+        # Make sure that the number of supplied values matches the number of
+        # corresponding values read from the channel.
+        assert(len(values) == len(original_values))
+
+        for i in range(len(original_values)):
+            if values[i] != original_values[i]:
+                write_f(channel, values[i], i)
+
     @property
     def a0_series_resistance(self):
         return self.read_all_series_channel_values(self.series_resistance, 0)
+
+    @a0_series_resistance.setter
+    def a0_series_resistance(self, values):
+        return self.write_all_series_channel_values(self.series_resistance,
+                                                    self.set_series_resistance,
+                                                    0, values)
 
     @property
     def a0_series_capacitance(self):
         return self.read_all_series_channel_values(self.series_capacitance, 0)
 
+    @a0_series_capacitance.setter
+    def a0_series_capacitance(self, values):
+        return self.write_all_series_channel_values(self.series_capacitance,
+                                                    self
+                                                    .set_series_capacitance,
+                                                    0, values)
+
     @property
     def a1_series_resistance(self):
         return self.read_all_series_channel_values(self.series_resistance, 1)
 
+    @a1_series_resistance.setter
+    def a1_series_resistance(self, values):
+        return self.write_all_series_channel_values(self.series_resistance,
+                                                    self.set_series_resistance,
+                                                    1, values)
+
     @property
     def a1_series_capacitance(self):
         return self.read_all_series_channel_values(self.series_capacitance, 1)
+
+    @a1_series_capacitance.setter
+    def a1_series_capacitance(self, values):
+        return self.write_all_series_channel_values(self.series_capacitance,
+                                                    self
+                                                    .set_series_capacitance,
+                                                    1, values)
