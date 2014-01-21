@@ -48,7 +48,7 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
   scope().attr("LOW") = 0;
   scope().attr("SINE") = DmfControlBoard::SINE;
   scope().attr("SQUARE") = DmfControlBoard::SQUARE;
-  
+
   class_<std::vector<uint8_t> >("uint8_tVector")
     .def(vector_indexing_suite<std::vector<uint8_t> >())
   ;
@@ -107,9 +107,9 @@ object DmfControlBoard_class
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
     .def("sampling_rate",&DmfControlBoard::sampling_rate)
     .def("series_resistor_index",&DmfControlBoard::series_resistor_index)
-    .def("series_resistance",&DmfControlBoard::series_resistance)
-    .def("series_capacitance",&DmfControlBoard::series_capacitance)
-    .def("amplifier_gain",&DmfControlBoard::amplifier_gain)
+    .def("_series_resistance",&DmfControlBoard::series_resistance)
+    .def("_series_capacitance",&DmfControlBoard::series_capacitance)
+    .def("_amplifier_gain",&DmfControlBoard::amplifier_gain)
     .def("auto_adjust_amplifier_gain",&DmfControlBoard::auto_adjust_amplifier_gain)
     .def("waveform",&DmfControlBoard::waveform)
     .def("waveform_voltage",&DmfControlBoard::waveform_voltage)
@@ -121,9 +121,9 @@ object DmfControlBoard_class
     .def("set_waveform_frequency",&DmfControlBoard::set_waveform_frequency)
     .def("set_sampling_rate",&DmfControlBoard::set_sampling_rate)
     .def("set_series_resistor_index",&DmfControlBoard::set_series_resistor_index)
-    .def("set_series_resistance",&DmfControlBoard::set_series_resistance)
-    .def("set_series_capacitance",&DmfControlBoard::set_series_capacitance)
-    .def("set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
+    .def("_set_series_resistance",&DmfControlBoard::set_series_resistance)
+    .def("_set_series_capacitance",&DmfControlBoard::set_series_capacitance)
+    .def("_set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
     .def("set_auto_adjust_amplifier_gain",&DmfControlBoard::set_auto_adjust_amplifier_gain)
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
     .def("measure_impedance_non_blocking",&DmfControlBoard::MeasureImpedanceNonBlocking)

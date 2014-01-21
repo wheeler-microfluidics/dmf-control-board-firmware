@@ -86,13 +86,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     """
     implements(IPlugin)
     implements(IWaveformGenerator)
-    
+
     serial_ports_ = [port for port in serial_device.SerialDevice().get_serial_ports()]
     if len(serial_ports_):
         default_port_ = serial_ports_[0]
     else:
         default_port_ = None
-    
+
     AppFields = Form.of(
         Integer.named('sampling_time_ms').using(default=10, optional=True,
             validators=[ValueAtLeast(minimum=0), ],),
@@ -113,7 +113,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     )
     _feedback_fields = set(['feedback_enabled'])
     version = get_plugin_info(path(__file__).parent.parent).version
-    
+
     def __init__(self):
         self.control_board = DmfControlBoard()
         self.name = get_plugin_info(path(__file__).parent.parent).plugin_name
@@ -146,7 +146,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 self.feedback_calibration_controller.on_save_log_calibration)
             self.load_log_calibration_menu_item.connect("activate",
                 self.feedback_calibration_controller.on_load_log_calibration)
-            
+
             experiment_log_controller = get_service_instance_by_name(
                 "microdrop.gui.experiment_log_controller", "microdrop")
             if hasattr(experiment_log_controller, 'popup'):
@@ -167,14 +167,14 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.control_board_menu_item.set_submenu(self.control_board_menu)
 
             self.feedback_options_controller.on_plugin_enable()
-            
+
             menu_item = gtk.MenuItem("Perform calibration")
             menu_item.connect("activate",
                 self.feedback_calibration_controller.on_perform_calibration)
             self.control_board_menu.append(menu_item)
             self.perform_calibration_menu_item = menu_item
             menu_item.show()
-            
+
             menu_item = gtk.MenuItem("Load calibration from file")
             menu_item.connect("activate",
                               self.feedback_calibration_controller. \
@@ -182,7 +182,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.control_board_menu.append(menu_item)
             self.load_calibration_from_file_menu_item = menu_item
             menu_item.show()
-                        
+
             menu_item = gtk.MenuItem("Edit calibration settings")
             menu_item.connect("activate",
                               self.on_edit_calibration)
@@ -196,7 +196,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.control_board_menu.append(menu_item)
             self.reset_calibration_to_default_values_menu_item = menu_item
             menu_item.show()
-                        
+
             self.initialized = True
 
         super(DmfControlBoardPlugin, self).on_plugin_enable()
@@ -254,7 +254,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             if name != "Arduino DMF Controller":
                 raise Exception("Device is not an Arduino DMF Controller")
-                        
+
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
 
@@ -269,9 +269,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     self.on_flash_firmware()
         except Exception, why:
             logger.warning("%s" % why)
-        
+
         self.update_connection_status()
-        
+
     def on_flash_firmware(self, widget=None, data=None):
         app = get_app()
         try:
@@ -291,6 +291,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.check_device_name_and_version()
 
     def on_edit_calibration(self, widget=None, data=None):
+        '''
+        Display a dialog to manually edit the calibration settings for the
+        control board.  These settings include values that are automatically
+        adjusted during [calibration][1].
+
+        [1] http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
+        '''
         if not self.control_board.connected():
             logging.error("A control board must be connected in order to "
                           "edit calibration settings.")
@@ -320,8 +327,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 default=settings['voltage_tolerance'], optional=True,
                 validators=[ValueAtLeast(minimum=0),]),
         )
-        
-        if hardware_version.major == 1:        
+
+        if hardware_version.major == 1:
             settings['WAVEOUT_GAIN_1'] = self.control_board \
                 .eeprom_read(self.control_board.EEPROM_WAVEOUT_GAIN_1_ADDRESS)
             schema_entries.append(
@@ -465,7 +472,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         options = impedance.options
         feedback_options = impedance.options.feedback_options
 
-        app_values = self.get_app_values()            
+        app_values = self.get_app_values()
 
         if impedance.V_actuation()[-1]<5.0:
             logger.error("Low voltage detected. Please check that the amplifier is on.")
@@ -479,11 +486,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
                 'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
                 100*(impedance.V_actuation()[-1]-voltage)/voltage))
-            
+
             # check that the signal is within tolerance
             if abs(impedance.V_actuation()[-1]-voltage) > \
                 self.control_board.voltage_tolerance():
-                
+
                 # allow maximum of 5 adjustment attempts
                 if self.control_board.auto_adjust_amplifier_gain() and \
                 self.n_voltage_adjustments is not None and \
@@ -497,8 +504,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 else:
                     self.n_voltage_adjustments = None
                     logger.error("Unable to achieve the specified voltage.")
-             
-             
+
+
             if self.control_board.auto_adjust_amplifier_gain() and not \
             self.amplifier_gain_initialized:
                 self.amplifier_gain_initialized = True
@@ -546,7 +553,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         try:
             if self.control_board.connected() and \
                 (app.realtime_mode or app.running):
-                
+
                 # initialize the amplifier gain
                 if self.control_board.auto_adjust_amplifier_gain() and \
                     not self.amplifier_gain_initialized:
@@ -566,11 +573,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                             np.zeros(max_channels - len(state), int)])
                 else:
                     assert(len(state) == max_channels)
-    
+
                 if feedback_options.feedback_enabled:
                     # calculate the total area of actuated electrodes
                     area = self.get_actuated_area()
-                    
+
                     if feedback_options.action.__class__ == RetryAction:
                         attempt = app.protocol.current_step_attempt
                         if attempt <= feedback_options.action.max_repeats:
@@ -586,7 +593,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                 self.check_impedance(options)
                             self.control_board.measure_impedance_non_blocking(
                                 app_values['sampling_time_ms'],
-                                int(math.ceil(options.duration/ 
+                                int(math.ceil(options.duration/
                                     app_values['sampling_time_ms'])),
                                 app_values['delay_between_samples_ms'],
                                 state)
@@ -659,7 +666,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 self.control_board.set_state_of_all_channels(
                     np.zeros(self.control_board.number_of_channels())
                 )
-            
+
             # if a protocol is running, wait for the specified minimum duration
             if app.running:
                 logger.debug('[DmfControlBoardPlugin] on_step_run: '
@@ -788,7 +795,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             options.frequency = frequency
             self.control_board.measure_impedance_non_blocking(
                 app_values['sampling_time_ms'],
-                int(math.ceil(options.duration/ 
+                int(math.ceil(options.duration/
                     app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'],
                 state)
@@ -802,7 +809,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         else:
             self.step_complete()
         return False # stop the timeout from refiring
-    
+
     def _callback_sweep_voltage(self, options, results, state, voltages,
                                 first_call=False):
         logger.debug('[DmfControlBoardPlugin] '
@@ -827,11 +834,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         if len(voltages):
             voltage  = voltages[0]
             emit_signal("set_voltage", voltage,
-                        interface=IWaveformGenerator)            
+                        interface=IWaveformGenerator)
             options.voltage = voltage
             self.control_board.measure_impedance_non_blocking(
                 app_values['sampling_time_ms'],
-                int(math.ceil(options.duration/ 
+                int(math.ceil(options.duration/
                     app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'],
                 state)
@@ -845,11 +852,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         else:
             self.step_complete()
         return False # stop the timeout from refiring
-    
+
     def on_dmf_device_swapped(self, old_dmf_device, dmf_device):
         self.feedback_options_controller. \
             feedback_options_menu_item.set_sensitive(True)
-    
+
     def on_protocol_run(self):
         """
         Handler called when a protocol starts running.
@@ -874,7 +881,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.control_board.set_state_of_all_channels(
                 np.zeros(self.control_board.number_of_channels())
             )
-    
+
     def on_experiment_log_selection_changed(self, data):
         """
         Handler called whenever the experiment log selection changes.
@@ -885,32 +892,32 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         if self.feedback_results_controller:
             self.feedback_results_controller. \
                 on_experiment_log_selection_changed(data)
-        
+
     def set_voltage(self, voltage):
         """
         Set the waveform voltage.
-        
+
         Parameters:
             voltage : RMS voltage
         """
         logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
         self.control_board.set_waveform_voltage(voltage)
-        
+
     def set_frequency(self, frequency):
         """
         Set the waveform frequency.
-        
+
         Parameters:
             frequency : frequency in Hz
         """
         logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
         self.control_board.set_waveform_frequency(frequency)
         self.current_frequency = frequency
-        
+
     def check_impedance(self, options, n_voltage_adjustments=0):
         """
         Check the device impedance.
-        
+
         Note that this function blocks until it returns.
         """
         # increment the number of adjustment attempts
@@ -926,7 +933,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         (V_hv, hv_resistor, V_fb, fb_resistor) = \
             self.control_board.measure_impedance(
                 app_values['sampling_time_ms'],
-                int(math.ceil(test_options.duration/ 
+                int(math.ceil(test_options.duration/
                     app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'],
                 state)
@@ -942,7 +949,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             0)
         emit_signal("on_device_impedance_update", results)
         return results
-        
+
     def get_default_step_options(self):
         return DmfControlBoardOptions()
 
@@ -953,7 +960,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         el = self.StepFields(value=values_dict)
         try:
             if not el.validate():
-                raise ValueError()            
+                raise ValueError()
             options = self.get_step_options(step_number=step_number)
             for name, field in el.iteritems():
                 if field.value is None:
