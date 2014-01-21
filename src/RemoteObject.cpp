@@ -55,11 +55,11 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
     debug_ = false;
 
 #ifdef AVR
-    // initialize pin mode and state of digital pins
-    // from EEPROM
+    // Initialize pin mode and state of digital pins from persistent storage
+    // _(i.e., EEPROM on AVR)_.
     for (uint8_t i = 0; i <= 54 / 8; i++) {
-        uint8_t mode = EEPROM.read(EEPROM_PIN_MODE_ADDRESS + i);
-        uint8_t state = EEPROM.read(EEPROM_PIN_STATE_ADDRESS + i);
+        uint8_t mode = this->persistent_read(PERSISTENT_PIN_MODE_ADDRESS + i);
+        uint8_t state = this->persistent_read(PERSISTENT_PIN_STATE_ADDRESS + i);
         for (uint8_t j = 0; j < 8; j++) {
             if(i * 8 + j < 54) {
                 pinMode(i * 8 + j, (~mode >> j) & 0x01);
@@ -482,20 +482,20 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_EEPROM_WRITE:
+    case CMD_PERSISTENT_WRITE:
       if(payload_length()==3) {
         uint16_t address = ReadUint16();
         uint8_t value = ReadUint8();
-        EEPROM.write(address, value);
+        this->persistent_write(address, value);
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_EEPROM_READ:
+    case CMD_PERSISTENT_READ:
       if(payload_length()==2) {
         uint16_t address = ReadUint16();
-        uint8_t value = EEPROM.read(address);
+        uint8_t value = this->persistent_read(address);
         Serialize(&value,sizeof(value));
         return_code_ = RETURN_OK;
       } else {
@@ -845,13 +845,13 @@ void RemoteObject::Listen() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoteObject::begin() {
+void /* DEVICE */ RemoteObject::begin() {
   Serial.begin(baud_rate_);
   Wire.begin();
   SPI.begin();
 }
 
-void RemoteObject::i2c_scan() {
+void /* DEVICE */ RemoteObject::i2c_scan() {
   for (uint8_t i = 8; i < 120; i++) {
     Wire.beginTransmission(i);
     if (Wire.endTransmission() == 0) {
@@ -865,14 +865,16 @@ void RemoteObject::i2c_scan() {
   }
 }
 
-void RemoteObject::i2c_write(const uint8_t address, const uint8_t data) {
+void /* DEVICE */ RemoteObject::i2c_write(const uint8_t address,
+                                          const uint8_t data) {
     Wire.beginTransmission(address);
     Wire.write(data);
     Wire.endTransmission();
 }
 
-void RemoteObject::i2c_write(const uint8_t address, const uint8_t* data,
-                             const uint8_t n_bytes) {
+void /* DEVICE */ RemoteObject::i2c_write(const uint8_t address,
+                                          const uint8_t* data,
+                                          const uint8_t n_bytes) {
     Wire.beginTransmission(address);
     for (uint8_t i = 0; i < n_bytes; i++) {
         Wire.write(data[i]);
@@ -880,14 +882,23 @@ void RemoteObject::i2c_write(const uint8_t address, const uint8_t* data,
     Wire.endTransmission();
 }
 
-uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
-                               const uint8_t n_bytes_to_read) {
+uint8_t /* DEVICE */ RemoteObject::i2c_read(const uint8_t address,
+                                            uint8_t* data,
+                                            const uint8_t n_bytes_to_read) {
     uint8_t n_bytes_read = 0;
     Wire.requestFrom(address, n_bytes_to_read);
     while (Wire.available()) {
         data[n_bytes_read++] = Wire.read();
     }
     return n_bytes_read;
+}
+
+uint8_t /* HOST */ RemoteObject::persistent_read(uint16_t address) {
+    return EEPROM.read(address);
+}
+
+void /* HOST */ RemoteObject::persistent_write(uint16_t address, uint8_t value) {
+    EEPROM.write(address, value);
 }
 
 #else
@@ -897,7 +908,7 @@ uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t RemoteObject::Connect(const char* port) {
+uint8_t /* HOST */ RemoteObject::Connect(const char* port) {
   const char* function_name = "Connect()";
   int return_code = Serial.begin(port, baud_rate_);
 
@@ -947,11 +958,11 @@ uint8_t RemoteObject::Connect(const char* port) {
     port).c_str());
 }
 
-void RemoteObject::set_debug(const bool debug) {
+void /* HOST */ RemoteObject::set_debug(const bool debug) {
   debug_ = debug;
 }
 
-string RemoteObject::protocol_name() {
+string /* HOST */ RemoteObject::protocol_name() {
   const char* function_name = "protocol_name()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -964,7 +975,7 @@ string RemoteObject::protocol_name() {
   return "";
 }
 
-string RemoteObject::protocol_version() {
+string /* HOST */ RemoteObject::protocol_version() {
   const char* function_name = "protocol_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -977,7 +988,7 @@ string RemoteObject::protocol_version() {
   return "";
 }
 
-string RemoteObject::name() {
+string /* HOST */ RemoteObject::name() {
   const char* function_name = "name()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -989,7 +1000,7 @@ string RemoteObject::name() {
   return "";
 }
 
-string RemoteObject::manufacturer() {
+string /* HOST */ RemoteObject::manufacturer() {
   const char* function_name = "manufacturer()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1002,7 +1013,7 @@ string RemoteObject::manufacturer() {
   return "";
 }
 
-string RemoteObject::software_version() {
+string /* HOST */ RemoteObject::software_version() {
   const char* function_name = "software_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1015,7 +1026,7 @@ string RemoteObject::software_version() {
   return "";
 }
 
-string RemoteObject::hardware_version() {
+string /* HOST */ RemoteObject::hardware_version() {
   const char* function_name = "hardware_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1028,7 +1039,7 @@ string RemoteObject::hardware_version() {
   return "";
 }
 
-string RemoteObject::url() {
+string /* HOST */ RemoteObject::url() {
   const char* function_name = "url()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1040,7 +1051,7 @@ string RemoteObject::url() {
   return "";
 }
 
-void RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
+void /* HOST */ RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
   const char* function_name = "set_pin_mode()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1053,7 +1064,7 @@ void RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
   }
 }
 
-uint8_t RemoteObject::digital_read(uint8_t pin) {
+uint8_t /* HOST */ RemoteObject::digital_read(uint8_t pin) {
   const char* function_name = "digital_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1067,7 +1078,7 @@ uint8_t RemoteObject::digital_read(uint8_t pin) {
   return 0;
 }
 
-void RemoteObject::digital_write(uint8_t pin, bool value) {
+void /* HOST */ RemoteObject::digital_write(uint8_t pin, bool value) {
   const char* function_name = "digital_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1080,7 +1091,7 @@ void RemoteObject::digital_write(uint8_t pin, bool value) {
   }
 }
 
-uint16_t RemoteObject::analog_read(uint8_t pin) {
+uint16_t /* HOST */ RemoteObject::analog_read(uint8_t pin) {
   const char* function_name = "analog_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1094,8 +1105,8 @@ uint16_t RemoteObject::analog_read(uint8_t pin) {
   return 0;
 }
 
-std::vector<uint16_t> RemoteObject::analog_reads(uint8_t pin,
-                                                 uint16_t n_samples) {
+std::vector<uint16_t> /* HOST */ RemoteObject::analog_reads(
+        uint8_t pin, uint16_t n_samples) {
   const char* function_name = "analog_reads()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1115,7 +1126,7 @@ std::vector<uint16_t> RemoteObject::analog_reads(uint8_t pin,
   return std::vector<uint16_t>();
 }
 
-void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
+void /* HOST */ RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   const char* function_name = "analog_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1127,12 +1138,12 @@ void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   }
 }
 
-uint8_t RemoteObject::eeprom_read(uint16_t address) {
-  const char* function_name = "eeprom_read()";
+uint8_t /* HOST */ RemoteObject::persistent_read(uint16_t address) {
+  const char* function_name = "persistent_read()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
-  if(SendCommand(CMD_EEPROM_READ)==RETURN_OK) {
+  if(SendCommand(CMD_PERSISTENT_READ)==RETURN_OK) {
     uint8_t value = ReadUint8();
     LogMessage(str(format("address %d value=%d") % address % value).c_str(),
       function_name);
@@ -1141,20 +1152,20 @@ uint8_t RemoteObject::eeprom_read(uint16_t address) {
   return 0;
 }
 
-void RemoteObject::eeprom_write(uint16_t address, uint8_t value) {
-  const char* function_name = "eeprom_write()";
+void /* HOST */ RemoteObject::persistent_write(uint16_t address, uint8_t value) {
+  const char* function_name = "persistent_write()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
   Serialize(&value,sizeof(value));
-  if(SendCommand(CMD_EEPROM_WRITE)==RETURN_OK) {
+  if(SendCommand(CMD_PERSISTENT_WRITE)==RETURN_OK) {
     LogMessage(str(format("address %d value=%d") % address % value).c_str(),
       function_name);
   }
 }
 
-std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
-                                                   uint8_t index) {
+std::vector<uint8_t> /* HOST */ RemoteObject::onewire_address(uint8_t pin,
+                                                              uint8_t index) {
   const char* function_name = "onewire_address()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1172,10 +1183,11 @@ std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
   return std::vector<uint8_t>();
 }
 
-std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
-                                                std::vector<uint8_t> address,
-                                                uint8_t command,
-                                                uint8_t n_bytes) {
+std::vector<uint8_t> /* HOST */ RemoteObject::onewire_read(uint8_t pin,
+                                                           std::vector<uint8_t>
+                                                           address,
+                                                           uint8_t command,
+                                                           uint8_t n_bytes) {
   const char* function_name = "onewire_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1197,8 +1209,9 @@ std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
   return std::vector<uint8_t>();
 }
 
-void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
-                                 uint8_t value, uint8_t power) {
+void /* HOST */ RemoteObject::onewire_write(uint8_t pin,
+                                            std::vector<uint8_t> address,
+                                            uint8_t value, uint8_t power) {
   const char* function_name = "onewire_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1214,7 +1227,8 @@ void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
   }
 }
 
-void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
+void /* HOST */ RemoteObject::i2c_write(uint8_t address,
+                                        std::vector<uint8_t> data) {
   const char* function_name = "i2c_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1229,8 +1243,9 @@ void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
   }
 }
 
-std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
-                                            uint8_t n_bytes_to_read) {
+std::vector<uint8_t> /* HOST */ RemoteObject::i2c_read(uint8_t address,
+                                                       uint8_t
+                                                       n_bytes_to_read) {
   const char* function_name = "i2c_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1249,10 +1264,12 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
   return std::vector<uint8_t>();
 }
 
-std::vector<uint8_t> RemoteObject::i2c_send_command(uint8_t address,
-                                                    uint8_t cmd,
-                                                    std::vector<uint8_t> data,
-                                                    uint8_t delay_ms) {
+std::vector<uint8_t> /* HOST */ RemoteObject::i2c_send_command(uint8_t address,
+                                                               uint8_t cmd,
+                                                               std::vector
+                                                               <uint8_t> data,
+                                                               uint8_t
+                                                               delay_ms) {
   const char* function_name = "i2c_send_command()";
   data.insert(data.begin(), cmd);
   i2c_write(address, data);
@@ -1270,7 +1287,7 @@ std::vector<uint8_t> RemoteObject::i2c_send_command(uint8_t address,
   return out;
 }
 
-void RemoteObject::spi_set_bit_order(bool order) {
+void /* HOST */ RemoteObject::spi_set_bit_order(bool order) {
   const char* function_name = "spi_set_bit_order()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1280,7 +1297,7 @@ void RemoteObject::spi_set_bit_order(bool order) {
   }
 }
 
-void RemoteObject::spi_set_clock_divider(uint8_t divider) {
+void /* HOST */ RemoteObject::spi_set_clock_divider(uint8_t divider) {
   const char* function_name = "spi_set_clock_divider()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1290,7 +1307,7 @@ void RemoteObject::spi_set_clock_divider(uint8_t divider) {
   }
 }
 
-void RemoteObject::spi_set_data_mode(uint8_t mode) {
+void /* HOST */ RemoteObject::spi_set_data_mode(uint8_t mode) {
   const char* function_name = "spi_set_data_mode()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1300,7 +1317,7 @@ void RemoteObject::spi_set_data_mode(uint8_t mode) {
   }
 }
 
-uint8_t RemoteObject::spi_transfer(uint8_t value) {
+uint8_t /* HOST */ RemoteObject::spi_transfer(uint8_t value) {
   const char* function_name = "spi_transfer()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1314,7 +1331,7 @@ uint8_t RemoteObject::spi_transfer(uint8_t value) {
   return 0;
 }
 
-std::vector<uint8_t> RemoteObject::debug_buffer() {
+std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {
   const char* function_name = "debug_buffer()";
   LogSeparator();
   LogMessage("send command", function_name);

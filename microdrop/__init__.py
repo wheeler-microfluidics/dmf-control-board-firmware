@@ -258,13 +258,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             host_software_version = self.control_board.host_software_version()
             remote_software_version = self.control_board.software_version()
 
-            # reflash the firmware if it is not the right version
+            # Reflash the firmware if it is not the right version.
             if host_software_version !=  remote_software_version:
-                response = yesno("The "
-                    "control board firmware version (%s) does not match the "
-                    "driver version (%s). Update firmware?" %
-                    (remote_software_version, host_software_version))
-                    #"Update firmware?")
+                response = yesno("The control board firmware version (%s) "
+                                 "does not match the driver version (%s). "
+                                 "Update firmware?" % (remote_software_version,
+                                                       host_software_version))
                 if response == gtk.RESPONSE_YES:
                     self.on_flash_firmware()
         except Exception, why:

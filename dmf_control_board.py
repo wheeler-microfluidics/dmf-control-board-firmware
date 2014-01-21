@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from collections import OrderedDict
 import decorator
 import time
 import copy
@@ -32,6 +33,23 @@ from dmf_control_board_base import uint8_tVector
 from serial_device import SerialDevice
 from avr import AvrDude
 from utility import Version, FutureVersionError
+import dmf_control_board
+
+
+def safe_getattr(obj, attr, except_types):
+    '''
+    Execute `getattr` to retrieve the specified attribute from the provided
+    object, returning a default value of `None` in the case where the attribute
+    does not exist.
+
+    In the case where an exception occurs during the `getattr` call, if the
+    exception type is in `except_types`, ignore the exception and return
+    `None`.
+    '''
+    try:
+        return getattr(obj, attr, None)
+    except except_types:
+        return None
 
 
 class EepromSettingDoesNotExist(Exception):
@@ -292,7 +310,7 @@ class DmfControlBoard(Base, SerialDevice):
         return unpack('f', pack('BBBB', *data))[0]
 
     @voltage_tolerance.setter
-    def set_voltage_tolerance(self, tolerance):
+    def voltage_tolerance(self, tolerance):
         data = unpack('BBBB', pack('f', tolerance))
         for i in range(0, 4):
             self.eeprom_write(self.EEPROM_VOLTAGE_TOLERANCE + i, data[i])
@@ -631,3 +649,27 @@ class DmfControlBoard(Base, SerialDevice):
                                                     self
                                                     .set_series_capacitance,
                                                     1, values)
+
+    @property
+    def config_attribute_names(self):
+        return ['aref', 'waveout_gain_1',
+                'vgnd', 'a0_series_resistance', 'a0_series_capacitance',
+                'a1_series_resistance', 'a1_series_capacitance',
+                'signal_generator_board_i2c_address',
+                'amplifier_gain', 'switching_board_i2c_address',
+                'voltage_tolerance', ]
+
+    def read_config(self):
+        '''
+        '''
+        except_types = (dmf_control_board.EepromSettingDoesNotExist, )
+        return OrderedDict([(a, safe_getattr(self, a, except_types))
+                            for a in self.config_attribute_names])
+
+    def write_config(self, config):
+        device_config = self.read_config()
+        common_keys = set(config.keys()).intersection(device_config.keys())
+        for k in device_config.keys():
+            if k in common_keys and (device_config[k] is not None and
+                                     config[k] is not None):
+                setattr(self, k, config[k])
