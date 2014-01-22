@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
-
+import re
 import gtk
 import gobject
 import numpy as np
@@ -321,19 +321,19 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
         schema_entries = []
         settings = {}
-        settings['amplifier_gain'] = self.control_board.amplifier_gain()
+        settings['amplifier_gain'] = self.control_board.amplifier_gain
         schema_entries.append(
             Float.named('amplifier_gain').using(
                 default=settings['amplifier_gain'],
                 optional=True, validators=[ValueAtLeast(minimum=0.01), ]),
         )
         settings['auto_adjust_amplifier_gain'] = self.control_board \
-            .auto_adjust_amplifier_gain()
+            .auto_adjust_amplifier_gain
         schema_entries.append(
             Boolean.named('auto_adjust_amplifier_gain').using(
                 default=settings['auto_adjust_amplifier_gain'], optional=True),
         )
-        settings['voltage_tolerance'] = self.control_board.voltage_tolerance()
+        settings['voltage_tolerance'] = self.control_board.voltage_tolerance
         schema_entries.append(
             Float.named('voltage_tolerance').using(
                 default=settings['voltage_tolerance'], optional=True,
@@ -407,7 +407,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     if k == 'amplifier_gain':
                         self.control_board.amplifier_gain = v
                     elif k == 'auto_adjust_amplifier_gain':
-                        self.control_board.set_auto_adjust_amplifier_gain(v)
+                        self.control_board.auto_adjust_amplifier_gain = v
                     elif k == 'WAVEOUT_GAIN_1':
                         self.control_board.waveout_gain_1 = v
                     elif k == 'VGND':
@@ -498,10 +498,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             # check that the signal is within tolerance
             if (abs(impedance.V_actuation()[-1] - voltage) >
-                    self.control_board.voltage_tolerance()):
+                    self.control_board.voltage_tolerance):
 
                 # allow maximum of 5 adjustment attempts
-                if (self.control_board.auto_adjust_amplifier_gain() and
+                if (self.control_board.auto_adjust_amplifier_gain and
                         self.n_voltage_adjustments is not None and
                         self.n_voltage_adjustments < 5):
                     logger.info('\tn_voltage_adjustments=%d' %
@@ -514,11 +514,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     self.n_voltage_adjustments = None
                     logger.error("Unable to achieve the specified voltage.")
 
-            if (self.control_board.auto_adjust_amplifier_gain() and not
+            if (self.control_board.auto_adjust_amplifier_gain and not
                     self.amplifier_gain_initialized):
                 self.amplifier_gain_initialized = True
                 logger.info('Amplifier gain initialized (gain=%.1f)' %
-                            self.control_board.amplifier_gain())
+                            self.control_board.amplifier_gain)
 
     def get_actuated_area(self):
         app = get_app()
@@ -561,7 +561,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                                     app.running)):
 
                 # initialize the amplifier gain
-                if (self.control_board.auto_adjust_amplifier_gain() and not
+                if (self.control_board.auto_adjust_amplifier_gain and not
                         self.amplifier_gain_initialized):
                     emit_signal("set_frequency",
                                 options.frequency,

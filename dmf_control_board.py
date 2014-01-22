@@ -528,6 +528,13 @@ class DmfControlBoard(Base, SerialDevice):
             return self.PERSISTENT_CONFIG_SETTINGS + 76
 
     @property
+    def auto_adjust_amplifier_gain(self):
+        return self._auto_adjust_amplifier_gain()
+
+    @auto_adjust_amplifier_gain.setter
+    def auto_adjust_amplifier_gain(self, value):
+        return self._set_auto_adjust_amplifier_gain(value)
+    @property
     def amplifier_gain(self):
         return self._amplifier_gain()
 
