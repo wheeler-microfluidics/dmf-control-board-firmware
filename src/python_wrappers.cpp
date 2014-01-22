@@ -89,8 +89,8 @@ object DmfControlBoard_class
     .def("analog_read",&DmfControlBoard::analog_read)
     .def("analog_reads",&DmfControlBoard::analog_reads)
     .def("analog_write",&DmfControlBoard::analog_write)
-    .def("eeprom_read",&DmfControlBoard::persistent_read)
-    .def("eeprom_write",&DmfControlBoard::persistent_write)
+    .def("persistent_read",&DmfControlBoard::persistent_read)
+    .def("persistent_write",&DmfControlBoard::persistent_write)
     .def("onewire_address",&DmfControlBoard::onewire_address)
     .def("onewire_read",&DmfControlBoard::onewire_read)
     .def("onewire_write",&DmfControlBoard::onewire_write)
@@ -137,8 +137,8 @@ object DmfControlBoard_class
     .def("host_software_version",&DmfControlBoard::host_software_version)
     .def("host_url",&DmfControlBoard::host_url)
   ;
-DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
-DmfControlBoard_class.attr("EEPROM_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
+DmfControlBoard_class.attr("PERSISTENT_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
+DmfControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
 DmfControlBoard_class.attr("RETURN_OK") = DmfControlBoard::RETURN_OK;
 DmfControlBoard_class.attr("RETURN_GENERAL_ERROR") = DmfControlBoard::RETURN_GENERAL_ERROR;
 DmfControlBoard_class.attr("RETURN_UNKNOWN_COMMAND") = DmfControlBoard::RETURN_UNKNOWN_COMMAND;
@@ -148,6 +148,6 @@ DmfControlBoard_class.attr("RETURN_BAD_INDEX") = DmfControlBoard::RETURN_BAD_IND
 DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_BAD_PACKET_SIZE;
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
 DmfControlBoard_class.attr("RETURN_BAD_VALUE") = DmfControlBoard::RETURN_BAD_VALUE;
-DmfControlBoard_class.attr("EEPROM_CONFIG_SETTINGS") = DmfControlBoard::PERSISTENT_CONFIG_SETTINGS;
+DmfControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = DmfControlBoard::PERSISTENT_CONFIG_SETTINGS;
 DmfControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = DmfControlBoard::MAX_PAYLOAD_LENGTH;
 }

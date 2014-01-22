@@ -52,7 +52,7 @@ def safe_getattr(obj, attr, except_types):
         return None
 
 
-class EepromSettingDoesNotExist(Exception):
+class PersistentSettingDoesNotExist(Exception):
     pass
 
 
@@ -253,11 +253,11 @@ class DmfControlBoard(Base, SerialDevice):
 
     @property
     def config_version(self):
-        return unpack('HHH', pack(6 * 'B',
-                                  *[self.eeprom_read(self
-                                                     .EEPROM_CONFIG_SETTINGS +
-                                                     i) for i in range(2 *
-                                                                       3)]))
+        return unpack('HHH',
+                      pack(6 * 'B',
+                           *[self.persistent_read(self
+                                                  .PERSISTENT_CONFIG_SETTINGS +
+                                                  i) for i in range(2 * 3)]))
 
     def connect(self, port=None):
         if port:
@@ -306,14 +306,16 @@ class DmfControlBoard(Base, SerialDevice):
     def voltage_tolerance(self):
         data = np.zeros(4)
         for i in range(0, 4):
-            data[i] = self.eeprom_read(self.EEPROM_VOLTAGE_TOLERANCE + i)
+            data[i] = self.persistent_read(self.PERSISTENT_VOLTAGE_TOLERANCE +
+                                           i)
         return unpack('f', pack('BBBB', *data))[0]
 
     @voltage_tolerance.setter
     def voltage_tolerance(self, tolerance):
         data = unpack('BBBB', pack('f', tolerance))
         for i in range(0, 4):
-            self.eeprom_write(self.EEPROM_VOLTAGE_TOLERANCE + i, data[i])
+            self.persistent_write(self.PERSISTENT_VOLTAGE_TOLERANCE + i,
+                                  data[i])
         self.__voltage_tolerance = tolerance
 
     @property
@@ -334,7 +336,7 @@ class DmfControlBoard(Base, SerialDevice):
     def default_pin_modes(self):
         pin_modes = []
         for i in range(0, 53 / 8 + 1):
-            mode = self.eeprom_read(self.EEPROM_PIN_MODE_ADDRESS + i)
+            mode = self.persistent_read(self.PERSISTENT_PIN_MODE_ADDRESS + i)
             for j in range(0, 8):
                 if i * 8 + j <= 53:
                     pin_modes.append(~mode >> j & 0x01)
@@ -350,13 +352,14 @@ class DmfControlBoard(Base, SerialDevice):
             for j in range(0, 8):
                 if i * 8 + j <= 53:
                     mode += pin_modes[i * 8 + j] << j
-            self.eeprom_write(self.EEPROM_PIN_MODE_ADDRESS + i, ~mode & 0xFF)
+            self.persistent_write(self.PERSISTENT_PIN_MODE_ADDRESS + i, ~mode &
+                                  0xFF)
 
     @property
     def default_pin_states(self):
         pin_states = []
         for i in range(0, 53 / 8 + 1):
-            state = self.eeprom_read(self.EEPROM_PIN_STATE_ADDRESS + i)
+            state = self.persistent_read(self.PERSISTENT_PIN_STATE_ADDRESS + i)
             for j in range(0, 8):
                 if i * 8 + j <= 53:
                     pin_states.append(~state >> j & 0x01)
@@ -372,7 +375,8 @@ class DmfControlBoard(Base, SerialDevice):
             for j in range(0, 8):
                 if i * 8 + j <= 53:
                     state += pin_states[i * 8 + j] << j
-            self.eeprom_write(self.EEPROM_PIN_STATE_ADDRESS + i, ~state & 0xFF)
+            self.persistent_write(self.PERSISTENT_PIN_STATE_ADDRESS + i, ~state
+                                  & 0xFF)
 
     def analog_reads(self, pin, n_samples):
         return np.array(Base.analog_reads(self, pin, n_samples))
@@ -465,63 +469,63 @@ class DmfControlBoard(Base, SerialDevice):
             raise
 
     @property
-    def EEPROM_AREF_ADDRESS(self):
+    def PERSISTENT_AREF_ADDRESS(self):
         hardware_version = self.hardware_version()
         if (hardware_version == '1.0' or hardware_version == '1.1' or
                 hardware_version == '1.2'):
-            return self.EEPROM_CONFIG_SETTINGS + 6
+            return self.PERSISTENT_CONFIG_SETTINGS + 6
         else:
-            raise EepromSettingDoesNotExist()
+            raise PersistentSettingDoesNotExist()
 
     @property
-    def EEPROM_SWITCHING_BOARD_I2C_ADDRESS(self):
+    def PERSISTENT_SWITCHING_BOARD_I2C_ADDRESS(self):
         hardware_version = self.hardware_version()
         if (hardware_version == '1.0' or hardware_version == '1.1' or
                 hardware_version == '1.2'):
-            return self.EEPROM_CONFIG_SETTINGS + 7
+            return self.PERSISTENT_CONFIG_SETTINGS + 7
         else:
-            return self.EEPROM_CONFIG_SETTINGS + 6
+            return self.PERSISTENT_CONFIG_SETTINGS + 6
 
     @property
-    def EEPROM_WAVEOUT_GAIN_1_ADDRESS(self):
+    def PERSISTENT_WAVEOUT_GAIN_1_ADDRESS(self):
         hardware_version = self.hardware_version()
         if (hardware_version == '1.0' or hardware_version == '1.1' or
                 hardware_version == '1.2'):
-            return self.EEPROM_CONFIG_SETTINGS + 8
+            return self.PERSISTENT_CONFIG_SETTINGS + 8
         elif hardware_version == '1.3':
-            return self.EEPROM_CONFIG_SETTINGS + 7
+            return self.PERSISTENT_CONFIG_SETTINGS + 7
         else:
-            raise EepromSettingDoesNotExist()
+            raise PersistentSettingDoesNotExist()
 
     @property
-    def EEPROM_VGND_ADDRESS(self):
+    def PERSISTENT_VGND_ADDRESS(self):
         hardware_version = self.hardware_version()
         if (hardware_version == '1.0' or hardware_version == '1.1' or
                 hardware_version == '1.2'):
-            return self.EEPROM_CONFIG_SETTINGS + 9
+            return self.PERSISTENT_CONFIG_SETTINGS + 9
         elif hardware_version == '1.3':
-            return self.EEPROM_CONFIG_SETTINGS + 8
+            return self.PERSISTENT_CONFIG_SETTINGS + 8
         else:
-            raise EepromSettingDoesNotExist()
+            raise PersistentSettingDoesNotExist()
 
     @property
-    def EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS(self):
+    def PERSISTENT_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS(self):
         hardware_version = self.hardware_version()
         if hardware_version >= '2.0':
-            return self.EEPROM_CONFIG_SETTINGS + 7
+            return self.PERSISTENT_CONFIG_SETTINGS + 7
         else:
-            raise EepromSettingDoesNotExist()
+            raise PersistentSettingDoesNotExist()
 
     @property
-    def EEPROM_VOLTAGE_TOLERANCE(self):
+    def PERSISTENT_VOLTAGE_TOLERANCE(self):
         hardware_version = self.hardware_version()
         if (hardware_version == '1.0' or hardware_version == '1.1' or
                 hardware_version == '1.2'):
-            return self.EEPROM_CONFIG_SETTINGS + 62
+            return self.PERSISTENT_CONFIG_SETTINGS + 62
         elif hardware_version == '1.3':
-            return self.EEPROM_CONFIG_SETTINGS + 61
+            return self.PERSISTENT_CONFIG_SETTINGS + 61
         else:  # hardware_version >= 2.0
-            return self.EEPROM_CONFIG_SETTINGS + 76
+            return self.PERSISTENT_CONFIG_SETTINGS + 76
 
     @property
     def amplifier_gain(self):
@@ -533,46 +537,49 @@ class DmfControlBoard(Base, SerialDevice):
 
     @property
     def aref(self):
-        return self.eeprom_read(self.EEPROM_AREF_ADDRESS)
+        return self.persistent_read(self.PERSISTENT_AREF_ADDRESS)
 
     @aref.setter
     def aref(self, value):
-        return self.eeprom_write(self.EEPROM_AREF_ADDRESS, value)
+        return self.persistent_write(self.PERSISTENT_AREF_ADDRESS, value)
 
     @property
     def switching_board_i2c_address(self):
-        return self.eeprom_read(self.EEPROM_SWITCHING_BOARD_I2C_ADDRESS)
+        return self.persistent_read(self
+                                    .PERSISTENT_SWITCHING_BOARD_I2C_ADDRESS)
 
     @switching_board_i2c_address.setter
     def switching_board_i2c_address(self, value):
-        return self.eeprom_write(self.EEPROM_SWITCHING_BOARD_I2C_ADDRESS,
-                                 value)
+        return self.persistent_write(self
+                                     .PERSISTENT_SWITCHING_BOARD_I2C_ADDRESS,
+                                     value)
 
     @property
     def waveout_gain_1(self):
-        return self.eeprom_read(self.EEPROM_WAVEOUT_GAIN_1_ADDRESS)
+        return self.persistent_read(self.PERSISTENT_WAVEOUT_GAIN_1_ADDRESS)
 
     @waveout_gain_1.setter
     def waveout_gain_1(self, value):
-        return self.eeprom_write(self.EEPROM_WAVEOUT_GAIN_1_ADDRESS, value)
+        return self.persistent_write(self.PERSISTENT_WAVEOUT_GAIN_1_ADDRESS,
+                                     value)
 
     @property
     def vgnd(self):
-        return self.eeprom_read(self.EEPROM_VGND_ADDRESS)
+        return self.persistent_read(self.PERSISTENT_VGND_ADDRESS)
 
     @vgnd.setter
     def vgnd(self, value):
-        return self.eeprom_write(self.EEPROM_VGND_ADDRESS, value)
+        return self.persistent_write(self.PERSISTENT_VGND_ADDRESS, value)
 
     @property
     def signal_generator_board_i2c_address(self):
-        return self.eeprom_read(self.EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS)
+        return self.persistent_read(
+            self.PERSISTENT_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS)
 
     @signal_generator_board_i2c_address.setter
     def signal_generator_board_i2c_address(self, value):
-        return self.eeprom_write(self
-                                 .EEPROM_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS,
-                                 value)
+        return self.persistent_write(
+            self.PERSISTENT_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS, value)
 
     def read_all_series_channel_values(self, f, channel):
         '''
@@ -662,7 +669,7 @@ class DmfControlBoard(Base, SerialDevice):
     def read_config(self):
         '''
         '''
-        except_types = (dmf_control_board.EepromSettingDoesNotExist, )
+        except_types = (dmf_control_board.PersistentSettingDoesNotExist, )
         return OrderedDict([(a, safe_getattr(self, a, except_types))
                             for a in self.config_attribute_names])
 
