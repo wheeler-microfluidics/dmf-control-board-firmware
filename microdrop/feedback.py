@@ -16,6 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
+from collections import OrderedDict
 from copy import deepcopy
 import logging
 import math
@@ -26,7 +27,8 @@ try:
 except ImportError:
     import pickle
 
-
+from pygtkhelpers.ui.dialogs import info as info_dialog
+import yaml
 import gtk
 import numpy as np
 import matplotlib
@@ -1795,6 +1797,12 @@ class FeedbackCalibrationController():
         schema_entries = []
         calibration_list = []
         selected_data = self.experiment_log_controller.get_selected_data()
+
+        # Create a list containing the following calibration sections:
+        #
+        #    * `FeedbackResults`
+        #    * `SweepFrequencyResults`
+        #    * `SweepVoltageResults`
         for row in selected_data:
             try:
                 if 'FeedbackResults' in row[self.plugin.name]:
@@ -1809,13 +1817,19 @@ class FeedbackCalibrationController():
                                             ['SweepVoltageResults']
                                             .calibration)
             except:
+                # The current row does not contain any results.
                 continue
 
+            # There is a calibration result entry in this row, and it has been
+            # added to the end of `calibration_list`.  Therefore, to retrieve
+            # it, we retrieve the last item in `calibration_list`.
             calibration = calibration_list[-1]
 
-            # set default for each setting only if all selected steps have a
-            # the same value, otherwise, leave the default blank
+            # Set default for each setting only if all selected steps have the
+            # same value.  Otherwise, leave the default blank.
             if len(calibration_list) == 1:
+                # If we only have one calibration result entry, set the default
+                # value for the edit dialog to the value from the result entry.
                 settings["C_drop"] = calibration.C_drop
                 settings["C_filler"] = calibration.C_filler
                 for i in range(len(calibration.R_hv)):
@@ -1825,6 +1839,10 @@ class FeedbackCalibrationController():
                     settings['R_fb_%d' % i] = calibration.R_fb[i]
                     settings['C_fb_%d' % i] = calibration.C_fb[i]
             else:
+                # More than one calibration result is selected. If a value has
+                # already been set for a resistor or capacitor value and the
+                # corresponding value from the current calibration result entry
+                # is different, set the default editor value to `None`.
                 def check_group_value(name, new):
                     if settings[name] and settings[name] != new:
                         settings[name] = None
@@ -1854,7 +1872,7 @@ class FeedbackCalibrationController():
             set_field_value('R_fb_%d' % i)
             set_field_value('C_fb_%d' % i, 1e12)
 
-        form = Form.of(*schema_entries)
+        form = Form.of(*sorted(schema_entries, key=lambda x: x.name))
         dialog = FormViewDialog('Edit calibration settings')
         valid, response = dialog.run(form)
 
@@ -1871,7 +1889,7 @@ class FeedbackCalibrationController():
                                         abs(float(response[name]) / multiplier
                                             - settings[name]) / settings[name]
                                         > .0001)):
-                    return float(response[name])/multiplier
+                    return float(response[name]) / multiplier
             except ValueError:
                 logger.error('C_drop value (%s) is invalid.' %
                              response['C_drop'])
@@ -2200,9 +2218,9 @@ bration#high-voltage-attenuation-calibration'''.strip(),
             results['voltages'] = voltages.tolist()
         return results
 
-    def on_load_calibration_from_file(self, widget, data=None):
+    def on_load_configuration_from_file(self, widget, data=None):
         '''
-        ## `on_load_calibration_from_file` ##
+        ## `on_load_configuration_from_file` ##
 
         Load either high voltage attenuation or feedback [calibration][1] data
         from a file.
@@ -2231,28 +2249,64 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         # TODO: Load control-board configuration from file rather than
         # calibration data.
         if response == gtk.RESPONSE_OK:
-            results = None
-            with open(filename, 'rb') as f:
-                try:
-                    results = pickle.load(f)
-                    logging.debug("Loaded object from pickle.")
-                except Exception, e:
-                    logging.debug("Not a valid pickle file. %s." % e)
-            if results is None:
-                with open(filename, 'rb') as f:
-                    try:
-                        results = yaml.load(f)
-                        logging.debug("Loaded object from YAML file.")
-                    except Exception, e:
-                        logging.debug("Not a valid YAML file. %s." % e)
-            if not results:
-                logging.error("Not a valid calibration file")
-            if ('V_fb' in results and 'V_hv' in results and 'frequencies' in
-                    results):
-                # The file contains _feedback_ c
-                self.process_fb_calibration(results)
+            try:
+                config = yaml.load(filename.bytes())
+            except:
+                logging.error('Error parsing control-board configuration '
+                              'file.\n\n'
+                              'Please ensure the configuration file is a valid'
+                              'YAML-encoded file.')
             else:
-                self.process_hv_calibration(results)
+                self.plugin.control_board.write_config(config)
+                message = ('Successfully wrote persistent configuration '
+                           'settings to control-board.')
+                logging.info(message)
+                info_dialog(message)
+
+    def on_save_configuration_to_file(self, widget, data=None):
+        '''
+        ## `on_save_configuration_to_file` ##
+
+        Save control-board device configuration, including values set during
+        [calibration][1].
+
+        ## Note ##
+
+        The behaviour of this method is described in [ticket #41][2].
+
+        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
+        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
+        '''
+        dialog = gtk.FileChooserDialog(
+            title="Save control board configuration to file",
+            action=gtk.FILE_CHOOSER_ACTION_SAVE,
+            buttons=(gtk.STOCK_CANCEL,
+                     gtk.RESPONSE_CANCEL,
+                     gtk.STOCK_OPEN,
+                     gtk.RESPONSE_OK)
+        )
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        filename = path(dialog.get_filename())
+        dialog.destroy()
+
+        if response == gtk.RESPONSE_OK:
+            config = self.plugin.control_board.read_config()
+            config_str = yaml.dump(dict([(k, v) for k, v in config.iteritems()
+                                         if v is not None]))
+            with filename.open('wb') as output:
+                print >> output, '''
+# DropBot DMF control-board configuration
+# =======================================
+#'
+# This file contains the configuration [settings][1] for the control-board in a
+# [DropBot][2] [digital-microfluidics][3] system.
+#
+# [1]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41#ticket
+# [2]: http://microfluidics.utoronto.ca/trac/dropbot
+# [3]: http://microfluidics.utoronto.ca'''.strip()
+
+                print >> output, config_str
 
     def process_fb_calibration(self, results):
         calibration = self.plugin.control_board.calibration

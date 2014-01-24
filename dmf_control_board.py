@@ -25,7 +25,6 @@ import logging
 from struct import pack, unpack
 
 import numpy as np
-
 from microdrop import Version, FutureVersionError
 
 from .__init__ import package_path
@@ -678,7 +677,7 @@ class DmfControlBoard(Base, SerialDevice):
     def read_config(self):
         '''
         '''
-        except_types = (dmf_control_board.PersistentSettingDoesNotExist, )
+        except_types = (PersistentSettingDoesNotExist, )
         return OrderedDict([(a, safe_getattr(self, a, except_types))
                             for a in self.config_attribute_names])
 

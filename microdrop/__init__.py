@@ -130,7 +130,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.amplifier_gain_initialized = False
         self.current_frequency = None
         self.save_control_board_configuration = gtk.MenuItem("Edit "
-                                                             "calibration")
+                                                             "configuration")
         self.edit_log_calibration_menu_item = gtk.MenuItem("Edit calibration")
         self.save_log_calibration_menu_item = gtk.MenuItem("Save calibration "
                                                            "to file")
@@ -183,25 +183,32 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.perform_calibration_menu_item = menu_item
             menu_item.show()
 
+            menu_item = gtk.MenuItem("Save configuration to file")
+            menu_item.connect("activate", self.feedback_calibration_controller.
+                              on_save_configuration_to_file)
+            self.control_board_menu.append(menu_item)
+            self.save_configuration_to_file_menu_item = menu_item
+            menu_item.show()
+
             menu_item = gtk.MenuItem("Load configuration from file")
             menu_item.connect("activate", self.feedback_calibration_controller.
-                              on_load_calibration_from_file)
+                              on_load_configuration_from_file)
             self.control_board_menu.append(menu_item)
-            self.load_calibration_from_file_menu_item = menu_item
+            self.load_configuration_from_file_menu_item = menu_item
             menu_item.show()
 
-            menu_item = gtk.MenuItem("Edit calibration settings")
+            menu_item = gtk.MenuItem("Edit configuration settings")
             menu_item.connect("activate",
-                              self.on_edit_calibration)
+                              self.on_edit_configuration)
             self.control_board_menu.append(menu_item)
-            self.edit_calibration_menu_item = menu_item
+            self.edit_configuration_menu_item = menu_item
             menu_item.show()
 
-            menu_item = gtk.MenuItem("Reset calibration to default values")
+            menu_item = gtk.MenuItem("Reset configuration to default values")
             menu_item.connect("activate",
-                              self.on_reset_calibration_to_default_values)
+                              self.on_reset_configuration_to_default_values)
             self.control_board_menu.append(menu_item)
-            self.reset_calibration_to_default_values_menu_item = menu_item
+            self.reset_configuration_to_default_values_menu_item = menu_item
             menu_item.show()
 
             self.initialized = True
@@ -295,6 +302,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_flash_firmware(self, widget=None, data=None):
         app = get_app()
         try:
+            #response = yesno("Save current configuration settings before "
+                             #"flashing?")
+            #if response == gtk.RESPONSE_YES:
+                #self.feedback_configuration_controller\
+                    #.on_save_log_calibration(None, None)
             connected = self.control_board.connected()
             if not connected:
                 self.connect()
@@ -310,9 +322,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
 
-    def on_edit_calibration(self, widget=None, data=None):
+    def on_edit_configuration(self, widget=None, data=None):
         '''
-        Display a dialog to manually edit the calibration settings for the
+        Display a dialog to manually edit the configuration settings for the
         control board.  These settings include values that are automatically
         adjusted during [calibration][1].
 
@@ -320,7 +332,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         '''
         if not self.control_board.connected():
             logging.error("A control board must be connected in order to "
-                          "edit calibration settings.")
+                          "edit configuration settings.")
             return
 
         hardware_version = utility.Version.fromstring(
@@ -405,7 +417,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                     validators=[ValueAtLeast(minimum=0), ]))
 
         form = Form.of(*schema_entries)
-        dialog = FormViewDialog('Edit calibration settings')
+        dialog = FormViewDialog('Edit configuration settings')
         valid, response = dialog.run(form)
         if valid:
             for k, v in response.items():
@@ -446,7 +458,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             if get_app().protocol:
                 self.on_step_run()
 
-    def on_reset_calibration_to_default_values(self, widget=None, data=None):
+    def on_reset_configuration_to_default_values(self, widget=None, data=None):
         self.control_board.reset_config_to_defaults()
         # reconnect to update settings
         self.connect()
@@ -467,9 +479,10 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             except:
                 pass
         self.perform_calibration_menu_item.set_sensitive(connected)
-        self.load_calibration_from_file_menu_item.set_sensitive(connected)
-        self.edit_calibration_menu_item.set_sensitive(connected)
-        self.reset_calibration_to_default_values_menu_item.set_sensitive(
+        self.save_configuration_to_file_menu_item.set_sensitive(connected)
+        self.load_configuration_from_file_menu_item.set_sensitive(connected)
+        self.edit_configuration_menu_item.set_sensitive(connected)
+        self.reset_configuration_to_default_values_menu_item.set_sensitive(
             connected)
         self.feedback_options_controller.measure_cap_filler_menu_item\
             .set_sensitive(connected)
