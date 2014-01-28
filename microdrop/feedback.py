@@ -56,17 +56,18 @@ except:
     # Raise the exception(s) if we're running the program (these exceptions
     # are expected when generating documentation with doxygen, so in that case
     # we can safely ignore them).
-    if utility.PROGRAM_LAUNCHED:
+    if microdrop.utility.PROGRAM_LAUNCHED:
         raise
 from microdrop.utility import SetOfInts, Version, FutureVersionError, is_float
-from microdrop.utility.gui import (textentry_validate, combobox_set_model_from_list,
-                         combobox_get_active_text, text_entry_dialog,
-                         FormViewDialog, yesno)
+from microdrop.utility.gui import (textentry_validate,
+                                   combobox_set_model_from_list,
+                                   combobox_get_active_text, text_entry_dialog,
+                                   FormViewDialog, yesno)
 from flatland.schema import String, Form, Integer, Boolean, Float
 from flatland.validation import ValueAtLeast
-from plugin_manager import (emit_signal, IWaveformGenerator, IPlugin,
-                            get_service_instance_by_name)
-from app_context import get_app
+from microdrop.plugin_manager import (emit_signal, IWaveformGenerator, IPlugin,
+                                      get_service_instance_by_name)
+from microdrop.app_context import get_app
 
 
 class AmplifierGainNotCalibrated(Exception):

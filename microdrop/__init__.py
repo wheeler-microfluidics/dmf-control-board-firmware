@@ -16,8 +16,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
+import logging
 import math
 import re
+from copy import deepcopy
 
 import gtk
 import gobject
@@ -33,7 +35,8 @@ from microdrop.plugin_helpers import (StepOptionsController, AppDataController,
 from microdrop.plugin_manager import (IPlugin, IWaveformGenerator, Plugin,
                                       implements, PluginGlobals,
                                       ScheduleRequest, emit_signal,
-                                      get_service_instance)
+                                      get_service_instance,
+                                      get_service_instance_by_name)
 from microdrop.utility import Version, FutureVersionError
 from microdrop.app_context import get_app
 from microdrop.utility.gui import yesno, FormViewDialog
@@ -41,6 +44,12 @@ from microdrop.dmf_device import DeviceScaleNotSet
 
 from ..dmf_control_board import DmfControlBoard
 from ..serial_device import SerialDevice
+from .feedback import (FeedbackOptions, FeedbackOptionsController,
+                       FeedbackCalibrationController,
+                       FeedbackResultsController, RetryAction,
+                       SweepFrequencyAction, SweepFrequencyResults,
+                       SweepVoltageAction, SweepVoltageResults,
+                       FeedbackResults)
 
 
 PluginGlobals.push_env('microdrop.managed')
@@ -176,7 +185,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             menu_item = gtk.MenuItem("Load configuration from file")
             menu_item.connect("activate", self.feedback_calibration_controller.
-                              on_load_configuration_from_file)
+                              on_load_calibration_from_file)
             self.control_board_menu.append(menu_item)
             self.load_calibration_from_file_menu_item = menu_item
             menu_item.show()
@@ -476,8 +485,6 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                      impedance.V_actuation()[-1])
         options = impedance.options
         feedback_options = impedance.options.feedback_options
-
-        app_values = self.get_app_values()
 
         if impedance.V_actuation()[-1] < 5.0:
             logger.error("Low voltage detected. Please check that the "
