@@ -58,8 +58,8 @@ except:
     # we can safely ignore them).
     if utility.PROGRAM_LAUNCHED:
         raise
-from utility import SetOfInts, Version, FutureVersionError, is_float
-from utility.gui import (textentry_validate, combobox_set_model_from_list,
+from microdrop.utility import SetOfInts, Version, FutureVersionError, is_float
+from microdrop.utility.gui import (textentry_validate, combobox_set_model_from_list,
                          combobox_get_active_text, text_entry_dialog,
                          FormViewDialog, yesno)
 from flatland.schema import String, Form, Integer, Boolean, Float
@@ -2200,8 +2200,22 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         return results
 
     def on_load_calibration_from_file(self, widget, data=None):
+        '''
+        ## `on_load_calibration_from_file` ##
+
+        Load either high voltage attenuation or feedback [calibration][1] data
+        from a file.
+
+        ## Note ##
+
+        The name and behaviour of this method was updated in relation to
+        [ticket #41][2].
+
+        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
+        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
+        '''
         dialog = gtk.FileChooserDialog(
-            title="Load attenuator calibration from file",
+            title="Load control board configuration from file",
             action=gtk.FILE_CHOOSER_ACTION_OPEN,
             buttons=(gtk.STOCK_CANCEL,
                      gtk.RESPONSE_CANCEL,
@@ -2212,6 +2226,9 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         response = dialog.run()
         filename = path(dialog.get_filename())
         dialog.destroy()
+
+        # TODO: Load control-board configuration from file rather than
+        # calibration data.
         if response == gtk.RESPONSE_OK:
             results = None
             with open(filename, 'rb') as f:
@@ -2231,6 +2248,7 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                 logging.error("Not a valid calibration file")
             if ('V_fb' in results and 'V_hv' in results and 'frequencies' in
                     results):
+                # The file contains _feedback_ c
                 self.process_fb_calibration(results)
             else:
                 self.process_hv_calibration(results)

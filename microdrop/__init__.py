@@ -18,33 +18,29 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 import math
 import re
+
 import gtk
 import gobject
 import numpy as np
-
-import utility
-try:
-    from ...dmf_control_board import *
-    from ..microdrop.feedback import *
-except:
-    # Raise the exception(s) if we're running the program (these exceptions
-    # are expected when generating documentation with doxygen, so in that case
-    # we can safely ignore them).
-    if utility.PROGRAM_LAUNCHED:
-        raise
+from path import path
 from flatland import Integer, Boolean, Float, Form, Enum
 from flatland.validation import ValueAtLeast, ValueAtMost
+import microdrop.utility as utility
+from microdrop.logger import logger
+from microdrop.gui.protocol_grid_controller import ProtocolGridController
+from microdrop.plugin_helpers import (StepOptionsController, AppDataController,
+                                      get_plugin_info)
+from microdrop.plugin_manager import (IPlugin, IWaveformGenerator, Plugin,
+                                      implements, PluginGlobals,
+                                      ScheduleRequest, emit_signal,
+                                      get_service_instance)
+from microdrop.utility import Version, FutureVersionError
+from microdrop.app_context import get_app
+from microdrop.utility.gui import yesno, FormViewDialog
+from microdrop.dmf_device import DeviceScaleNotSet
 
-from logger import logger
-from gui.protocol_grid_controller import ProtocolGridController
-from plugin_helpers import (StepOptionsController, AppDataController,
-                            get_plugin_info)
-from plugin_manager import (IPlugin, IWaveformGenerator, Plugin, implements,
-                            PluginGlobals, ScheduleRequest, emit_signal,
-                            get_service_instance)
-from app_context import get_app
-from utility.gui import yesno, FormViewDialog
-from dmf_device import DeviceScaleNotSet
+from ..dmf_control_board import DmfControlBoard
+from ..serial_device import SerialDevice
 
 
 PluginGlobals.push_env('microdrop.managed')
@@ -81,7 +77,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     implements(IWaveformGenerator)
 
     serial_ports_ = [port for port in
-                     serial_device.SerialDevice().get_serial_ports()]
+                     SerialDevice().get_serial_ports()]
     if len(serial_ports_):
         default_port_ = serial_ports_[0]
     else:
@@ -124,6 +120,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.n_voltage_adjustments = None
         self.amplifier_gain_initialized = False
         self.current_frequency = None
+        self.save_control_board_configuration = gtk.MenuItem("Edit "
+                                                             "calibration")
         self.edit_log_calibration_menu_item = gtk.MenuItem("Edit calibration")
         self.save_log_calibration_menu_item = gtk.MenuItem("Save calibration "
                                                            "to file")
@@ -176,9 +174,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.perform_calibration_menu_item = menu_item
             menu_item.show()
 
-            menu_item = gtk.MenuItem("Load calibration from file")
+            menu_item = gtk.MenuItem("Load configuration from file")
             menu_item.connect("activate", self.feedback_calibration_controller.
-                              on_load_calibration_from_file)
+                              on_load_configuration_from_file)
             self.control_board_menu.append(menu_item)
             self.load_calibration_from_file_menu_item = menu_item
             menu_item.show()
@@ -846,8 +844,8 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         return False  # Stop the timeout from refiring
 
     def on_dmf_device_swapped(self, old_dmf_device, dmf_device):
-        self.feedback_options_controller. \
-            feedback_options_menu_item.set_sensitive(True)
+        self.feedback_options_controller\
+            .feedback_options_menu_item.set_sensitive(True)
 
     def on_protocol_run(self):
         """

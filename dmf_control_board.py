@@ -26,14 +26,16 @@ from struct import pack, unpack
 
 import numpy as np
 
+from microdrop import Version, FutureVersionError
+
 from .__init__ import package_path
 from .__init__ import logger
-from dmf_control_board_base import DmfControlBoard as Base
-from dmf_control_board_base import uint8_tVector
-from serial_device import SerialDevice
-from avr import AvrDude
-from utility import Version, FutureVersionError
-import dmf_control_board
+from .dmf_control_board_base import DmfControlBoard as Base
+from .dmf_control_board_base import uint8_tVector
+# Import firmware constants
+from .dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
+from .serial_device import SerialDevice
+from .avr import AvrDude
 
 
 def safe_getattr(obj, attr, except_types):
