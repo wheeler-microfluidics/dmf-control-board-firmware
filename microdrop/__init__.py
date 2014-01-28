@@ -16,11 +16,14 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
+import os
 import logging
 import math
 import re
 from copy import deepcopy
 
+from pygtkhelpers.ui.dialogs import info as info_dialog
+import yaml
 import gtk
 import gobject
 import numpy as np
@@ -41,6 +44,7 @@ from microdrop.utility import Version, FutureVersionError
 from microdrop.app_context import get_app
 from microdrop.utility.gui import yesno, FormViewDialog
 from microdrop.dmf_device import DeviceScaleNotSet
+from microdrop.utility.user_paths import home_dir
 
 from ..dmf_control_board import DmfControlBoard
 from ..serial_device import SerialDevice
@@ -184,15 +188,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             menu_item.show()
 
             menu_item = gtk.MenuItem("Save configuration to file")
-            menu_item.connect("activate", self.feedback_calibration_controller.
-                              on_save_configuration_to_file)
+            menu_item.connect("activate", lambda *a: self.save_config())
             self.control_board_menu.append(menu_item)
             self.save_configuration_to_file_menu_item = menu_item
             menu_item.show()
 
             menu_item = gtk.MenuItem("Load configuration from file")
-            menu_item.connect("activate", self.feedback_calibration_controller.
-                              on_load_configuration_from_file)
+            menu_item.connect("activate", lambda *a: self.load_config())
             self.control_board_menu.append(menu_item)
             self.load_configuration_from_file_menu_item = menu_item
             menu_item.show()
@@ -321,6 +323,100 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         except Exception, why:
             logger.error("Problem flashing firmware. ""%s" % why)
         self.check_device_name_and_version()
+
+
+    def load_config(self):
+        '''
+        ## `load_config` ##
+
+        Load control-board device configuration from file, including values set
+        during [calibration][1], and write the configuration to the control
+        board.
+
+        ## Note ##
+
+        The behaviour of this method is described in [ticket #41][2].
+
+        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
+        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
+        '''
+        dialog = gtk.FileChooserDialog(
+            title="Load control board configuration from file",
+            action=gtk.FILE_CHOOSER_ACTION_OPEN,
+            buttons=(gtk.STOCK_CANCEL,
+                     gtk.RESPONSE_CANCEL,
+                     gtk.STOCK_OPEN,
+                     gtk.RESPONSE_OK)
+        )
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        filename = path(dialog.get_filename())
+        dialog.destroy()
+
+        # TODO: Load control-board configuration from file rather than
+        # calibration data.
+        if response == gtk.RESPONSE_OK:
+            try:
+                config = yaml.load(filename.bytes())
+            except:
+                logging.error('Error parsing control-board configuration '
+                              'file.\n\n'
+                              'Please ensure the configuration file is a valid'
+                              'YAML-encoded file.')
+            else:
+                self.control_board.write_config(config)
+                message = ('Successfully wrote persistent configuration '
+                           'settings to control-board.')
+                logging.info(message)
+                info_dialog(message)
+
+    def save_config(self):
+        '''
+        ## `save_config` ##
+
+        Save control-board device configuration, including values set during
+        [calibration][1].
+
+        ## Note ##
+
+        The behaviour of this method is described in [ticket #41][2].
+
+        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
+        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
+        '''
+        dialog = gtk.FileChooserDialog(
+            title="Save control board configuration to file",
+            action=gtk.FILE_CHOOSER_ACTION_SAVE,
+            buttons=(gtk.STOCK_CANCEL,
+                     gtk.RESPONSE_CANCEL,
+                     gtk.STOCK_OPEN,
+                     gtk.RESPONSE_OK)
+        )
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        filename = path(dialog.get_filename())
+        dialog.destroy()
+
+        if response == gtk.RESPONSE_OK:
+            response = yesno('File exists. Would you like to overwrite it?')
+            if response == gtk.RESPONSE_YES:
+                config = self.control_board.read_config()
+                config_str = yaml.dump(dict([(k, v) for k, v in
+                                             config.iteritems() if v is not
+                                             None]))
+                with filename.open('wb') as output:
+                    print >> output, '''
+# DropBot DMF control-board configuration
+# =======================================
+#'
+# This file contains the configuration [settings][1] for the control-board in a
+# [DropBot][2] [digital-microfluidics][3] system.
+#
+# [1]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41#ticket
+# [2]: http://microfluidics.utoronto.ca/trac/dropbot
+# [3]: http://microfluidics.utoronto.ca'''.strip()
+
+                    print >> output, config_str
 
     def on_edit_configuration(self, widget=None, data=None):
         '''
@@ -1044,5 +1140,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                     'microdrop.gui.protocol_grid_controller')]
         return []
 
+    def calibrations_dir(self):
+        if os.name == 'nt':
+            directory = home_dir().joinpath('Microdrop', 'calibrations')
+        else:
+            directory = home_dir().joinpath('.microdrop', 'calibrations')
+        return directory
 
 PluginGlobals.pop_env()

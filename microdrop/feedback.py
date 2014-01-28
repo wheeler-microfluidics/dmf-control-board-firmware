@@ -16,7 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
-from collections import OrderedDict
+from datetime import datetime
 from copy import deepcopy
 import logging
 import math
@@ -27,8 +27,6 @@ try:
 except ImportError:
     import pickle
 
-from pygtkhelpers.ui.dialogs import info as info_dialog
-import yaml
 import gtk
 import numpy as np
 import matplotlib
@@ -1988,26 +1986,19 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                                          autoscale_voltage=True)
 
         if results:
-            dialog = gtk.FileChooserDialog(title="Save feedback calibration",
-                                           action=gtk.FILE_CHOOSER_ACTION_SAVE,
-                                           buttons=(gtk.STOCK_CANCEL,
-                                                    gtk.RESPONSE_CANCEL,
-                                                    gtk.STOCK_SAVE,
-                                                    gtk.RESPONSE_OK))
-            while True:
+            # Save the persistent configuration settings from the control-board
+            # to a file.
+            self.plugin.save_config()
+            self.plugin.calibrations_dir().makedirs_p()
+            timestamp = datetime.now().strftime('%Y-%m-%dT%Hh%Mm%S')
+            calibration_file = (self.plugin.calibrations_dir()
+                                .joinpath('%s-hv_calibration.pickled.dat' %
+                                          timestamp))
+            with open(calibration_file, 'wb') as output:
                 try:
-                    dialog.set_default_response(gtk.RESPONSE_OK)
-                    response = dialog.run()
-                    if response == gtk.RESPONSE_OK:
-                        filename = path(dialog.get_filename())
-                        with open(filename.abspath(), 'wb') as f:
-                            pickle.dump(results, f)
-                        break
-                    else:
-                        break
+                    pickle.dump(results, output)
                 except Exception, why:
                     logger.error("Error saving calibration file. %s." % why)
-            dialog.destroy()
             self.process_hv_calibration(results)
 
     def prompt_for_frequency_range(self, title="Perform calibration"):
@@ -2112,19 +2103,19 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                        V_fb=V_fb.tolist())
 
         if results:
-            dialog = gtk.FileChooserDialog(title="Save feedback calibration",
-                                           action=gtk.FILE_CHOOSER_ACTION_SAVE,
-                                           buttons=(gtk.STOCK_CANCEL,
-                                                    gtk.RESPONSE_CANCEL,
-                                                    gtk.STOCK_SAVE,
-                                                    gtk.RESPONSE_OK))
-            dialog.set_default_response(gtk.RESPONSE_OK)
-            response = dialog.run()
-            if response == gtk.RESPONSE_OK:
-                filename = path(dialog.get_filename())
-                with open(filename.abspath(), 'wb') as f:
-                    pickle.dump(results, f)
-            dialog.destroy()
+            # Save the persistent configuration settings from the control-board
+            # to a file.
+            self.plugin.save_config()
+            self.plugin.calibrations_dir().makedirs_p()
+            timestamp = datetime.now().strftime('%Y-%m-%dT%Hh%Mm%S')
+            calibration_file = (self.plugin.calibrations_dir()
+                                .joinpath('%s-fb_calibration.pickled.dat' %
+                                          timestamp))
+            with open(calibration_file, 'wb') as output:
+                try:
+                    pickle.dump(results, output)
+                except Exception, why:
+                    logger.error("Error saving calibration file. %s." % why)
             self.process_fb_calibration(results)
 
     def sweep_frequencies(self,
@@ -2217,96 +2208,6 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         if measure_with_scope:
             results['voltages'] = voltages.tolist()
         return results
-
-    def on_load_configuration_from_file(self, widget, data=None):
-        '''
-        ## `on_load_configuration_from_file` ##
-
-        Load either high voltage attenuation or feedback [calibration][1] data
-        from a file.
-
-        ## Note ##
-
-        The name and behaviour of this method was updated in relation to
-        [ticket #41][2].
-
-        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
-        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
-        '''
-        dialog = gtk.FileChooserDialog(
-            title="Load control board configuration from file",
-            action=gtk.FILE_CHOOSER_ACTION_OPEN,
-            buttons=(gtk.STOCK_CANCEL,
-                     gtk.RESPONSE_CANCEL,
-                     gtk.STOCK_OPEN,
-                     gtk.RESPONSE_OK)
-        )
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        response = dialog.run()
-        filename = path(dialog.get_filename())
-        dialog.destroy()
-
-        # TODO: Load control-board configuration from file rather than
-        # calibration data.
-        if response == gtk.RESPONSE_OK:
-            try:
-                config = yaml.load(filename.bytes())
-            except:
-                logging.error('Error parsing control-board configuration '
-                              'file.\n\n'
-                              'Please ensure the configuration file is a valid'
-                              'YAML-encoded file.')
-            else:
-                self.plugin.control_board.write_config(config)
-                message = ('Successfully wrote persistent configuration '
-                           'settings to control-board.')
-                logging.info(message)
-                info_dialog(message)
-
-    def on_save_configuration_to_file(self, widget, data=None):
-        '''
-        ## `on_save_configuration_to_file` ##
-
-        Save control-board device configuration, including values set during
-        [calibration][1].
-
-        ## Note ##
-
-        The behaviour of this method is described in [ticket #41][2].
-
-        [1]: http://microfluidics.utoronto.ca/trac/dropbot/wiki/Control%20board%20calibration
-        [2]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41
-        '''
-        dialog = gtk.FileChooserDialog(
-            title="Save control board configuration to file",
-            action=gtk.FILE_CHOOSER_ACTION_SAVE,
-            buttons=(gtk.STOCK_CANCEL,
-                     gtk.RESPONSE_CANCEL,
-                     gtk.STOCK_OPEN,
-                     gtk.RESPONSE_OK)
-        )
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        response = dialog.run()
-        filename = path(dialog.get_filename())
-        dialog.destroy()
-
-        if response == gtk.RESPONSE_OK:
-            config = self.plugin.control_board.read_config()
-            config_str = yaml.dump(dict([(k, v) for k, v in config.iteritems()
-                                         if v is not None]))
-            with filename.open('wb') as output:
-                print >> output, '''
-# DropBot DMF control-board configuration
-# =======================================
-#'
-# This file contains the configuration [settings][1] for the control-board in a
-# [DropBot][2] [digital-microfluidics][3] system.
-#
-# [1]: http://microfluidics.utoronto.ca/trac/dropbot/ticket/41#ticket
-# [2]: http://microfluidics.utoronto.ca/trac/dropbot
-# [3]: http://microfluidics.utoronto.ca'''.strip()
-
-                print >> output, config_str
 
     def process_fb_calibration(self, results):
         calibration = self.plugin.control_board.calibration
