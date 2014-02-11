@@ -116,15 +116,30 @@ class ArduinoBuildContext(object):
             self.build_root = path('build')
         else:
             self.build_root = path(build_root)
+	self.build_root = self.build_root.abspath()
         self.core_root = self.build_root.joinpath('core')
+	if not self.core_root.isdir():
+	    self.core_root.makedirs_p()
+	print '[build-core directory] %s (%s)' % (self.core_root,
+                                                  self.core_root.isdir())
         self.resolve_config_vars()
+
+    # Reset
+    def pulse_dtr(self, target, source, env):
+        import serial
+        import time
+        ser = serial.Serial(self.ARDUINO_PORT)
+        ser.setDTR(1)
+        time.sleep(0.5)
+        ser.setDTR(0)
+        ser.close()
 
     def resolve_config_vars(self):
         self.AVR_BIN_PREFIX = None
         self.AVRDUDE_CONF = None
         self.AVR_HOME_DUDE = None
 
-        if sys.platform == 'darwin':
+        if os.name == 'darwin':
             # For MacOS X, pick up the AVR tools from within Arduino.app
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME/Applications'
                                                  '/Arduino.app/Contents/'
@@ -137,17 +152,17 @@ class ArduinoBuildContext(object):
                                              os.path.join(self.ARDUINO_HOME,
                                                           'hardware/tools/avr/'
                                                           'bin'))
-        elif sys.platform == 'win32':
+        elif os.name == 'nt':
             # For Windows, use environment variables.
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME', None)
             self.ARDUINO_PORT = self.resolve_var('ARDUINO_PORT', '')
             self.SKETCHBOOK_HOME = self.resolve_var('SKETCHBOOK_HOME', '')
             if self.ARDUINO_HOME:
                 self.AVR_HOME = self.resolve_var('AVR_HOME',
-                                                 os.path.join(self
-                                                              .ARDUINO_HOME,
-                                                              'hardware/tools'
-                                                              '/avr/bin'))
+                                                 '%s' % os.path
+						 .join(self.ARDUINO_HOME,
+						       'hardware', 'tools',
+						       'avr', 'bin'))
         else:
             # For Ubuntu Linux (12.04 or higher)
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME',
@@ -197,12 +212,12 @@ class ArduinoBuildContext(object):
             print "Arduino version " + self.ARDUINO_VER + " specified"
 
         # Some OSs need bundle with IDE tool-chain
-        if sys.platform == 'darwin' or sys.platform == 'win32':
+        if os.name == 'darwin' or os.name == 'nt':
             self.AVRDUDE_CONF = os.path.join(self.ARDUINO_HOME,
                                              'hardware/tools/avr/etc/'
                                              'avrdude.conf')
 
-        self.AVR_BIN_PREFIX = 'avr-'
+        self.AVR_BIN_PREFIX = os.path.join(self.AVR_HOME, 'avr-')
 
         self.ARDUINO_LIBS = [os.path.join(self.ARDUINO_HOME, 'libraries')]
         if self.EXTRA_LIB:
@@ -441,11 +456,17 @@ class ArduinoBuildContext(object):
 
     def compress_core_action(self, target, source, env):
         import re
-        core_pattern = re.compile(r'build.*/core/'.replace('/', os.path.sep))
+        #core_pattern = re.compile(r'build.*/core/'.replace('/', os.path.sep))
+        core_pattern = re.compile(r'build.*core')
         core_files = (x for x in imap(str, source) if core_pattern.search(x))
+	target_path = path(target[0]).abspath()
+	if not target_path.parent.isdir():
+	    target_path.parent.makedirs_p()
         for core_file in core_files:
-            command = [self.AVR_BIN_PREFIX + 'ar', 'rcs', str(target[0]),
-                       core_file]
+	    core_file_path = path(core_file).abspath()
+	    print '[compress_core_action]', core_file_path, core_file_path.isfile()
+	    command = [self.AVR_BIN_PREFIX + 'ar', 'rcs', target_path,
+		       core_file_path]
             run(command)
 
     def print_info_action(self, target, source, env):
@@ -531,7 +552,8 @@ class ArduinoBuildContext(object):
 
         core_objs = env.Object(core_sources)
         objs = env.Object(sources)
-        objs += env.CompressCore(self.core_root.joinpath('core.a'), core_objs)
+	objs += env.CompressCore(self.core_root.joinpath('core.a').abspath(),
+			         core_objs)
 
         elf_path = hex_root.joinpath(self.TARGET + '.elf')
         env.Elf(elf_path, objs)
@@ -550,7 +572,12 @@ class ArduinoBuildContext(object):
                                   ' '.join(self.get_avrdude_options()))
             print fuse_cmd
 
-            upload = env.Alias('upload', hex_path, [fuse_cmd]);
+            if self.RST_TRIGGER:
+                reset_cmd = '%s %s' % (self.RST_TRIGGER, self.ARDUINO_PORT)
+            else:
+                reset_cmd = self.pulse_dtr
+
+	    upload = env.Alias('upload', hex_path, [reset_cmd, fuse_cmd])
             env.AlwaysBuild(upload)
 
         # Clean build directory
