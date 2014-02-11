@@ -124,7 +124,7 @@ class ArduinoBuildContext(object):
         self.AVRDUDE_CONF = None
         self.AVR_HOME_DUDE = None
 
-        if platform == 'darwin':
+        if sys.platform == 'darwin':
             # For MacOS X, pick up the AVR tools from within Arduino.app
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME/Applications'
                                                  '/Arduino.app/Contents/'
@@ -137,7 +137,7 @@ class ArduinoBuildContext(object):
                                              os.path.join(self.ARDUINO_HOME,
                                                           'hardware/tools/avr/'
                                                           'bin'))
-        elif platform == 'win32':
+        elif sys.platform == 'win32':
             # For Windows, use environment variables.
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME', None)
             self.ARDUINO_PORT = self.resolve_var('ARDUINO_PORT', '')
@@ -197,7 +197,7 @@ class ArduinoBuildContext(object):
             print "Arduino version " + self.ARDUINO_VER + " specified"
 
         # Some OSs need bundle with IDE tool-chain
-        if platform == 'darwin' or platform == 'win32':
+        if sys.platform == 'darwin' or sys.platform == 'win32':
             self.AVRDUDE_CONF = os.path.join(self.ARDUINO_HOME,
                                              'hardware/tools/avr/etc/'
                                              'avrdude.conf')
