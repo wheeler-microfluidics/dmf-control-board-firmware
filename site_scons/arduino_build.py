@@ -333,9 +333,9 @@ class ArduinoBuildContext(object):
             c_flags += ["-DUSB_VID=" + self.get_board_conf('build.vid')]
             c_flags += ["-DUSB_PID=" + self.get_board_conf('build.pid')]
 
-        env_defaults = dict(CC=self.AVR_BIN_PREFIX + 'gcc',
-                            CXX=self.AVR_BIN_PREFIX + 'g++',
-                            AS=self.AVR_BIN_PREFIX + 'gcc',
+        env_defaults = dict(CC='"' + self.AVR_BIN_PREFIX + 'gcc"',
+                            CXX='"' + self.AVR_BIN_PREFIX + 'g++"',
+                            AS='"' + self.AVR_BIN_PREFIX + 'gcc"',
                             CPPPATH=[self.core_root],
                             CPPDEFINES={'F_CPU': self.F_CPU, 'ARDUINO':
                                         self.ARDUINO_VER},
