@@ -50,13 +50,13 @@ class AvrDude(SerialDevice):
         else:
             self.port = self.get_port()
             logger.info('avrdude successfully connected on port: %s' % self.port)
-        
+
     def _run_command(self, flags):
         config = dict(avrdude=self.avrdude, avrconf=self.avrconf)
 
         cmd = ['%(avrdude)s'] + flags
         cmd = [v % config for v in cmd]
-        
+
         logger.info(' '.join(cmd))
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE)
         stdout, stderr = p.communicate()
@@ -67,10 +67,10 @@ class AvrDude(SerialDevice):
     def flash(self, hex_path):
         hex_path = path(hex_path)
         flags = ['-c', 'stk500v2', '-b', '115200', '-p', 'atmega2560',
-                    '-P', '\\\\.\\%s' % self.port,
-                    '-U', 'flash:w:%s' % hex_path.name, 
+                    '-P', '%s' % self.port,
+                    '-U', 'flash:w:%s' % hex_path.name,
                     '-C', '%(avrconf)s']
-        
+
 
         try:
             cwd = os.getcwd()
@@ -88,4 +88,4 @@ class AvrDude(SerialDevice):
             self._run_command(flags)
         except (ConnectionError, CalledProcessError):
             return False
-        return True    
+        return True

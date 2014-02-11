@@ -4,10 +4,11 @@ import logging
 from path import path
 
 try:
-    from app_context import get_app
+    from microdrop.app_context import get_app
+
     def package_path():
-        return path(get_app().config['plugins']['directory']) / \
-            path('dmf_control_board')
+        return (path(get_app().config['plugins']['directory'])
+                .joinpath('dmf_control_board'))
 except ImportError:
     def package_path():
         try:
@@ -17,5 +18,3 @@ except ImportError:
         return script.parent
 
 logger = logging.getLogger()
-
-from dmf_control_board import *

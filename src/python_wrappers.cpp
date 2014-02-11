@@ -23,8 +23,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 using namespace boost::python;
 
-const uint16_t RemoteObject::EEPROM_PIN_MODE_ADDRESS;
-const uint16_t RemoteObject::EEPROM_PIN_STATE_ADDRESS;
+const uint16_t RemoteObject::PERSISTENT_PIN_MODE_ADDRESS;
+const uint16_t RemoteObject::PERSISTENT_PIN_STATE_ADDRESS;
 const uint8_t RemoteObject::RETURN_OK;
 const uint8_t RemoteObject::RETURN_GENERAL_ERROR;
 const uint8_t RemoteObject::RETURN_UNKNOWN_COMMAND;
@@ -38,7 +38,7 @@ const uint8_t RemoteObject::RETURN_MAX_PAYLOAD_EXCEEDED;
 const uint16_t RemoteObject::MAX_PAYLOAD_LENGTH;
 const uint8_t DmfControlBoard::SINE;
 const uint8_t DmfControlBoard::SQUARE;
-const uint16_t DmfControlBoard::EEPROM_CONFIG_SETTINGS;
+const uint16_t DmfControlBoard::PERSISTENT_CONFIG_SETTINGS;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
@@ -48,7 +48,7 @@ BOOST_PYTHON_MODULE(dmf_control_board_base)
   scope().attr("LOW") = 0;
   scope().attr("SINE") = DmfControlBoard::SINE;
   scope().attr("SQUARE") = DmfControlBoard::SQUARE;
-  
+
   class_<std::vector<uint8_t> >("uint8_tVector")
     .def(vector_indexing_suite<std::vector<uint8_t> >())
   ;
@@ -89,8 +89,8 @@ object DmfControlBoard_class
     .def("analog_read",&DmfControlBoard::analog_read)
     .def("analog_reads",&DmfControlBoard::analog_reads)
     .def("analog_write",&DmfControlBoard::analog_write)
-    .def("eeprom_read",&DmfControlBoard::eeprom_read)
-    .def("eeprom_write",&DmfControlBoard::eeprom_write)
+    .def("persistent_read",&DmfControlBoard::persistent_read)
+    .def("persistent_write",&DmfControlBoard::persistent_write)
     .def("onewire_address",&DmfControlBoard::onewire_address)
     .def("onewire_read",&DmfControlBoard::onewire_read)
     .def("onewire_write",&DmfControlBoard::onewire_write)
@@ -107,10 +107,10 @@ object DmfControlBoard_class
     .def("state_of_channel",&DmfControlBoard::state_of_channel)
     .def("sampling_rate",&DmfControlBoard::sampling_rate)
     .def("series_resistor_index",&DmfControlBoard::series_resistor_index)
-    .def("series_resistance",&DmfControlBoard::series_resistance)
-    .def("series_capacitance",&DmfControlBoard::series_capacitance)
-    .def("amplifier_gain",&DmfControlBoard::amplifier_gain)
-    .def("auto_adjust_amplifier_gain",&DmfControlBoard::auto_adjust_amplifier_gain)
+    .def("_series_resistance",&DmfControlBoard::series_resistance)
+    .def("_series_capacitance",&DmfControlBoard::series_capacitance)
+    .def("_amplifier_gain",&DmfControlBoard::amplifier_gain)
+    .def("_auto_adjust_amplifier_gain",&DmfControlBoard::auto_adjust_amplifier_gain)
     .def("waveform",&DmfControlBoard::waveform)
     .def("waveform_voltage",&DmfControlBoard::waveform_voltage)
     .def("waveform_frequency",&DmfControlBoard::waveform_frequency)
@@ -121,10 +121,10 @@ object DmfControlBoard_class
     .def("set_waveform_frequency",&DmfControlBoard::set_waveform_frequency)
     .def("set_sampling_rate",&DmfControlBoard::set_sampling_rate)
     .def("set_series_resistor_index",&DmfControlBoard::set_series_resistor_index)
-    .def("set_series_resistance",&DmfControlBoard::set_series_resistance)
-    .def("set_series_capacitance",&DmfControlBoard::set_series_capacitance)
-    .def("set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
-    .def("set_auto_adjust_amplifier_gain",&DmfControlBoard::set_auto_adjust_amplifier_gain)
+    .def("_set_series_resistance",&DmfControlBoard::set_series_resistance)
+    .def("_set_series_capacitance",&DmfControlBoard::set_series_capacitance)
+    .def("_set_amplifier_gain",&DmfControlBoard::set_amplifier_gain)
+    .def("_set_auto_adjust_amplifier_gain",&DmfControlBoard::set_auto_adjust_amplifier_gain)
     .def("measure_impedance",&DmfControlBoard::MeasureImpedance)
     .def("measure_impedance_non_blocking",&DmfControlBoard::MeasureImpedanceNonBlocking)
     .def("send_interrupt",&DmfControlBoard::SendInterrupt)
@@ -137,8 +137,8 @@ object DmfControlBoard_class
     .def("host_software_version",&DmfControlBoard::host_software_version)
     .def("host_url",&DmfControlBoard::host_url)
   ;
-DmfControlBoard_class.attr("EEPROM_PIN_MODE_ADDRESS") = DmfControlBoard::EEPROM_PIN_MODE_ADDRESS;
-DmfControlBoard_class.attr("EEPROM_PIN_STATE_ADDRESS") = DmfControlBoard::EEPROM_PIN_STATE_ADDRESS;
+DmfControlBoard_class.attr("PERSISTENT_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
+DmfControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
 DmfControlBoard_class.attr("RETURN_OK") = DmfControlBoard::RETURN_OK;
 DmfControlBoard_class.attr("RETURN_GENERAL_ERROR") = DmfControlBoard::RETURN_GENERAL_ERROR;
 DmfControlBoard_class.attr("RETURN_UNKNOWN_COMMAND") = DmfControlBoard::RETURN_UNKNOWN_COMMAND;
@@ -148,6 +148,6 @@ DmfControlBoard_class.attr("RETURN_BAD_INDEX") = DmfControlBoard::RETURN_BAD_IND
 DmfControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = DmfControlBoard::RETURN_BAD_PACKET_SIZE;
 DmfControlBoard_class.attr("RETURN_BAD_CRC") = DmfControlBoard::RETURN_BAD_CRC;
 DmfControlBoard_class.attr("RETURN_BAD_VALUE") = DmfControlBoard::RETURN_BAD_VALUE;
-DmfControlBoard_class.attr("EEPROM_CONFIG_SETTINGS") = DmfControlBoard::EEPROM_CONFIG_SETTINGS;
+DmfControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = DmfControlBoard::PERSISTENT_CONFIG_SETTINGS;
 DmfControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = DmfControlBoard::MAX_PAYLOAD_LENGTH;
 }

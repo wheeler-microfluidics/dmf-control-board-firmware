@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Ryan Fobel
+Copyright 2011 Ryan Fobel, 2013 Christian Fobel
 
 This file is part of dmf_control_board.
 
@@ -21,13 +21,11 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef AVR
   #include <util/crc16.h>
-  #include "WProgram.h"
+  #include "Arduino.h"
   #include <Wire.h>
   #include <SPI.h>
   #include <OneWire.h>
   #include <EEPROM.h>
-  extern "C" void __cxa_pure_virtual(void); // These declarations are needed for
-  void __cxa_pure_virtual(void) {}          // virtual functions on the Arduino.
 #else
   #include <boost/thread.hpp>
   #include <boost/timer.hpp>
@@ -49,48 +47,49 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
                                 ,class_name_(class_name)
 #endif
                                 {
-  bytes_received_ = 0;
-  un_escaping_ = false;
-  payload_length_ = 0;
-  bytes_read_ = 0;
-  bytes_written_ = 0;
-  debug_ = false;
+    bytes_received_ = 0;
+    un_escaping_ = false;
+    payload_length_ = 0;
+    bytes_read_ = 0;
+    bytes_written_ = 0;
+    debug_ = false;
 
 #ifdef AVR
-  // initialize pin mode and state of digital pins
-  // from EEPROM
-  for(uint8_t i=0; i<=54/8; i++) {
-    uint8_t mode = EEPROM.read(EEPROM_PIN_MODE_ADDRESS+i);
-    uint8_t state = EEPROM.read(EEPROM_PIN_STATE_ADDRESS+i);
-    for(uint8_t j=0; j<8; j++) {
-      if(i*8+j<54) {
-        pinMode(i*8+j,(~mode>>j)&0x01);
-        digitalWrite(i*8+j,(~state>>j)&0x01);
-      }
+    // Initialize pin mode and state of digital pins from persistent storage
+    // _(i.e., EEPROM on AVR)_.
+    for (uint8_t i = 0; i <= 54 / 8; i++) {
+        uint8_t mode = this->persistent_read(PERSISTENT_PIN_MODE_ADDRESS + i);
+        uint8_t state = this->persistent_read(PERSISTENT_PIN_STATE_ADDRESS + i);
+        for (uint8_t j = 0; j < 8; j++) {
+            if(i * 8 + j < 54) {
+                pinMode(i * 8 + j, (~mode >> j) & 0x01);
+                digitalWrite(i * 8 + j, (~state >> j) & 0x01);
+            }
+        }
     }
-  }
 #endif
 }
 
-RemoteObject::~RemoteObject() {
-}
+RemoteObject::~RemoteObject() {}
 
 void RemoteObject::SendByte(const uint8_t b) {
 #ifndef AVR
-  const char* function_name = "SendByte()";
+    const char* function_name = "SendByte()";
 #endif
-  if(b==FRAME_BOUNDARY || b==CONTROL_ESCAPE) {
+    if (b == FRAME_BOUNDARY || b == CONTROL_ESCAPE) {
 #ifndef AVR
-    LogMessage(str(format("write escape (0x%0X)") % (int)b).c_str(), function_name);
+        LogMessage(str(format("write escape (0x%0X)") % (int)b).c_str(),
+                              function_name);
 #endif
-    Serial.write(CONTROL_ESCAPE);
-    Serial.write(b^ESCAPE_XOR);
-  } else {
+        Serial.write(CONTROL_ESCAPE);
+        Serial.write(b ^ ESCAPE_XOR);
+    } else {
 #ifndef AVR
-    LogMessage(str(format("write (0x%0X)") % (int)b).c_str(), function_name);
+        LogMessage(str(format("write (0x%0X)") % (int)b).c_str(),
+                              function_name);
 #endif
-    Serial.write(b);
-  }
+        Serial.write(b);
+    }
 }
 
 uint16_t RemoteObject::UpdateCrc(uint16_t crc, uint8_t data) {
@@ -319,27 +318,35 @@ uint8_t RemoteObject::ValidateReply(const uint8_t cmd) {
 }
 
 void RemoteObject::ProcessPacket() {
-  if(packet_cmd_&0x80) { // Commands have MSB==1
-    packet_cmd_ = packet_cmd_^0x80; // Flip the MSB for reply
-    return_code_ = RETURN_UNKNOWN_COMMAND;
-    ProcessCommand(packet_cmd_^0x80);
-  #ifndef AVR
-    LogSeparator();
-  #endif
-  } else {
-    return_code_ = payload_[payload_length_-1];
-    payload_length_--;// -1 because we've already read the return code
+    if (packet_cmd_ & 0x80) {
+        /* Commands have MSB == 1, so this packet contains a command.  Start
+         * preparing the response and process the command. */
+
+        // Flip the MSB for reply
+        packet_cmd_ = packet_cmd_ ^ 0x80;
+        return_code_ = RETURN_UNKNOWN_COMMAND;
+        ProcessCommand(packet_cmd_ ^ 0x80);
 #ifndef AVR
-    const char* function_name = "ProcessPacket()";
-    LogMessage(str(format("(0x%0X). This packet is a reply to command (%d)") %
-      (packet_cmd_^0x80) % (packet_cmd_^0x80)).c_str(), function_name);
-    LogMessage(str(format("Return code=%d") % (int)return_code()).c_str(),
-      function_name);
-    LogMessage(str(format("Payload length=%d") % payload_length()).c_str(),
-      function_name);
-    LogSeparator();
+        LogSeparator();
 #endif
-  }
+    } else {
+        // This packet does not contain a command, so assume it is a response.
+        return_code_ = payload_[payload_length_ - 1];
+        /* Decrement the payload-length because we've already read the return
+         * code (which was included in the payload-length). */
+        payload_length_--;
+#ifndef AVR
+        const char* function_name = "ProcessPacket()";
+        LogMessage(str(format("(0x%0X). This packet is a reply to command "
+                              "(%d)") % (packet_cmd_ ^ 0x80) %
+                              (packet_cmd_^0x80)).c_str(), function_name);
+        LogMessage(str(format("Return code=%d") % (int)return_code()).c_str(),
+                              function_name);
+        LogMessage(str(format("Payload length=%d") % payload_length()).c_str(),
+                              function_name);
+        LogSeparator();
+#endif
+    }
 }
 
 uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
@@ -475,20 +482,20 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_EEPROM_WRITE:
+    case CMD_PERSISTENT_WRITE:
       if(payload_length()==3) {
         uint16_t address = ReadUint16();
         uint8_t value = ReadUint8();
-        EEPROM.write(address, value);
+        this->persistent_write(address, value);
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-    case CMD_EEPROM_READ:
+    case CMD_PERSISTENT_READ:
       if(payload_length()==2) {
         uint16_t address = ReadUint16();
-        uint8_t value = EEPROM.read(address);
+        uint8_t value = this->persistent_read(address);
         Serialize(&value,sizeof(value));
         return_code_ = RETURN_OK;
       } else {
@@ -563,7 +570,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t n_bytes_to_read = ReadUint8();
         Wire.requestFrom(address, n_bytes_to_read);
         while(Wire.available()) {
-          uint8_t data = Wire.receive();
+          uint8_t data = Wire.read();
           Serialize(&data, sizeof(uint8_t));
           n_bytes_read++;
         }
@@ -581,7 +588,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
         uint8_t address = ReadUint8();
         Wire.beginTransmission(address);
         for(uint8_t i=0; i<payload_length()-1; i++) {
-          Wire.send(ReadUint8());
+          Wire.write(ReadUint8());
         }
         Wire.endTransmission();
         return_code_ = RETURN_OK;
@@ -640,127 +647,195 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
   return return_code_;
 }
 
-void RemoteObject::ProcessSerialInput(uint8_t b) {
+void RemoteObject::ProcessSerialInput(uint8_t byte) {
+    /*
+     * Process the next available _byte_ in the serial receive buffer.
+     */
 #ifndef AVR
-  const char* function_name = "ProcessSerialInput()";
+    const char* function_name = "ProcessSerialInput()";
 #endif
-  // deal with escapes
-  if (b==CONTROL_ESCAPE) {
+    /* Since the packet grammar defined in `Remoteobject.h` reserves certain byte
+     * values as special markers _(e.g., `start_flag`, `end_flag`), we provide a
+     * mechanism to [escape][1] a reserved byte value, such that it can be
+     * included in a packet's payload without disrupting the processing of the
+     * packet.  To do this, we allow reserved byte values to be prepended by an
+     * [escape character][1] with the value `CONTROL_ESCAPE`.
+     *
+     * [1]: http://en.wikipedia.org/wiki/Escape_character
+     */
+    if (byte == CONTROL_ESCAPE) {
 #ifndef AVR
-    LogMessage(str(format("(0x%0X) Escape") % (int)b).c_str(), function_name);
+        LogMessage(str(format("(0x%0X) Escape") % (int)byte).c_str(),
+                              function_name);
 #endif
-    un_escaping_ = true;
-    return;
-  } else if(un_escaping_) {
-    b^=ESCAPE_XOR;
+        /* Update our state to indicate that we are currently processing an [escape
+         * character][1] sequence and will need to return to normal processing for
+         * the next byte.
+         *
+         * [1]: http://en.wikipedia.org/wiki/Escape_character
+         */
+        un_escaping_ = true;
+        return;
+    } else if(un_escaping_) {
+        /* TODO: What does `ESCAPE_XOR` do? */
+        byte ^= ESCAPE_XOR;
 #ifndef AVR
-    LogMessage(str(format("(0x%0X) Un-escaping") % (int)b).c_str(), function_name);
-#endif
-  }
-  if (b==FRAME_BOUNDARY && !un_escaping_) {
-#ifndef AVR
-    LogSeparator();
-    LogMessage(str(format("(0x%0X) Frame Boundary") % (int)b).c_str(),
-      function_name);
-#endif
-    if(bytes_received_>0) {
-#ifndef AVR
-      LogMessage(str(format("(0x%0X) Invalid packet") % (int)b).c_str(),
-        function_name);
+        LogMessage(str(format("(0x%0X) Un-escaping") % (int)byte).c_str(),
+                              function_name);
 #endif
     }
-    bytes_received_ = 0;
-  } else {
-    if(bytes_received_==0) { // command byte
+
+    if (byte == FRAME_BOUNDARY && !un_escaping_) {
+        /* The current byte marks a frame-boundary, since it matches the
+         * `start_flag` or `end_flag` of the packet grammar defined in
+         * `Remoteobject.h`.
+         *
+         * __NB__ If `un_escaping_` is `true`, it would indicate that the previous
+         * byte was an [escape character][1] and that the current byte has been
+         * XOR'ed with `ESCAPE_XOR` to ensure it does not conflict with one of the
+         * reserved byte values.  Therefore, if the previous character was an
+         * escape character and the current byte _(which has been XOR'ed with
+         * `ESCAPE_XOR`)_ is equal to the `FRAME_BOUNDARY`, we should not actually
+         * treat it as a `FRAME_BOUNDARY`.
+         *
+         * [1]: http://en.wikipedia.org/wiki/Escape_character
+         */
 #ifndef AVR
-      LogMessage(str(format("(0x%0X) Command byte (%d)") % (int)b % (int)b).c_str(),
-        function_name);
+        LogSeparator();
+        LogMessage(str(format("(0x%0X) Frame Boundary") % (int)byte).c_str(),
+                              function_name);
 #endif
-      packet_cmd_=b;
-      if(crc_enabled_) {
-        rx_crc_=0xFFFF; // reset the crc
-      }
-    } else if(bytes_received_==1) { // payload length
-      if(b & 0x80) {
-        header_length_=3;
-        payload_length_=(b&0x7F)<<8;
-      } else {
-        header_length_=2;
-        payload_length_=b;
-      }
-    // payload length (byte 2)
-    } else if(bytes_received_==2 && header_length_==3) {
-      payload_length_+=b;
-    } else if(bytes_received_-header_length_<payload_length_) { // payload
-      // TODO: check that MAX_PAYLOAD_LENGTH isn't exceeded
-      payload_[bytes_received_-header_length_]=b;
-    } else if(bytes_received_-header_length_<payload_length_+2) { // crc
-    } else {
-      // TODO: error
-    }
+        if(bytes_received_ > 0) {
 #ifndef AVR
-    if(bytes_received_==header_length_) {
-      LogMessage(str(format("Payload length=%d") % payload_length_).c_str(),
-        function_name);
-    }
-#endif
-    if(crc_enabled_) {
-      rx_crc_ = UpdateCrc(rx_crc_, b);
-    }
-    bytes_received_++;
-#ifndef AVR
-    if(b>=0x20&&b<=0x7E) {
-      LogMessage(str(format("(0x%0X) %d bytes received (\'%c\')") % (int)b %
-        bytes_received_ % b).c_str(), function_name);
-    } else {
-      LogMessage(str(format("(0x%0X) %d bytes received") % (int)b %
-        bytes_received_).c_str(), function_name);
-    }
-#endif
-    if(bytes_received_==payload_length_+header_length_+2*crc_enabled_) {
-      bytes_received_ = 0;
-      bytes_read_ = 0;
-      bytes_written_ = 0;
-      if(crc_enabled_) {
-        if(rx_crc_==0) {
-#ifndef AVR
-          LogMessage("End of Packet. CRC OK.", function_name);
-#endif
-          ProcessPacket();
-        } else {
-#ifndef AVR
-          LogMessage("End of Packet. CRC Error.", function_name);
+            /* Since our current processing state indicates that we have already
+             * received some bytes, we are not expecting a `FRAME_BOUNDARY`, so
+             * log the packet as invalid.
+             */
+            LogMessage(str(format("(0x%0X) Invalid packet") % (int)byte).c_str(),
+                       function_name);
 #endif
         }
-      } else {
+        bytes_received_ = 0;
+    } else {
+        if(bytes_received_ == 0) { // command byte
 #ifndef AVR
-        LogMessage("End of Packet", function_name);
+            LogMessage(str(format("(0x%0X) Command byte (%d)") % (int)byte %
+                                  (int)byte).c_str(), function_name);
 #endif
-        ProcessPacket();
-      }
+            packet_cmd_ = byte;
+            if(crc_enabled_) {
+                rx_crc_ = 0xFFFF; // reset the crc
+            }
+        } else if(bytes_received_ == 1) { // payload length
+            if(byte & 0x80) {
+                header_length_ = 3;
+                payload_length_ = (byte & 0x7F) << 8;
+            } else {
+                header_length_ = 2;
+                payload_length_ = byte;
+            }
+        // payload length (byte 2)
+        } else if(bytes_received_ == 2 && header_length_ == 3) {
+            payload_length_ += byte;
+        } else if(bytes_received_ - header_length_ < payload_length_) {
+            // payload
+            // TODO: check that MAX_PAYLOAD_LENGTH isn't exceeded
+            payload_[bytes_received_ - header_length_] = byte;
+        } else if(bytes_received_ - header_length_ < payload_length_ + 2) {
+            // crc
+        } else {
+          // TODO: error
+        }
 #ifndef AVR
-      LogSeparator();
+        if(bytes_received_ == header_length_) {
+            /* We've received all header bytes, so we can report the
+             * payload-length _(which was included in the packet header)_. */
+            LogMessage(str(format("Payload length=%d") %
+                                  payload_length_).c_str(), function_name);
+        }
 #endif
-      // if we're not expecting something else, stop waiting
-      if(waiting_for_reply_to_ && packet_cmd_==(waiting_for_reply_to_^0x80)) {
-        waiting_for_reply_to_ = 0;
-      }
+        if(crc_enabled_) {
+            /* CRC is enabled, so update the CRC-checksum with the current
+             * byte. */
+            rx_crc_ = UpdateCrc(rx_crc_, byte);
+        }
+        bytes_received_++;
 #ifndef AVR
-      else {
-        LogMessage("Not the expected reply, keep waiting.", function_name);
-      }
+        if(byte >= 0x20 && byte <= 0x7E) {
+            /* The byte value is within the [ASCII][1] character range, so
+             * display the corresponding character.
+             *
+             * [1]: http://www.asciitable.com */
+            LogMessage(str(format("(0x%0X) %d bytes received (\'%c\')") % (int)byte
+                                  % bytes_received_ % byte).c_str(),
+                       function_name);
+        } else {
+            LogMessage(str(format("(0x%0X) %d bytes received") % (int)byte %
+                                  bytes_received_).c_str(), function_name);
+        }
 #endif
+        if (bytes_received_ ==
+            payload_length_ + header_length_ + 2 * crc_enabled_) {
+            /* We have read the number of bytes that make up a packet,
+             * according to the grammar defined in `RemoteObject.h`, so process
+             * the packet contents.
+             *
+             * __NB__ Recall that the length of a packet varies according to
+             * whether or not a CRC-value is provided.  This is taken into
+             * account here by including the `2 * crc_enabled_` term in the
+             * condition above.  In the case where CRC-checking is not enabled,
+             * the term will evaluate to 0.
+             */
+            bytes_received_ = 0;
+            bytes_read_ = 0;
+            bytes_written_ = 0;
+            if(crc_enabled_) {
+                /* CRC checking is enabled, so verify that the CRC matches the
+                 * CRC value sent in the packet. */
+                if(rx_crc_ == 0) {
+#ifndef AVR
+                    LogMessage("End of Packet. CRC OK.", function_name);
+#endif
+                    ProcessPacket();
+                } else {
+#ifndef AVR
+                    LogMessage("End of Packet. CRC Error.", function_name);
+#endif
+                }
+            } else {
+                /* CRC checking is not enabled, so just proceed with processing
+                 * the packet contents. */
+#ifndef AVR
+                LogMessage("End of Packet", function_name);
+#endif
+                ProcessPacket();
+            }
+#ifndef AVR
+            LogSeparator();
+#endif
+            // If we're not expecting something else, stop waiting
+            if (waiting_for_reply_to_ &&
+                packet_cmd_ == (waiting_for_reply_to_ ^ 0x80)) {
+                waiting_for_reply_to_ = 0;
+            }
+#ifndef AVR
+            else {
+                LogMessage("Not the expected reply, keep waiting.", function_name);
+            }
+#endif
+        }
     }
-  }
-  if(un_escaping_) {
-    un_escaping_=false;
-  }
+    if(un_escaping_) {
+        /* If we were handling the escaping of a byte, reset the escaping state
+         * to resume normal packet processing. */
+        un_escaping_ = false;
+    }
 }
 
 void RemoteObject::Listen() {
-  while(Serial.available()>0) {
-    ProcessSerialInput(Serial.read());
-  }
+    while(Serial.available() > 0) {
+        ProcessSerialInput(Serial.read());
+    }
 }
 
 #ifdef AVR
@@ -770,49 +845,60 @@ void RemoteObject::Listen() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoteObject::begin() {
+void /* DEVICE */ RemoteObject::begin() {
   Serial.begin(baud_rate_);
   Wire.begin();
   SPI.begin();
 }
 
-void RemoteObject::i2c_scan() {
-  for(uint8_t i=8; i<120; i++) {
+void /* DEVICE */ RemoteObject::i2c_scan() {
+  for (uint8_t i = 8; i < 120; i++) {
     Wire.beginTransmission(i);
-    if(Wire.endTransmission() == 0) {
-      Serial.print ("Found i2c address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("Found i2c address: ");
+      Serial.print(i, DEC);
+      Serial.print(" (0x");
+      Serial.print(i, HEX);
       Serial.println (")");
-      delay (1);  // maybe unneeded?
+      delay(1);  // maybe unneeded?
     }
   }
 }
 
-void RemoteObject::i2c_write(const uint8_t address, const uint8_t data) {
-  Wire.beginTransmission(address);
-  Wire.send(data);
-  Wire.endTransmission();
+void /* DEVICE */ RemoteObject::i2c_write(const uint8_t address,
+                                          const uint8_t data) {
+    Wire.beginTransmission(address);
+    Wire.write(data);
+    Wire.endTransmission();
 }
 
-void RemoteObject::i2c_write(const uint8_t address, const uint8_t* data,
-                             const uint8_t n_bytes) {
-  Wire.beginTransmission(address);
-  for(uint8_t i=0; i<n_bytes; i++) {
-    Wire.send(data[i]);
-  }
-  Wire.endTransmission();
+void /* DEVICE */ RemoteObject::i2c_write(const uint8_t address,
+                                          const uint8_t* data,
+                                          const uint8_t n_bytes) {
+    Wire.beginTransmission(address);
+    for (uint8_t i = 0; i < n_bytes; i++) {
+        Wire.write(data[i]);
+    }
+    Wire.endTransmission();
 }
 
-uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
-                               const uint8_t n_bytes_to_read) {
-  uint8_t n_bytes_read = 0;
-  Wire.requestFrom(address, n_bytes_to_read);
-  while(Wire.available()) {
-    data[n_bytes_read++] = Wire.receive();
-  }
-  return n_bytes_read;
+uint8_t /* DEVICE */ RemoteObject::i2c_read(const uint8_t address,
+                                            uint8_t* data,
+                                            const uint8_t n_bytes_to_read) {
+    uint8_t n_bytes_read = 0;
+    Wire.requestFrom(address, n_bytes_to_read);
+    while (Wire.available()) {
+        data[n_bytes_read++] = Wire.read();
+    }
+    return n_bytes_read;
+}
+
+uint8_t /* HOST */ RemoteObject::persistent_read(uint16_t address) {
+    return EEPROM.read(address);
+}
+
+void /* HOST */ RemoteObject::persistent_write(uint16_t address, uint8_t value) {
+    EEPROM.write(address, value);
 }
 
 #else
@@ -822,14 +908,14 @@ uint8_t RemoteObject::i2c_read(const uint8_t address, uint8_t* data,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t RemoteObject::Connect(const char* port) {
+uint8_t /* HOST */ RemoteObject::Connect(const char* port) {
   const char* function_name = "Connect()";
   int return_code = Serial.begin(port, baud_rate_);
 
   // wait up to 10 s for the Arduino to send something on the
   // serial port so that we know it's ready
   if(return_code==0) {
-    boost::posix_time::ptime t = 
+    boost::posix_time::ptime t =
       boost::posix_time::microsec_clock::universal_time();
     while(Serial.available()==false && \
       (boost::posix_time::microsec_clock::universal_time()-t)
@@ -872,11 +958,11 @@ uint8_t RemoteObject::Connect(const char* port) {
     port).c_str());
 }
 
-void RemoteObject::set_debug(const bool debug) {
+void /* HOST */ RemoteObject::set_debug(const bool debug) {
   debug_ = debug;
 }
 
-string RemoteObject::protocol_name() {
+string /* HOST */ RemoteObject::protocol_name() {
   const char* function_name = "protocol_name()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -889,7 +975,7 @@ string RemoteObject::protocol_name() {
   return "";
 }
 
-string RemoteObject::protocol_version() {
+string /* HOST */ RemoteObject::protocol_version() {
   const char* function_name = "protocol_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -902,7 +988,7 @@ string RemoteObject::protocol_version() {
   return "";
 }
 
-string RemoteObject::name() {
+string /* HOST */ RemoteObject::name() {
   const char* function_name = "name()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -914,7 +1000,7 @@ string RemoteObject::name() {
   return "";
 }
 
-string RemoteObject::manufacturer() {
+string /* HOST */ RemoteObject::manufacturer() {
   const char* function_name = "manufacturer()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -927,7 +1013,7 @@ string RemoteObject::manufacturer() {
   return "";
 }
 
-string RemoteObject::software_version() {
+string /* HOST */ RemoteObject::software_version() {
   const char* function_name = "software_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -940,7 +1026,7 @@ string RemoteObject::software_version() {
   return "";
 }
 
-string RemoteObject::hardware_version() {
+string /* HOST */ RemoteObject::hardware_version() {
   const char* function_name = "hardware_version()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -953,7 +1039,7 @@ string RemoteObject::hardware_version() {
   return "";
 }
 
-string RemoteObject::url() {
+string /* HOST */ RemoteObject::url() {
   const char* function_name = "url()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -965,7 +1051,7 @@ string RemoteObject::url() {
   return "";
 }
 
-void RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
+void /* HOST */ RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
   const char* function_name = "set_pin_mode()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -978,7 +1064,7 @@ void RemoteObject::set_pin_mode(uint8_t pin, bool mode) {
   }
 }
 
-uint8_t RemoteObject::digital_read(uint8_t pin) {
+uint8_t /* HOST */ RemoteObject::digital_read(uint8_t pin) {
   const char* function_name = "digital_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -992,7 +1078,7 @@ uint8_t RemoteObject::digital_read(uint8_t pin) {
   return 0;
 }
 
-void RemoteObject::digital_write(uint8_t pin, bool value) {
+void /* HOST */ RemoteObject::digital_write(uint8_t pin, bool value) {
   const char* function_name = "digital_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1005,7 +1091,7 @@ void RemoteObject::digital_write(uint8_t pin, bool value) {
   }
 }
 
-uint16_t RemoteObject::analog_read(uint8_t pin) {
+uint16_t /* HOST */ RemoteObject::analog_read(uint8_t pin) {
   const char* function_name = "analog_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1019,8 +1105,8 @@ uint16_t RemoteObject::analog_read(uint8_t pin) {
   return 0;
 }
 
-std::vector<uint16_t> RemoteObject::analog_reads(uint8_t pin,
-                                                 uint16_t n_samples) {
+std::vector<uint16_t> /* HOST */ RemoteObject::analog_reads(
+        uint8_t pin, uint16_t n_samples) {
   const char* function_name = "analog_reads()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1040,7 +1126,7 @@ std::vector<uint16_t> RemoteObject::analog_reads(uint8_t pin,
   return std::vector<uint16_t>();
 }
 
-void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
+void /* HOST */ RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   const char* function_name = "analog_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1052,12 +1138,12 @@ void RemoteObject::analog_write(uint8_t pin, uint16_t value) {
   }
 }
 
-uint8_t RemoteObject::eeprom_read(uint16_t address) {
-  const char* function_name = "eeprom_read()";
+uint8_t /* HOST */ RemoteObject::persistent_read(uint16_t address) {
+  const char* function_name = "persistent_read()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
-  if(SendCommand(CMD_EEPROM_READ)==RETURN_OK) {
+  if(SendCommand(CMD_PERSISTENT_READ)==RETURN_OK) {
     uint8_t value = ReadUint8();
     LogMessage(str(format("address %d value=%d") % address % value).c_str(),
       function_name);
@@ -1066,20 +1152,20 @@ uint8_t RemoteObject::eeprom_read(uint16_t address) {
   return 0;
 }
 
-void RemoteObject::eeprom_write(uint16_t address, uint8_t value) {
-  const char* function_name = "eeprom_write()";
+void /* HOST */ RemoteObject::persistent_write(uint16_t address, uint8_t value) {
+  const char* function_name = "persistent_write()";
   LogSeparator();
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
   Serialize(&value,sizeof(value));
-  if(SendCommand(CMD_EEPROM_WRITE)==RETURN_OK) {
+  if(SendCommand(CMD_PERSISTENT_WRITE)==RETURN_OK) {
     LogMessage(str(format("address %d value=%d") % address % value).c_str(),
       function_name);
   }
 }
 
-std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
-                                                   uint8_t index) {
+std::vector<uint8_t> /* HOST */ RemoteObject::onewire_address(uint8_t pin,
+                                                              uint8_t index) {
   const char* function_name = "onewire_address()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1097,10 +1183,11 @@ std::vector<uint8_t> RemoteObject::onewire_address(uint8_t pin,
   return std::vector<uint8_t>();
 }
 
-std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
-                                                std::vector<uint8_t> address,
-                                                uint8_t command,
-                                                uint8_t n_bytes) {
+std::vector<uint8_t> /* HOST */ RemoteObject::onewire_read(uint8_t pin,
+                                                           std::vector<uint8_t>
+                                                           address,
+                                                           uint8_t command,
+                                                           uint8_t n_bytes) {
   const char* function_name = "onewire_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1122,8 +1209,9 @@ std::vector<uint8_t> RemoteObject::onewire_read(uint8_t pin,
   return std::vector<uint8_t>();
 }
 
-void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
-                                 uint8_t value, uint8_t power) {
+void /* HOST */ RemoteObject::onewire_write(uint8_t pin,
+                                            std::vector<uint8_t> address,
+                                            uint8_t value, uint8_t power) {
   const char* function_name = "onewire_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1139,7 +1227,8 @@ void RemoteObject::onewire_write(uint8_t pin, std::vector<uint8_t> address,
   }
 }
 
-void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
+void /* HOST */ RemoteObject::i2c_write(uint8_t address,
+                                        std::vector<uint8_t> data) {
   const char* function_name = "i2c_write()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1154,8 +1243,9 @@ void RemoteObject::i2c_write(uint8_t address, std::vector<uint8_t> data) {
   }
 }
 
-std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
-                                            uint8_t n_bytes_to_read) {
+std::vector<uint8_t> /* HOST */ RemoteObject::i2c_read(uint8_t address,
+                                                       uint8_t
+                                                       n_bytes_to_read) {
   const char* function_name = "i2c_read()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1174,10 +1264,12 @@ std::vector<uint8_t> RemoteObject::i2c_read(uint8_t address,
   return std::vector<uint8_t>();
 }
 
-std::vector<uint8_t> RemoteObject::i2c_send_command(uint8_t address,
-                                                    uint8_t cmd,
-                                                    std::vector<uint8_t> data,
-                                                    uint8_t delay_ms) {
+std::vector<uint8_t> /* HOST */ RemoteObject::i2c_send_command(uint8_t address,
+                                                               uint8_t cmd,
+                                                               std::vector
+                                                               <uint8_t> data,
+                                                               uint8_t
+                                                               delay_ms) {
   const char* function_name = "i2c_send_command()";
   data.insert(data.begin(), cmd);
   i2c_write(address, data);
@@ -1195,7 +1287,7 @@ std::vector<uint8_t> RemoteObject::i2c_send_command(uint8_t address,
   return out;
 }
 
-void RemoteObject::spi_set_bit_order(bool order) {
+void /* HOST */ RemoteObject::spi_set_bit_order(bool order) {
   const char* function_name = "spi_set_bit_order()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1205,7 +1297,7 @@ void RemoteObject::spi_set_bit_order(bool order) {
   }
 }
 
-void RemoteObject::spi_set_clock_divider(uint8_t divider) {
+void /* HOST */ RemoteObject::spi_set_clock_divider(uint8_t divider) {
   const char* function_name = "spi_set_clock_divider()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1215,7 +1307,7 @@ void RemoteObject::spi_set_clock_divider(uint8_t divider) {
   }
 }
 
-void RemoteObject::spi_set_data_mode(uint8_t mode) {
+void /* HOST */ RemoteObject::spi_set_data_mode(uint8_t mode) {
   const char* function_name = "spi_set_data_mode()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1225,7 +1317,7 @@ void RemoteObject::spi_set_data_mode(uint8_t mode) {
   }
 }
 
-uint8_t RemoteObject::spi_transfer(uint8_t value) {
+uint8_t /* HOST */ RemoteObject::spi_transfer(uint8_t value) {
   const char* function_name = "spi_transfer()";
   LogSeparator();
   LogMessage("send command", function_name);
@@ -1234,12 +1326,12 @@ uint8_t RemoteObject::spi_transfer(uint8_t value) {
     uint8_t data = ReadUint8();
     LogMessage(str(format("sent: %d, received: %d") % value % data).c_str(),
       function_name);
-    return data;  
+    return data;
   }
   return 0;
 }
 
-std::vector<uint8_t> RemoteObject::debug_buffer() {
+std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {
   const char* function_name = "debug_buffer()";
   LogSeparator();
   LogMessage("send command", function_name);
