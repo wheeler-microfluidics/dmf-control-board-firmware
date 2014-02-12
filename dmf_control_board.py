@@ -25,7 +25,7 @@ import logging
 from struct import pack, unpack
 
 import numpy as np
-from microdrop import Version, FutureVersionError
+from microdrop_utility import Version, FutureVersionError
 
 from .__init__ import package_path
 from .__init__ import logger

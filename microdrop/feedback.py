@@ -36,30 +36,14 @@ if os.name == 'nt':
 from matplotlib.figure import Figure
 from path import path
 import scipy.optimize as optimize
-import yaml
 
-try:
-    from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
-                                                    FigureCanvasGTK)
-    from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
-                                                    NavigationToolbar)
-except RuntimeError:
-    # TODO: `PROGRAM_LAUNCHED` does not exist here...
-    if PROGRAM_LAUNCHED:
-        raise
-    else:
-        logging.info('Skipping error!')
+from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
+                                                FigureCanvasGTK)
+from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
+                                                NavigationToolbar)
 
-try:
-    from ...dmf_control_board import *
-except:
-    # Raise the exception(s) if we're running the program (these exceptions
-    # are expected when generating documentation with doxygen, so in that case
-    # we can safely ignore them).
-    if microdrop.utility.PROGRAM_LAUNCHED:
-        raise
-from microdrop.utility import SetOfInts, Version, FutureVersionError, is_float
-from microdrop.utility.gui import (textentry_validate,
+from microdrop_utility import SetOfInts, Version, FutureVersionError, is_float
+from microdrop_utility.gui import (textentry_validate,
                                    combobox_set_model_from_list,
                                    combobox_get_active_text, text_entry_dialog,
                                    FormViewDialog, yesno)
@@ -68,6 +52,7 @@ from flatland.validation import ValueAtLeast
 from microdrop.plugin_manager import (emit_signal, IWaveformGenerator, IPlugin,
                                       get_service_instance_by_name)
 from microdrop.app_context import get_app
+from ...dmf_control_board import *
 
 
 class AmplifierGainNotCalibrated(Exception):

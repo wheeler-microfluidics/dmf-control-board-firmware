@@ -30,7 +30,9 @@ import numpy as np
 from path import path
 from flatland import Integer, Boolean, Float, Form, Enum
 from flatland.validation import ValueAtLeast, ValueAtMost
-import microdrop.utility as utility
+import microdrop_utility as utility
+from microdrop_utility.user_paths import home_dir
+from microdrop_utility.gui import yesno, FormViewDialog
 from microdrop.logger import logger
 from microdrop.gui.protocol_grid_controller import ProtocolGridController
 from microdrop.plugin_helpers import (StepOptionsController, AppDataController,
@@ -40,11 +42,8 @@ from microdrop.plugin_manager import (IPlugin, IWaveformGenerator, Plugin,
                                       ScheduleRequest, emit_signal,
                                       get_service_instance,
                                       get_service_instance_by_name)
-from microdrop.utility import Version, FutureVersionError
 from microdrop.app_context import get_app
-from microdrop.utility.gui import yesno, FormViewDialog
 from microdrop.dmf_device import DeviceScaleNotSet
-from microdrop.utility.user_paths import home_dir
 
 from ..dmf_control_board import DmfControlBoard
 from ..serial_device import SerialDevice
@@ -304,14 +303,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_flash_firmware(self, widget=None, data=None):
         app = get_app()
         try:
-            #response = yesno("Save current configuration settings before "
-                             #"flashing?")
-            #if response == gtk.RESPONSE_YES:
-                #self.feedback_configuration_controller\
-                    #.on_save_log_calibration(None, None)
             connected = self.control_board.connected()
             if not connected:
                 self.connect()
+            response = yesno("Save current calibration settings before "
+                             "flashing?")
+            if response == gtk.RESPONSE_YES:
+                self.save_config()
             hardware_version = utility.Version.fromstring(
                 self.control_board.hardware_version()
             )
