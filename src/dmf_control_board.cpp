@@ -61,9 +61,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 const char DmfControlBoard::NAME_[] = "Arduino DMF Controller";
 const char DmfControlBoard::MANUFACTURER_[] = "Wheeler Microfluidics Lab";
-#ifndef ___SOFTWARE_VERSION___
-#define ___SOFTWARE_VERSION___    "0.1"
-#endif
 const char DmfControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 const char DmfControlBoard::URL_[] =
     "http://microfluidics.utoronto.ca/dmf_control_board";
