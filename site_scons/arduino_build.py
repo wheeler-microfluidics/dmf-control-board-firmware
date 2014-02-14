@@ -566,7 +566,7 @@ class ArduinoBuildContext(object):
         env.BuildInfo(None, hex_path)
 
         if register_upload:
-            fuse_cmd = '%s %s' % (os.path.join(os.path
+            fuse_cmd = '"%s" %s' % (os.path.join(os.path
                                                .dirname(self.AVR_BIN_PREFIX),
                                                'avrdude'),
                                   ' '.join(self.get_avrdude_options()))
