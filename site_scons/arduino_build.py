@@ -178,7 +178,7 @@ class ArduinoBuildContext(object):
             self.AVR_HOME = self.resolve_var('AVR_HOME', '/usr/bin/')
             self.AVR_HOME_DUDE = self.resolve_var('AVR_HOME', '/usr/bin/')
 
-        self.ARDUINO_BOARD = self.resolve_var('ARDUINO_BOARD', 'uno')
+        self.ARDUINO_BOARD = self.resolve_var('ARDUINO_BOARD', 'mega2560')
         # Default to 0 if nothing is specified
         self.ARDUINO_VER = self.resolve_var('ARDUINO_VER', 0)
         # use built-in pulseDTR() by default
