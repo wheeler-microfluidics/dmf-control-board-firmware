@@ -25,6 +25,8 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include <fstream>
   #include <string>
   #include <vector>
+#else
+  #include "Arduino.h"
 #endif
 #include "RemoteObject.h"
 
@@ -45,6 +47,29 @@ public:
   };
 
 #ifdef AVR
+  struct watchdog_t {
+    /* # `watchdog_t` #
+     *
+     * This structure is used to maintain the state of a watchdog timer, which
+     * can be used for any purpose.  For now, the watchdog timer is used to
+     * maintain the state of the ATX power supply control signal.
+     *
+     * If the watchdog timer is enabled, _i.e., `enabled=true`, when
+     * the timer period finishes:
+     *
+     *  - If the `state` is not `true`, the power-supply must be
+     *   turned off.
+     *  - The `state` must be set to `false`.
+     *
+     * When the watchdog timer is enabled, it is the responsibility of the
+     * client to reset the watchdog-state before each timer period ends to
+     * prevent the power supply from being turned off. */
+    bool enabled;
+    bool state;
+
+    watchdog_t() : enabled(true), state(false) {}
+  };
+
   struct config_settings_t {
     /**\brief This is the software version that the persistent configuration
      * data was written with.*/
@@ -128,6 +153,11 @@ public:
   static const uint8_t CMD_SET_AMPLIFIER_GAIN =             0xB4;
   static const uint8_t CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB5;
   static const uint8_t CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB6;
+  static const uint8_t CMD_GET_POWER_SUPPLY_PIN =           0xB7;
+  static const uint8_t CMD_GET_WATCHDOG_STATE =             0xB8;
+  static const uint8_t CMD_SET_WATCHDOG_STATE =             0xB9;
+  static const uint8_t CMD_GET_WATCHDOG_ENABLED =           0xBA;
+  static const uint8_t CMD_SET_WATCHDOG_ENABLED =           0xBB;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -163,6 +193,9 @@ public:
   float waveform_voltage();
   float amplifier_gain();
   bool auto_adjust_amplifier_gain();
+  uint8_t power_supply_pin();
+  bool watchdog_state();
+  bool watchdog_enabled();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -179,6 +212,8 @@ public:
                                  float capacitance);
   uint8_t set_amplifier_gain(float gain);
   uint8_t set_auto_adjust_amplifier_gain(bool on);
+  uint8_t set_watchdog_state(bool state);
+  uint8_t set_watchdog_enabled(bool state);
 
   // other functions
   void MeasureImpedanceNonBlocking(
@@ -209,6 +244,44 @@ public:
   const char* hardware_version();
   const char* url() { return URL_; }
   virtual void persistent_write(uint16_t address, uint8_t value);
+  bool watchdog_enabled() { return watchdog_.enabled; }
+  void watchdog_enabled(bool state) { watchdog_.enabled = state; }
+  bool watchdog_state() { return watchdog_.state; }
+  void watchdog_state(bool state) { watchdog_.state = state; }
+
+  template <typename Timer, typename Function>
+  void watchdog_reset(Timer &timer, Function &f) {
+    timer.detachInterrupt();
+    watchdog_state(true);
+    timer.restart();
+    timer.attachInterrupt(f);
+  }
+
+  /* Callback function when watchdog timer period is finished. */
+  void watchdog_timeout() {
+    /*
+     * If the watchdog timer is enabled, _i.e., `enabled=true`, when
+     * the timer period finishes:
+     *
+     *  - If the `state` is not `true`, the power-supply must be
+     *   turned off.
+     *  - The `state` must be set to `false`.
+     *
+     * When the watchdog timer is enabled, it is the responsibility of the
+     * client to reset the watchdog-state before each timer period ends to
+     * prevent the power supply from being turned off. */
+    if (watchdog_enabled()) {
+        if (!watchdog_state()) {
+            /* Watchdog timer has timed out! */
+            digitalWrite(13, 0);
+        } else {
+            watchdog_state(false);
+        }
+    }
+  }
+
+  /* Expose to allow timer callback to check state. */
+  watchdog_t watchdog_;
 #endif
 
 private:

@@ -594,7 +594,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid feedback sample during the sampling
             // time, return -1 as the index
-            if (fb_max == 0 || fb_min == 1023 && fb_resistor != -1) {
+            if (fb_max == 0 || (fb_min == 1023 && fb_resistor != -1)) {
               fb_resistor = -1;
             } else {
               fb_resistor = A1_series_resistor_index_;
@@ -602,7 +602,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid high voltage sample during the
             // sampling time, return -1 as the index
-            if (hv_max == 0 || hv_min == 1023 && hv_resistor != -1) {
+            if (hv_max == 0 || (hv_min == 1023 && hv_resistor != -1)) {
               hv_resistor = -1;
             } else {
               // adjust amplifier gain (only if the hv resistor is the same
@@ -686,6 +686,62 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
         LoadConfig(true);
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) ||\
+        ___HARDWARE_MAJOR_VERSION___ == 2
+    case CMD_GET_POWER_SUPPLY_PIN:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t power_supply_pin = PWR_SUPPLY_ON_;
+        Serialize(&power_supply_pin, sizeof(power_supply_pin));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#endif
+    case CMD_GET_WATCHDOG_ENABLED:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = watchdog_enabled();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_WATCHDOG_ENABLED:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          watchdog_enabled(true);
+        } else {
+          watchdog_enabled(false);
+        }
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_WATCHDOG_STATE:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = watchdog_state();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_WATCHDOG_STATE:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          watchdog_state(true);
+        } else {
+          watchdog_state(false);
+        }
+        return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -1528,6 +1584,88 @@ float DmfControlBoard::waveform_frequency() {
   return 0;
 }
 
+uint8_t DmfControlBoard::power_supply_pin() {
+  const char* function_name = "power_supply_pin()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if (SendCommand(CMD_GET_POWER_SUPPLY_PIN) == RETURN_OK) {
+    if (payload_length() == sizeof(uint8_t)) {
+      uint8_t power_supply_pin = ReadUint8();
+      LogMessage(str(format("power_supply_pin=%d") % power_supply_pin).c_str(),
+                 function_name);
+      return power_supply_pin;
+    } else {
+      LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size", function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return 0;
+}
+
+bool DmfControlBoard::watchdog_state() {
+  const char* function_name = "watchdog_state()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if (SendCommand(CMD_GET_WATCHDOG_STATE) == RETURN_OK) {
+    LogMessage("CMD_GET_WATCHDOG_STATE", function_name);
+    if (payload_length() == sizeof(uint8_t)) {
+      uint8_t value = ReadUint8();
+      LogMessage(str(format("watchdog_state=%d") % value).c_str(),
+                 function_name);
+      return value > 0;
+    } else {
+      LogMessage("CMD_GET_WATCHDOG_STATE, Bad packet size", function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return false;
+}
+
+bool DmfControlBoard::watchdog_enabled() {
+  const char* function_name = "watchdog_enabled()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  if (SendCommand(CMD_GET_WATCHDOG_ENABLED) == RETURN_OK) {
+    LogMessage("CMD_GET_WATCHDOG_ENABLED", function_name);
+    if (payload_length() == sizeof(uint8_t)) {
+      uint8_t value = ReadUint8();
+      LogMessage(str(format("watchdog_enabled=%d") % value).c_str(),
+                 function_name);
+      return value > 0;
+    } else {
+      LogMessage("CMD_GET_WATCHDOG_ENABLED, Bad packet size", function_name);
+      throw runtime_error("Bad packet size.");
+    }
+  }
+  return false;
+}
+
+uint8_t DmfControlBoard::set_watchdog_state(bool on) {
+  const char* function_name = "set_watchdog_state()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  uint8_t value = on;
+  Serialize(&value, sizeof(value));
+  if (SendCommand(CMD_SET_WATCHDOG_STATE) == RETURN_OK) {
+    LogMessage("CMD_SET_WATCHDOG_STATE", function_name);
+    LogMessage("watchdog state set successfully", function_name);
+  }
+  return return_code();
+}
+
+uint8_t DmfControlBoard::set_watchdog_enabled(bool on) {
+  const char* function_name = "set_watchdog_enabled()";
+  LogSeparator();
+  LogMessage("send command", function_name);
+  uint8_t value = on;
+  Serialize(&value, sizeof(value));
+  if (SendCommand(CMD_SET_WATCHDOG_ENABLED) == RETURN_OK) {
+    LogMessage("CMD_SET_WATCHDOG_ENABLED", function_name);
+    LogMessage("watchdog enabled set successfully", function_name);
+  }
+  return return_code();
+}
+
 uint8_t DmfControlBoard::set_series_resistor_index(const uint8_t channel,
                                                    const uint8_t index) {
   const char* function_name = "set_series_resistor_index()";
@@ -1723,5 +1861,6 @@ uint8_t DmfControlBoard::ResetConfigToDefaults() {
   }
   return return_code();
 }
+
 
 #endif // AVR

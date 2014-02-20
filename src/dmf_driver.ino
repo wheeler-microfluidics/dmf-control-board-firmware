@@ -21,20 +21,29 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include <SPI.h>
 #include <EEPROM.h>
 #include <OneWire.h>
+#include <TimerOne.h>
 #include "Memory.h"
 #include "RemoteObject.h"
 #include "dmf_control_board.h"
 
 DmfControlBoard dmf_control_board;
 
+void callback();
+
 void setup() {
+  Timer1.initialize(2500000);
   dmf_control_board.begin();
+  dmf_control_board.watchdog_reset(Timer1, callback);
   Serial.print("ram="); Serial.println(ram_size(), DEC);
   Serial.print(".data="); Serial.println(data_size(), DEC);
   Serial.print(".bss="); Serial.println(bss_size(), DEC);
   Serial.print("heap="); Serial.println(heap_size(), DEC);
   Serial.print("stack="); Serial.println(stack_size(), DEC);
   Serial.print("free memory="); Serial.println(free_memory(), DEC);
+}
+
+void callback() {
+    dmf_control_board.watchdog_timeout();
 }
 
 void loop() {
