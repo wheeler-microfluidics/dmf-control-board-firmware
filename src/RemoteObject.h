@@ -68,12 +68,15 @@ __________________________________________________________________________
 #define	_REMOTE_OBJECT_H
 
 #include <stdint.h>
+#include "deserialize.h"
 
 #ifndef AVR
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
+  #include <boost/format.hpp>
 #endif
+
 
 class RemoteObject {
 public:
@@ -302,11 +305,25 @@ protected:
     memcpy(array,payload_+bytes_read_-size,size);
   }
   const char* ReadString();
-  uint16_t ReadUint16();
-  int16_t ReadInt16();
-  uint8_t ReadUint8();
-  int8_t ReadInt8();
-  float ReadFloat();
+
+  template <typename T>
+  T Read() {
+    T result;
+    uint32_t size = deserialize(payload_ + bytes_read_, result);
+    bytes_read_ += size;
+#ifndef AVR
+    std::string function_name = "Read<" + type_label<T>() + ">";
+    std::string format_str = "=" + type_format<T>() + ", bytes_read_=%d";
+    LogMessage(boost::str(boost::format(format_str) % result %
+               bytes_read_).c_str(), function_name.c_str());
+#endif
+    return result;
+  }
+  uint16_t ReadUint16() { return Read<uint16_t>(); }
+  int16_t ReadInt16() { return Read<int16_t>(); }
+  uint8_t ReadUint8() { return Read<uint8_t>(); }
+  int8_t ReadInt8() { return Read<int8_t>(); }
+  float ReadFloat() { return Read<float>(); }
   uint8_t WaitForReply();
 
   /**

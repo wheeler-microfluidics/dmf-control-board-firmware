@@ -27,6 +27,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include <OneWire.h>
   #include <EEPROM.h>
 #else
+  #include <string>
   #include <boost/thread.hpp>
   #include <boost/timer.hpp>
   #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -209,61 +210,16 @@ void RemoteObject::SendReply(uint8_t return_code) {
 }
 
 const char* RemoteObject::ReadString() {
-  const char* function_name = "ReadString()";
   // TODO check that we're not reading past the end of the buffer
   uint8_t length = strlen((const char*)payload_)+1;
   bytes_read_ += length;
 #ifndef AVR
+  const char* function_name = "ReadString()";
   LogMessage(str(format("=\"%s\", bytes_read_=%d") %
     (const char*)(payload_+bytes_read_-length) % bytes_read_).c_str(),
     function_name);
 #endif
   return (const char*)(payload_+bytes_read_-length);
-}
-
-uint8_t RemoteObject::ReadUint8() {
-  // TODO check that we're not reading past the end of the buffer
-  bytes_read_ += sizeof(uint8_t);
-#ifndef AVR
-  const char* function_name = "ReadUint8()";
-  LogMessage(str(format("=%d, bytes_read_=%d") %
-    int(*(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t))) %
-      bytes_read_).c_str(),
-    function_name);
-#endif
-  return *(uint8_t*)(payload_+bytes_read_-sizeof(uint8_t));
-}
-
-int8_t RemoteObject::ReadInt8() {
-	return (int8_t)ReadUint8();
-}
-
-uint16_t RemoteObject::ReadUint16() {
-  // TODO check that we're not reading past the end of the buffer
-  bytes_read_ += sizeof(uint16_t);
-#ifndef AVR
-  const char* function_name = "ReadUint16()";
-  LogMessage(str(format("=%d, bytes_read_=%d") %
-    *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t)) % bytes_read_).c_str(),
-    function_name);
-#endif
-  return *(uint16_t*)(payload_+bytes_read_-sizeof(uint16_t));
-}
-
-int16_t RemoteObject::ReadInt16() {
-	return (int16_t)ReadUint16();
-}
-
-float RemoteObject::ReadFloat() {
-  // TODO check that we're not reading past the end of the buffer
-  bytes_read_ += sizeof(float);
-#ifndef AVR
-  const char* function_name = "ReadFloat()";
-  LogMessage(str(format("=%.1f, bytes_read_=%d") %
-    *(float*)(payload_+bytes_read_-sizeof(float)) % bytes_read_).c_str(),
-    function_name);
-#endif
-  return *(float*)(payload_+bytes_read_-sizeof(float));
 }
 
 uint8_t RemoteObject::WaitForReply() {
@@ -415,8 +371,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SET_PIN_MODE:
       if(payload_length()==2) {
-        uint8_t pin = ReadUint8();
-        uint8_t mode = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
+        uint8_t mode = Read<uint8_t>();
         pinMode(pin, mode);
         return_code_ = RETURN_OK;
       } else {
@@ -425,8 +381,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_DIGITAL_WRITE:
       if(payload_length()==2) {
-        uint8_t pin = ReadUint8();
-        uint8_t value = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
+        uint8_t value = Read<uint8_t>();
         digitalWrite(pin, value);
         return_code_ = RETURN_OK;
       } else {
@@ -435,7 +391,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_DIGITAL_READ:
       if(payload_length()==1) {
-        uint8_t pin = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
         uint8_t value = digitalRead(pin);
         Serialize(&value,sizeof(value));
         return_code_ = RETURN_OK;
@@ -445,8 +401,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_ANALOG_WRITE:
       if(payload_length()==2) {
-        uint8_t pin = ReadUint8();
-        uint16_t value = ReadUint16();
+        uint8_t pin = Read<uint8_t>();
+        uint16_t value = Read<uint16_t>();
         analogWrite(pin, value);
         return_code_ = RETURN_OK;
       } else {
@@ -458,11 +414,11 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       uint16_t n_samples;
       if(payload_length()==1 ||
          payload_length()==sizeof(uint8_t)+sizeof(uint16_t)) {
-        pin = ReadUint8();
+        pin = Read<uint8_t>();
         if(payload_length()==1) {
           n_samples = 1;
         } else {
-          n_samples = ReadUint16();
+          n_samples = Read<uint16_t>();
         }
         if(n_samples>(MAX_PAYLOAD_LENGTH)/sizeof(uint16_t)) {
           return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
@@ -484,8 +440,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_PERSISTENT_WRITE:
       if(payload_length()==3) {
-        uint16_t address = ReadUint16();
-        uint8_t value = ReadUint8();
+        uint16_t address = Read<uint16_t>();
+        uint8_t value = Read<uint8_t>();
         this->persistent_write(address, value);
         return_code_ = RETURN_OK;
       } else {
@@ -494,7 +450,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_PERSISTENT_READ:
       if(payload_length()==2) {
-        uint16_t address = ReadUint16();
+        uint16_t address = Read<uint16_t>();
         uint8_t value = this->persistent_read(address);
         Serialize(&value,sizeof(value));
         return_code_ = RETURN_OK;
@@ -504,8 +460,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_ONEWIRE_GET_ADDRESS:
       if(payload_length()==2) {
-        uint8_t pin = ReadUint8();
-        uint8_t index = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
+        uint8_t index = Read<uint8_t>();
         uint8_t addr[8];
         uint8_t ret;
         OneWire ow(pin);
@@ -525,13 +481,13 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_ONEWIRE_READ:
       if(payload_length()==11) {
-        uint8_t pin = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
         uint8_t addr[8];
         for(uint8_t i=0; i<8; i++) {
-          addr[i] = ReadUint8();
+          addr[i] = Read<uint8_t>();
         }
-        uint8_t command = ReadUint8();
-        uint8_t n_bytes = ReadUint8();
+        uint8_t command = Read<uint8_t>();
+        uint8_t n_bytes = Read<uint8_t>();
         OneWire ow(pin);
         ow.reset();
         ow.select(addr);
@@ -547,13 +503,13 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_ONEWIRE_WRITE:
       if(payload_length()==11) {
-        uint8_t pin = ReadUint8();
+        uint8_t pin = Read<uint8_t>();
         uint8_t addr[8];
         for(uint8_t i=0; i<8; i++) {
-          addr[i] = ReadUint8();
+          addr[i] = Read<uint8_t>();
         }
-        uint8_t value = ReadUint8();
-        uint8_t power = ReadUint8();
+        uint8_t value = Read<uint8_t>();
+        uint8_t power = Read<uint8_t>();
         OneWire ow(pin);
         ow.reset();
         ow.select(addr);
@@ -566,8 +522,8 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
     case CMD_I2C_READ:
       if(payload_length()==2) {
         uint8_t n_bytes_read=0;
-        uint8_t address = ReadUint8();
-        uint8_t n_bytes_to_read = ReadUint8();
+        uint8_t address = Read<uint8_t>();
+        uint8_t n_bytes_to_read = Read<uint8_t>();
         Wire.requestFrom(address, n_bytes_to_read);
         while(Wire.available()) {
           uint8_t data = Wire.read();
@@ -585,10 +541,10 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_I2C_WRITE:
       if(payload_length()>1) {
-        uint8_t address = ReadUint8();
+        uint8_t address = Read<uint8_t>();
         Wire.beginTransmission(address);
         for(uint8_t i=0; i<payload_length()-1; i++) {
-          Wire.write(ReadUint8());
+          Wire.write(Read<uint8_t>());
         }
         Wire.endTransmission();
         return_code_ = RETURN_OK;
@@ -598,7 +554,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SPI_SET_BIT_ORDER:
       if(payload_length()==1) {
-        uint8_t order = ReadUint8();
+        uint8_t order = Read<uint8_t>();
         SPI.setBitOrder(order);
         return_code_ = RETURN_OK;
       } else {
@@ -607,7 +563,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SPI_SET_CLOCK_DIVIDER:
       if(payload_length()==1) {
-        uint8_t divider = ReadUint8();
+        uint8_t divider = Read<uint8_t>();
         SPI.setClockDivider(divider);
         return_code_ = RETURN_OK;
       } else {
@@ -616,7 +572,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SPI_SET_DATA_MODE:
       if(payload_length()==1) {
-        uint8_t mode = ReadUint8();
+        uint8_t mode = Read<uint8_t>();
         SPI.setDataMode(mode);
         return_code_ = RETURN_OK;
       } else {
@@ -625,7 +581,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       break;
     case CMD_SPI_TRANSFER:
       if(payload_length()==1) {
-        uint8_t value = ReadUint8();
+        uint8_t value = Read<uint8_t>();
         uint8_t data = SPI.transfer(value);
         Serialize(&data, sizeof(data));
         return_code_ = RETURN_OK;
@@ -1070,7 +1026,7 @@ uint8_t /* HOST */ RemoteObject::digital_read(uint8_t pin) {
   LogMessage("send command", function_name);
   Serialize(&pin,sizeof(pin));
   if(SendCommand(CMD_DIGITAL_READ)==RETURN_OK) {
-    uint8_t value = ReadUint8();
+    uint8_t value = Read<uint8_t>();
     LogMessage(str(format("pin %d value=%d") % pin % value).c_str(),
       function_name);
     return value;
@@ -1097,7 +1053,7 @@ uint16_t /* HOST */ RemoteObject::analog_read(uint8_t pin) {
   LogMessage("send command", function_name);
   Serialize(&pin,sizeof(pin));
   if(SendCommand(CMD_ANALOG_READ)==RETURN_OK) {
-    uint16_t value = ReadUint16();
+    uint16_t value = Read<uint16_t>();
     LogMessage(str(format("pin %d value=%d") % pin % value).c_str(),
       function_name);
     return value;
@@ -1116,7 +1072,7 @@ std::vector<uint16_t> /* HOST */ RemoteObject::analog_reads(
     if(payload_length()==n_samples*sizeof(uint16_t)) {
       std::vector<uint16_t> buffer(n_samples);
       for(uint16_t i=0; i<n_samples; i++) {
-        buffer[i] = ReadUint16();
+        buffer[i] = Read<uint16_t>();
       }
       return buffer;
     } else {
@@ -1144,7 +1100,7 @@ uint8_t /* HOST */ RemoteObject::persistent_read(uint16_t address) {
   LogMessage("send command", function_name);
   Serialize(&address,sizeof(address));
   if(SendCommand(CMD_PERSISTENT_READ)==RETURN_OK) {
-    uint8_t value = ReadUint8();
+    uint8_t value = Read<uint8_t>();
     LogMessage(str(format("address %d value=%d") % address % value).c_str(),
       function_name);
     return value;
@@ -1176,7 +1132,7 @@ std::vector<uint8_t> /* HOST */ RemoteObject::onewire_address(uint8_t pin,
       function_name);
     std::vector<uint8_t> address;
     for(int i=0; i<payload_length(); i++) {
-      address.push_back(ReadUint8());
+      address.push_back(Read<uint8_t>());
     }
     return address;
   }
@@ -1199,7 +1155,7 @@ std::vector<uint8_t> /* HOST */ RemoteObject::onewire_read(uint8_t pin,
     if(SendCommand(CMD_ONEWIRE_READ)==RETURN_OK) {
       std::vector<uint8_t> data;
       for(uint8_t i=0; i<n_bytes; i++) {
-        data.push_back(ReadUint8());
+        data.push_back(Read<uint8_t>());
       }
       LogMessage(str(format("pin %d, command=%d, n_bytes=%d") % pin % command %
         n_bytes).c_str(), function_name);
@@ -1255,7 +1211,7 @@ std::vector<uint8_t> /* HOST */ RemoteObject::i2c_read(uint8_t address,
     LogMessage(str(format("address %d") % address).c_str(), function_name);
     std::vector<uint8_t> received_data;
     for(uint8_t i=0; i<n_bytes_to_read; i++) {
-      received_data.push_back(ReadUint8());
+      received_data.push_back(Read<uint8_t>());
       LogMessage(str(format("received_data[%d]=%d") % i %
         received_data[i]).c_str(), function_name);
     }
@@ -1323,7 +1279,7 @@ uint8_t /* HOST */ RemoteObject::spi_transfer(uint8_t value) {
   LogMessage("send command", function_name);
   Serialize(&value, sizeof(value));
   if(SendCommand(CMD_SPI_TRANSFER)==RETURN_OK) {
-    uint8_t data = ReadUint8();
+    uint8_t data = Read<uint8_t>();
     LogMessage(str(format("sent: %d, received: %d") % value % data).c_str(),
       function_name);
     return data;
@@ -1338,7 +1294,7 @@ std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {
   if(SendCommand(CMD_GET_DEBUG_BUFFER)==RETURN_OK) {
     std::vector<uint8_t> buffer;
     for(uint16_t i=0; i<payload_length(); i++) {
-      buffer.push_back(ReadUint8());
+      buffer.push_back(Read<uint8_t>());
     }
     return buffer;
   }

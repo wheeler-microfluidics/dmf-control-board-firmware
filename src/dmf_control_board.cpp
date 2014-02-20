@@ -1603,22 +1603,10 @@ uint8_t DmfControlBoard::power_supply_pin() {
 }
 
 bool DmfControlBoard::watchdog_state() {
-  const char* function_name = "watchdog_state()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WATCHDOG_STATE) == RETURN_OK) {
-    LogMessage("CMD_GET_WATCHDOG_STATE", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t value = ReadUint8();
-      LogMessage(str(format("watchdog_state=%d") % value).c_str(),
-                 function_name);
-      return value > 0;
-    } else {
-      LogMessage("CMD_GET_WATCHDOG_STATE, Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return false;
+    const char* function_name = "watchdog_state()";
+    bool watchdog_state = send_read_command<uint8_t>(CMD_GET_WATCHDOG_STATE,
+                                                     function_name);
+    return watchdog_state;
 }
 
 bool DmfControlBoard::watchdog_enabled() {
