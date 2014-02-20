@@ -34,8 +34,9 @@ public:
   static const uint8_t SINE = 0;
   static const uint8_t SQUARE = 1;
 
-  /**\brief EEPROM address of config settings.*/
-  static const uint16_t EEPROM_CONFIG_SETTINGS = 100;
+  /**\brief Address of config settings in persistent storage _(i.e., EEPROM)_.
+   */
+  static const uint16_t PERSISTENT_CONFIG_SETTINGS = 100;
 
   struct version_t {
     uint16_t major;
@@ -45,8 +46,8 @@ public:
 
 #if defined(AVR) || defined(__SAM3X8E__)
   struct config_settings_t {
-    /**\brief This is the software version that the EEPROM configuration data
-    was written with.*/
+    /**\brief This is the software version that the persistent configuration
+     * data was written with.*/
     version_t version;
 
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -207,6 +208,7 @@ public:
   const char* software_version() { return SOFTWARE_VERSION_; }
   const char* hardware_version();
   const char* url() { return URL_; }
+  virtual void persistent_write(uint16_t address, uint8_t value);
 #endif
 
 private:

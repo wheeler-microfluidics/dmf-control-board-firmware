@@ -23,7 +23,7 @@ Each packet has the following structure:
 
 Commands are uint8_t and should have the MSB=1 (replies have MSB=0). The
 RemoteObject base class reserves the commands 0x80 to 0x9F, while derived
-classes should restrict themselves to commands in the range 0xA0 to 0xFF. 
+classes should restrict themselves to commands in the range 0xA0 to 0xFF.
 
 The payload length can be one or two bytes.  If the payload is less than 128
 bytes, it's length is expressed as a single byte.  If the most-significant
@@ -85,51 +85,51 @@ public:
                                         // adding interrupts on the
                                         // communication bus
 #endif
-  // EEPROM addresses
-  static const uint16_t EEPROM_PIN_MODE_ADDRESS =        0;
-  static const uint16_t EEPROM_PIN_STATE_ADDRESS =       7;
+  // Persistent storage _(e.g., EEPROM)_ addresses.
+  static const uint16_t PERSISTENT_PIN_MODE_ADDRESS =      0;
+  static const uint16_t PERSISTENT_PIN_STATE_ADDRESS =     7;
 
   // protocol constants
-  static const uint16_t MAX_PAYLOAD_LENGTH =          2000;
-  static const uint16_t MAX_DEBUG_BUFFER_LENGTH =     1000;
+  static const uint16_t MAX_PAYLOAD_LENGTH =            2000;
+  static const uint16_t MAX_DEBUG_BUFFER_LENGTH =       1000;
 
   // reserved commands
-  static const uint8_t CMD_GET_PROTOCOL_NAME =        0x80;
-  static const uint8_t CMD_GET_PROTOCOL_VERSION =     0x81;
-  static const uint8_t CMD_GET_DEVICE_NAME =          0x82;
-  static const uint8_t CMD_GET_MANUFACTURER =         0x83;
-  static const uint8_t CMD_GET_HARDWARE_VERSION =     0x84;
-  static const uint8_t CMD_GET_SOFTWARE_VERSION =     0x85;
-  static const uint8_t CMD_GET_URL =                  0x86;
-  static const uint8_t CMD_SET_PIN_MODE =             0x87;
-  static const uint8_t CMD_DIGITAL_READ =             0x88;
-  static const uint8_t CMD_DIGITAL_WRITE =            0x89;
-  static const uint8_t CMD_ANALOG_READ =              0x8A;
-  static const uint8_t CMD_ANALOG_WRITE =             0x8B;
-  static const uint8_t CMD_EEPROM_READ =              0x8C;
-  static const uint8_t CMD_EEPROM_WRITE =             0x8D;
-  static const uint8_t CMD_ONEWIRE_GET_ADDRESS =      0x8E;
-  static const uint8_t CMD_ONEWIRE_WRITE =            0x8F;
-  static const uint8_t CMD_ONEWIRE_READ =             0x90;
-  static const uint8_t CMD_I2C_WRITE =                0x91;
-  static const uint8_t CMD_I2C_READ =                 0x92;
-  static const uint8_t CMD_SPI_SET_BIT_ORDER =        0x93;
-  static const uint8_t CMD_SPI_SET_CLOCK_DIVIDER =    0x94;
-  static const uint8_t CMD_SPI_SET_DATA_MODE =        0x95;
-  static const uint8_t CMD_SPI_TRANSFER =             0x96;
-  static const uint8_t CMD_GET_DEBUG_BUFFER =         0x97;
-  
+  static const uint8_t CMD_GET_PROTOCOL_NAME =          0x80;
+  static const uint8_t CMD_GET_PROTOCOL_VERSION =       0x81;
+  static const uint8_t CMD_GET_DEVICE_NAME =            0x82;
+  static const uint8_t CMD_GET_MANUFACTURER =           0x83;
+  static const uint8_t CMD_GET_HARDWARE_VERSION =       0x84;
+  static const uint8_t CMD_GET_SOFTWARE_VERSION =       0x85;
+  static const uint8_t CMD_GET_URL =                    0x86;
+  static const uint8_t CMD_SET_PIN_MODE =               0x87;
+  static const uint8_t CMD_DIGITAL_READ =               0x88;
+  static const uint8_t CMD_DIGITAL_WRITE =              0x89;
+  static const uint8_t CMD_ANALOG_READ =                0x8A;
+  static const uint8_t CMD_ANALOG_WRITE =               0x8B;
+  static const uint8_t CMD_PERSISTENT_READ =            0x8C;
+  static const uint8_t CMD_PERSISTENT_WRITE =           0x8D;
+  static const uint8_t CMD_ONEWIRE_GET_ADDRESS =        0x8E;
+  static const uint8_t CMD_ONEWIRE_WRITE =              0x8F;
+  static const uint8_t CMD_ONEWIRE_READ =               0x90;
+  static const uint8_t CMD_I2C_WRITE =                  0x91;
+  static const uint8_t CMD_I2C_READ =                   0x92;
+  static const uint8_t CMD_SPI_SET_BIT_ORDER =          0x93;
+  static const uint8_t CMD_SPI_SET_CLOCK_DIVIDER =      0x94;
+  static const uint8_t CMD_SPI_SET_DATA_MODE =          0x95;
+  static const uint8_t CMD_SPI_TRANSFER =               0x96;
+  static const uint8_t CMD_GET_DEBUG_BUFFER =           0x97;
+
   // reserved return codes
-  static const uint8_t RETURN_OK =                    0x00;
-  static const uint8_t RETURN_GENERAL_ERROR =         0x01;
-  static const uint8_t RETURN_UNKNOWN_COMMAND =       0x02;
-  static const uint8_t RETURN_TIMEOUT =               0x03;
-  static const uint8_t RETURN_NOT_CONNECTED =         0x04;
-  static const uint8_t RETURN_BAD_INDEX =             0x05;
-  static const uint8_t RETURN_BAD_PACKET_SIZE =       0x06;
-  static const uint8_t RETURN_BAD_CRC =               0x07;
-  static const uint8_t RETURN_BAD_VALUE =             0x08;
-  static const uint8_t RETURN_MAX_PAYLOAD_EXCEEDED =  0x09;
+  static const uint8_t RETURN_OK =                      0x00;
+  static const uint8_t RETURN_GENERAL_ERROR =           0x01;
+  static const uint8_t RETURN_UNKNOWN_COMMAND =         0x02;
+  static const uint8_t RETURN_TIMEOUT =                 0x03;
+  static const uint8_t RETURN_NOT_CONNECTED =           0x04;
+  static const uint8_t RETURN_BAD_INDEX =               0x05;
+  static const uint8_t RETURN_BAD_PACKET_SIZE =         0x06;
+  static const uint8_t RETURN_BAD_CRC =                 0x07;
+  static const uint8_t RETURN_BAD_VALUE =               0x08;
+  static const uint8_t RETURN_MAX_PAYLOAD_EXCEEDED =    0x09;
 
   RemoteObject(uint32_t baud_rate,
                  bool crc_enabled_
@@ -144,7 +144,10 @@ public:
   void Listen();
   void SendInterrupt();
   uint16_t bytes_read() { return bytes_read_; }
-  bool waiting_for_reply() { Listen(); return waiting_for_reply_to_>0; }
+  bool waiting_for_reply() {
+      Listen();
+      return waiting_for_reply_to_>0;
+  }
 
 #if defined(AVR) || defined(__SAM3X8E__)
   virtual void begin();
@@ -169,6 +172,11 @@ public:
                            uint8_t cmd,
                            uint8_t* data,
                            uint8_t delay_ms);
+  /* The following two `persistent...` methods provide sub-classes a mechanism
+   * to customize persistent storage.  For example, the Arduino DUE does not
+   * support the `EEPROM` library used by the AVR chips. */
+  virtual uint8_t persistent_read(uint16_t address);
+  virtual void persistent_write(uint16_t address, uint8_t value);
 #else
   virtual std::string host_name() = 0;
   virtual std::string host_software_version() = 0;
@@ -203,8 +211,8 @@ public:
   std::vector<uint16_t> analog_reads(uint8_t pin,
                                      uint16_t n_samples);
   void analog_write(uint8_t pin, uint16_t value);
-  uint8_t eeprom_read(uint16_t address);
-  void eeprom_write(uint16_t address, uint8_t value);
+  uint8_t persistent_read(uint16_t address);
+  void persistent_write(uint16_t address, uint8_t value);
   std::vector<uint8_t> onewire_address(uint8_t pin, uint8_t index);
   std::vector<uint8_t> onewire_read(uint8_t pin, std::vector<uint8_t> address,
                                     uint8_t command, uint8_t n_bytes);
@@ -238,7 +246,7 @@ public:
     SPI_CLOCK_DIV16,
     SPI_CLOCK_DIV32,
     SPI_CLOCK_DIV64, or
-    SPI_CLOCK_DIV128 
+    SPI_CLOCK_DIV128
   \returns None
   */
   void spi_set_clock_divider(uint8_t divider);
@@ -248,10 +256,10 @@ public:
   the Wikipedia article on SPI</a> for details.
   \param mode SPI_MODE0, SPI_MODE1, SPI_MODE2, or SPI_MODE3
   \returns None
-  \sa spi_set_bit_order() 
+  \sa spi_set_bit_order()
   */
   void spi_set_data_mode(uint8_t mode);
-  
+
   /**Transfers one byte over the SPI bus, both sending and receiving.
   \param value the byte to send out over the bus
   \returns the byte read from the bus
@@ -259,7 +267,7 @@ public:
   uint8_t spi_transfer(uint8_t value);
 
   void set_debug(const bool debug);
-  bool connected() { return Serial.isOpen(); }  
+  bool connected() { return Serial.isOpen(); }
   uint8_t Connect(const char* port);
   uint8_t Disconnect() { Serial.end(); return RETURN_OK; }
   void flush() { Serial.flush(); }
