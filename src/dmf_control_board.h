@@ -283,6 +283,19 @@ public:
         throw std::runtime_error("Error processing command.");
     }
 
+    template <typename T>
+    uint8_t send_set_command(uint8_t command, const char* function_name,
+                             T value) {
+        LogSeparator();
+        LogMessage("send command", function_name);
+        Serialize(&value, sizeof(value));
+        if (SendCommand(command) == RETURN_OK) {
+            LogMessage(command_label(command).c_str(), function_name);
+            LogMessage("  --> set successfully", function_name);
+        }
+        return return_code();
+    }
+
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
   uint8_t set_state_of_all_channels(const std::vector<uint8_t> state);

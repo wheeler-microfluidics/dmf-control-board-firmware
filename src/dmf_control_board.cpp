@@ -1430,108 +1430,50 @@ bool DmfControlBoard::watchdog_enabled() {
 }
 
 uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
-  const char* function_name = "set_sampling_rate()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&sampling_rate, sizeof(sampling_rate));
-  if (SendCommand(CMD_SET_SAMPLING_RATE) == RETURN_OK) {
-    LogMessage("CMD_SET_SAMPLING_RATE", function_name);
-    LogMessage("sampling rate set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_SAMPLING_RATE, "set_sampling_rate()",
+                            sampling_rate);
 }
 
-uint8_t DmfControlBoard::set_watchdog_state(bool on) {
-  const char* function_name = "set_watchdog_state()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t value = on;
-  Serialize(&value, sizeof(value));
-  if (SendCommand(CMD_SET_WATCHDOG_STATE) == RETURN_OK) {
-    LogMessage("CMD_SET_WATCHDOG_STATE", function_name);
-    LogMessage("watchdog state set successfully", function_name);
-  }
-  return return_code();
+uint8_t DmfControlBoard::set_watchdog_state(bool state) {
+    return send_set_command(CMD_SET_WATCHDOG_STATE, "set_watchdog_state()",
+                            (uint8_t)state);
 }
 
 uint8_t DmfControlBoard::set_watchdog_enabled(bool on) {
-  const char* function_name = "set_watchdog_enabled()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t value = on;
-  Serialize(&value, sizeof(value));
-  if (SendCommand(CMD_SET_WATCHDOG_ENABLED) == RETURN_OK) {
-    LogMessage("CMD_SET_WATCHDOG_ENABLED", function_name);
-    LogMessage("watchdog enabled set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WATCHDOG_ENABLED, "set_watchdog_enabled()",
+                            (uint8_t)on);
 }
 
 uint8_t DmfControlBoard::set_series_resistor_index(const uint8_t channel,
                                                    const uint8_t index) {
-  const char* function_name = "set_series_resistor_index()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&index, sizeof(index));
-  if (SendCommand(CMD_SET_SERIES_RESISTOR_INDEX) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_RESISTOR_INDEX", function_name);
-    LogMessage("series resistor index set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_RESISTOR_INDEX,
+                            "set_series_resistor_index()", index);
 }
 
 uint8_t DmfControlBoard::set_series_resistance(const uint8_t channel,
                                                float resistance) {
-  const char* function_name = "set_series_resistance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&resistance, sizeof(resistance));
-  if (SendCommand(CMD_SET_SERIES_RESISTANCE) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_RESISTANCE", function_name);
-    LogMessage("series resistance set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_RESISTANCE,
+                            "set_series_resistance()", resistance);
 }
 
 uint8_t DmfControlBoard::set_series_capacitance(const uint8_t channel,
                                                 float capacitance) {
-  const char* function_name = "set_series_capacitance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&capacitance, sizeof(capacitance));
-  if (SendCommand(CMD_SET_SERIES_CAPACITANCE) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_CAPACITANCE", function_name);
-    LogMessage("series capacitance set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_CAPACITANCE,
+                            "set_series_capacitance()", capacitance);
 }
 
 uint8_t DmfControlBoard::set_amplifier_gain(float gain) {
-  const char* function_name = "set_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&gain, sizeof(gain));
-  if (SendCommand(CMD_SET_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_SET_AMPLIFIER_GAIN", function_name);
-    LogMessage("amplifier gain set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_AMPLIFIER_GAIN, "set_amplifier_gain()",
+                            gain);
 }
 
 uint8_t DmfControlBoard::set_auto_adjust_amplifier_gain(bool on) {
-  const char* function_name = "set_auto_adjust_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t value = on;
-  Serialize(&value, sizeof(value));
-  if (SendCommand(CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
-    LogMessage("auto adjust amplifier gain set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN,
+                            "set_auto_adjust_amplifier_gain()",
+                            (uint8_t)on);
 }
 
 uint8_t DmfControlBoard::set_state_of_all_channels(const vector <uint8_t>
@@ -1549,57 +1491,23 @@ uint8_t DmfControlBoard::set_state_of_all_channels(const vector <uint8_t>
 
 uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel,
                                               const uint8_t state) {
-  const char* function_name = "set_state_of_channel()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&state, sizeof(state));
-  if (SendCommand(CMD_SET_STATE_OF_CHANNEL) == RETURN_OK) {
-    LogMessage("CMD_SET_STATE_OF_CHANNEL", function_name);
-    LogMessage("channel set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_STATE_OF_CHANNEL, "set_state_of_channel()",
+                            state);
 }
 
 uint8_t DmfControlBoard::set_waveform(bool waveform) {
-  const char* function_name = "set_waveform()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t data = waveform;
-  LogMessage(str(format("waveform=%d") % waveform).c_str(), function_name);
-  Serialize(&data, sizeof(data));
-  if (SendCommand(CMD_SET_WAVEFORM) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM", function_name);
-    LogMessage("waveform set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM, "set_waveform()", waveform);
 }
 
 uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
-  const char* function_name = "set_waveform_voltage()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&v_rms, sizeof(v_rms));
-  LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
-    function_name);
-  if (SendCommand(CMD_SET_WAVEFORM_VOLTAGE) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
-    LogMessage("voltage set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM_VOLTAGE, "set_waveform_voltage()",
+                            v_rms);
 }
 
 uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
-  const char* function_name = "set_waveform_frequency()";
-  LogSeparator();
-  LogMessage(str(format("freq_hz=%.1f") % freq_hz).c_str(), function_name);
-  LogMessage("send command", function_name);
-  Serialize(&freq_hz, sizeof(freq_hz));
-  if (SendCommand(CMD_SET_WAVEFORM_FREQUENCY) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM_FREQUENCY", function_name);
-    LogMessage("frequency set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM_FREQUENCY,
+                            "set_waveform_frequency()", freq_hz);
 }
 
 std::vector <float> DmfControlBoard::MeasureImpedance(
