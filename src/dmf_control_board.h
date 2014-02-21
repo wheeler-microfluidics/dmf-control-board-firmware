@@ -30,7 +30,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 class DmfControlBoard : public RemoteObject {
 public:
-  static const uint32_t BAUD_RATE = 115200;
   static const uint8_t SINE = 0;
   static const uint8_t SQUARE = 1;
 

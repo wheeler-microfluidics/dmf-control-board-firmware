@@ -88,6 +88,7 @@ public:
   // Persistent storage _(e.g., EEPROM)_ addresses.
   static const uint16_t PERSISTENT_PIN_MODE_ADDRESS =      0;
   static const uint16_t PERSISTENT_PIN_STATE_ADDRESS =     7;
+  static const uint16_t PERSISTENT_BAUD_RATE_ADDRESS =    15;
 
   // protocol constants
   static const uint16_t MAX_PAYLOAD_LENGTH =            2000;
@@ -119,6 +120,7 @@ public:
   static const uint8_t CMD_SPI_TRANSFER =               0x96;
   static const uint8_t CMD_GET_DEBUG_BUFFER =           0x97;
 
+
   // reserved return codes
   static const uint8_t RETURN_OK =                      0x00;
   static const uint8_t RETURN_GENERAL_ERROR =           0x01;
@@ -131,8 +133,7 @@ public:
   static const uint8_t RETURN_BAD_VALUE =               0x08;
   static const uint8_t RETURN_MAX_PAYLOAD_EXCEEDED =    0x09;
 
-  RemoteObject(uint32_t baud_rate,
-                 bool crc_enabled_
+  RemoteObject(bool crc_enabled_
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
                  ,const char* class_name
 #endif
@@ -268,7 +269,7 @@ public:
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }
-  uint8_t Connect(const char* port);
+  uint8_t Connect(const char* port, uint32_t baud_rate);
   uint8_t Disconnect() { Serial.end(); return RETURN_OK; }
   void flush() { Serial.flush(); }
 #endif
@@ -356,7 +357,6 @@ private:
   uint16_t payload_length_; // length of the payload
   uint8_t header_length_; // length of the packet header (2 if payload is
                           // <128 bytes, 3 otherwise)
-  uint32_t baud_rate_;
   uint16_t bytes_received_; // bytes received so far in packet
   uint16_t bytes_read_; // bytes that have been read (by Read methods)
   uint16_t bytes_written_; // bytes that have been written (by Serialize method)

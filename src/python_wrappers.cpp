@@ -25,6 +25,7 @@ using namespace boost::python;
 
 const uint16_t RemoteObject::PERSISTENT_PIN_MODE_ADDRESS;
 const uint16_t RemoteObject::PERSISTENT_PIN_STATE_ADDRESS;
+const uint16_t RemoteObject::PERSISTENT_BAUD_RATE_ADDRESS;
 const uint8_t RemoteObject::RETURN_OK;
 const uint8_t RemoteObject::RETURN_GENERAL_ERROR;
 const uint8_t RemoteObject::RETURN_UNKNOWN_COMMAND;
@@ -139,6 +140,7 @@ object DmfControlBoard_class
   ;
 DmfControlBoard_class.attr("PERSISTENT_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
 DmfControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
+DmfControlBoard_class.attr("PERSISTENT_BAUD_RATE_ADDRESS") = DmfControlBoard::PERSISTENT_BAUD_RATE_ADDRESS;
 DmfControlBoard_class.attr("RETURN_OK") = DmfControlBoard::RETURN_OK;
 DmfControlBoard_class.attr("RETURN_GENERAL_ERROR") = DmfControlBoard::RETURN_GENERAL_ERROR;
 DmfControlBoard_class.attr("RETURN_UNKNOWN_COMMAND") = DmfControlBoard::RETURN_UNKNOWN_COMMAND;

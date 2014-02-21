@@ -48,7 +48,7 @@ class AvrDude(SerialDevice):
             self.port = port
             logger.info('avrdude set to connect on port: %s' % self.port)
         else:
-            self.port = self.get_port()
+            self.port = self.get_port(115200)
             logger.info('avrdude successfully connected on port: %s' % self.port)
 
     def _run_command(self, flags):
@@ -80,8 +80,8 @@ class AvrDude(SerialDevice):
             os.chdir(cwd)
         return stdout, stderr
 
-    def test_connection(self, port):
-        flags = ['-c', 'stk500v2', '-b', '115200', '-p', 'atmega2560',
+    def test_connection(self, port, baud_rate):
+        flags = ['-c', 'stk500v2', '-b', baud_rate, '-p', 'atmega2560',
                     '-P', port,
                     '-C', '%(avrconf)s', '-n']
         try:

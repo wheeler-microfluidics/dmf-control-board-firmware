@@ -260,13 +260,13 @@ class DmfControlBoard(Base, SerialDevice):
                                                   .PERSISTENT_CONFIG_SETTINGS +
                                                   i) for i in range(2 * 3)]))
 
-    def connect(self, port=None):
+    def connect(self, port=None, baud_rate=115200):
         if port:
             logger.info("Try connecting to port %s..." % port)
-            Base.connect(self, port)
+            Base.connect(self, port, baud_rate)
             self.port = port
         else:
-            self.get_port()
+            self.get_port(baud_rate)
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")
 
@@ -302,6 +302,22 @@ class DmfControlBoard(Base, SerialDevice):
         self.set_series_resistor_index(0, 0)
         self.set_series_resistor_index(1, 0)
         return self.RETURN_OK
+
+    @property
+    def baud_rate(self):
+        data = np.zeros(4)
+        for i in range(0, 4):
+            data[i] = self.persistent_read(self.PERSISTENT_BAUD_RATE_ADDRESS +
+                                           i)
+        return unpack('L', pack('BBBB', *data))[0]
+
+    @baud_rate.setter
+    def baud_rate(self, rate):
+        data = unpack('BBBB', pack('L', rate))
+        for i in range(0, 4):
+            self.persistent_write(self.PERSISTENT_BAUD_RATE_ADDRESS + i,
+                                  data[i])
+        self.__baud_rate = rate
 
     @property
     def voltage_tolerance(self):
@@ -428,9 +444,9 @@ class DmfControlBoard(Base, SerialDevice):
         return np.array(Base.i2c_send_command(self, address, cmd, data_,
                                               delay_ms))
 
-    def test_connection(self, port):
+    def test_connection(self, port, baud_rate):
         try:
-            if self.connect(port) == self.RETURN_OK:
+            if self.connect(port, baud_rate) == self.RETURN_OK:
                 return True
         except Exception, why:
             logger.info('On port %s, %s' % (port, why))

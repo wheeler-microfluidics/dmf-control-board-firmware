@@ -68,11 +68,11 @@ class SerialDevice(object):
             except EnvironmentError:
                 break
 
-    def get_port(self):
+    def get_port(self, baud_rate):
         self.port = None
 
         for test_port in self.get_serial_ports():
-            if self.test_connection(test_port):
+            if self.test_connection(test_port, baud_rate):
                 self.port = test_port
                 break
             sleep(0.1)
@@ -82,5 +82,5 @@ class SerialDevice(object):
 
         return self.port
 
-    def test_connection(self, port):
+    def test_connection(self, port, baud_rate):
         raise NotImplementedError

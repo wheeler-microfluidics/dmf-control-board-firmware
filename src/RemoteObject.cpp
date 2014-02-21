@@ -45,17 +45,15 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   using boost::format;
 #endif
 
-RemoteObject::RemoteObject(uint32_t baud_rate,
-                               bool crc_enabled
+RemoteObject::RemoteObject(bool crc_enabled
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
-                               ,const char* class_name //used for logging
+                           ,const char* class_name //used for logging
 #endif
-                               ) : baud_rate_(baud_rate),
-                                crc_enabled_(crc_enabled)
+                           ) : crc_enabled_(crc_enabled)
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
-                                ,class_name_(class_name)
+                               ,class_name_(class_name)
 #endif
-                                {
+                               {
     bytes_received_ = 0;
     un_escaping_ = false;
     payload_length_ = 0;
@@ -67,8 +65,8 @@ RemoteObject::RemoteObject(uint32_t baud_rate,
     // Initialize pin mode and state of digital pins from persistent storage
     // _(i.e., EEPROM on AVR)_.
     for (uint8_t i = 0; i <= 54 / 8; i++) {
-        uint8_t mode = this->persistent_read(PERSISTENT_PIN_MODE_ADDRESS + i);
-        uint8_t state = this->persistent_read(PERSISTENT_PIN_STATE_ADDRESS + i);
+        uint8_t mode = persistent_read(PERSISTENT_PIN_MODE_ADDRESS + i);
+        uint8_t state = persistent_read(PERSISTENT_PIN_STATE_ADDRESS + i);
         for (uint8_t j = 0; j < 8; j++) {
             if(i * 8 + j < 54) {
                 pinMode(i * 8 + j, (~mode >> j) & 0x01);
@@ -495,7 +493,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
       if(payload_length()==3) {
         uint16_t address = ReadUint16();
         uint8_t value = ReadUint8();
-        this->persistent_write(address, value);
+        persistent_write(address, value);
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -504,7 +502,7 @@ uint8_t RemoteObject::ProcessCommand(uint8_t cmd) {
     case CMD_PERSISTENT_READ:
       if(payload_length()==2) {
         uint16_t address = ReadUint16();
-        uint8_t value = this->persistent_read(address);
+        uint8_t value = persistent_read(address);
         Serialize(&value,sizeof(value));
         return_code_ = RETURN_OK;
       } else {
@@ -859,7 +857,21 @@ void RemoteObject::Listen() {
 ////////////////////////////////////////////////////////////////////////////////
 
 void /* DEVICE */ RemoteObject::begin() {
-  Serial.begin(baud_rate_);
+  uint32_t baud_rate;
+  for (uint8_t i=0; i<4; i++) {
+    ((uint8_t*)&baud_rate)[i] = persistent_read(PERSISTENT_BAUD_RATE_ADDRESS
+                                                + i);
+  }
+  // if the baud rate hasn't been set (default is that all bits are high)
+  if (baud_rate == 0xFFFFFFFF) {
+    baud_rate = 115200;
+    // write the baud_rate to eeprom
+    for (uint8_t i=0; i<4; i++) {
+      persistent_write(PERSISTENT_BAUD_RATE_ADDRESS + i,
+        ((uint8_t*)&baud_rate)[i]);
+    }
+  }
+  Serial.begin(baud_rate);
   Wire.begin();
   SPI.begin();
 }
@@ -921,9 +933,9 @@ void /* HOST */ RemoteObject::persistent_write(uint16_t address, uint8_t value) 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t /* HOST */ RemoteObject::Connect(const char* port) {
+uint8_t /* HOST */ RemoteObject::Connect(const char* port, uint32_t baud_rate) {
   const char* function_name = "Connect()";
-  int return_code = Serial.begin(port, baud_rate_);
+  int return_code = Serial.begin(port, baud_rate);
 
   // wait up to 10 s for the Arduino to send something on the
   // serial port so that we know it's ready
@@ -942,7 +954,7 @@ uint8_t /* HOST */ RemoteObject::Connect(const char* port) {
       Serial.flush();
     }
   }
-  LogMessage(str(format("Serial.begin(%s, %d)=%d") % port % baud_rate_ %
+  LogMessage(str(format("Serial.begin(%s, %d)=%d") % port % baud_rate %
     return_code).c_str(), function_name);
 
   if(return_code==0) {

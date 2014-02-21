@@ -71,7 +71,7 @@ const char DmfControlBoard::URL_[] =
     "http://microfluidics.utoronto.ca/dmf_control_board";
 
 DmfControlBoard::DmfControlBoard()
-  : RemoteObject(BAUD_RATE,true
+  : RemoteObject(true
 #if !( defined(AVR) || defined(__SAM3X8E__) )
                    ,"DmfControlBoard" //used for logging
 #endif
@@ -748,8 +748,6 @@ void DmfControlBoard::begin() {
     // wait for the power supply to turn on
     delay(500);
   #endif
-
-  Serial.begin(DmfControlBoard::BAUD_RATE);
 
   Serial.print(name());
   Serial.print(" v");

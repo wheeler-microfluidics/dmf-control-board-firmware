@@ -104,6 +104,9 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                                      ],),
         Enum.named('serial_port').using(default=default_port_,
                                         optional=True).valued(*serial_ports_),
+        Integer.named('baud_rate')
+        .using(default=115200, optional=True, validators=[ValueAtLeast(minimum=0),
+                                                     ],),
     )
 
     StepFields = Form.of(
@@ -238,8 +241,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_app_options_changed(self, plugin_name):
         if plugin_name == self.name:
             app_values = self.get_app_values()
+            reconnect = False
+
+            if(self.control_board.connected() and self.control_board.baud_rate
+                    != app_values['baud_rate']):
+                self.control_board.baud_rate = app_values['baud_rate']
+                reconnect = True
             if (self.control_board.connected() and self.control_board.port !=
                     app_values['serial_port']):
+                reconnect = True
+
+            if reconnect:
                 self.connect()
 
     def connect(self):
@@ -256,12 +268,13 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             app_values = self.get_app_values()
             # try to connect to the last successful port
             try:
-                self.control_board.connect(str(app_values['serial_port']))
+                self.control_board.connect(str(app_values['serial_port']),
+                    app_values['baud_rate'])
             except Exception, why:
                 logger.warning('Could not connect to control board on port %s.'
                                ' Checking other ports...' %
                                app_values['serial_port'])
-                self.control_board.connect()
+                self.control_board.connect(baud_rate=app_values['baud_rate'])
             app_values['serial_port'] = self.control_board.port
             self.set_app_values(app_values)
         else:
