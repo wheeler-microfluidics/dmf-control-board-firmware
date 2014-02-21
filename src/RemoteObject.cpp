@@ -227,8 +227,8 @@ uint8_t RemoteObject::WaitForReply() {
   const char* function_name = "WaitForReply()";
   LogMessage("", function_name);
   time_cmd_sent_ = boost::posix_time::microsec_clock::universal_time();
-#endif
   uint8_t cmd = packet_cmd_;
+#endif
   while(waiting_for_reply_to_) {
     Listen();
 #ifndef AVR
@@ -1244,47 +1244,25 @@ std::vector<uint8_t> /* HOST */ RemoteObject::i2c_send_command(uint8_t address,
 }
 
 void /* HOST */ RemoteObject::spi_set_bit_order(bool order) {
-  const char* function_name = "spi_set_bit_order()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&order, sizeof(order));
-  if(SendCommand(CMD_SPI_SET_BIT_ORDER)==RETURN_OK) {
-    LogMessage(str(format("order %d") % order).c_str(), function_name);
-  }
+    send_set_command(CMD_SPI_SET_BIT_ORDER, "spi_set_bit_order()", order);
 }
 
 void /* HOST */ RemoteObject::spi_set_clock_divider(uint8_t divider) {
-  const char* function_name = "spi_set_clock_divider()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&divider, sizeof(divider));
-  if(SendCommand(CMD_SPI_SET_CLOCK_DIVIDER)==RETURN_OK) {
-    LogMessage(str(format("divider %d") % divider).c_str(), function_name);
-  }
+    send_set_command(CMD_SPI_SET_CLOCK_DIVIDER, "spi_set_clock_divider()",
+                     divider);
 }
 
 void /* HOST */ RemoteObject::spi_set_data_mode(uint8_t mode) {
-  const char* function_name = "spi_set_data_mode()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&mode, sizeof(mode));
-  if(SendCommand(CMD_SPI_SET_DATA_MODE)==RETURN_OK) {
-    LogMessage(str(format("mode %d") % mode).c_str(), function_name);
-  }
+    send_set_command(CMD_SPI_SET_DATA_MODE, "spi_set_data_mode()", mode);
 }
 
 uint8_t /* HOST */ RemoteObject::spi_transfer(uint8_t value) {
-  const char* function_name = "spi_transfer()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&value, sizeof(value));
-  if(SendCommand(CMD_SPI_TRANSFER)==RETURN_OK) {
+    const char* function_name = "spi_transfer()";
+    send_set_command(CMD_SPI_TRANSFER, function_name, value);
     uint8_t data = Read<uint8_t>();
     LogMessage(str(format("sent: %d, received: %d") % value % data).c_str(),
-      function_name);
+               function_name);
     return data;
-  }
-  return 0;
 }
 
 std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {

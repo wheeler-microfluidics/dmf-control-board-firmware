@@ -20,12 +20,12 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef _DMF_CONTROL_BOARD_H_
 #define _DMF_CONTROL_BOARD_H_
 
-#include <stdint.h>
 #ifndef AVR
   #include <iostream>
   #include <fstream>
   #include <string>
   #include <vector>
+  #include <stdint.h>
   #include <stdexcept>
 #else
   #include "Arduino.h"
@@ -184,67 +184,72 @@ public:
 
 // In our case, the PC is the only one sending commands
 #ifndef AVR
-    std::string command_label(uint8_t command) const {
-        if (command == CMD_GET_NUMBER_OF_CHANNELS) {
-            return std::string("CMD_GET_NUMBER_OF_CHANNELS");
-        } else if (command == CMD_GET_STATE_OF_ALL_CHANNELS) {
-            return std::string("CMD_GET_STATE_OF_ALL_CHANNELS");
-        } else if (command == CMD_SET_STATE_OF_ALL_CHANNELS) {
-            return std::string("CMD_SET_STATE_OF_ALL_CHANNELS");
-        } else if (command == CMD_GET_STATE_OF_CHANNEL) {
-            return std::string("CMD_GET_STATE_OF_CHANNEL");
-        } else if (command == CMD_SET_STATE_OF_CHANNEL) {
-            return std::string("CMD_SET_STATE_OF_CHANNEL");
-        } else if (command == CMD_GET_WAVEFORM) {
-            return std::string("CMD_GET_WAVEFORM");
-        } else if (command == CMD_SET_WAVEFORM) {
-            return std::string("CMD_SET_WAVEFORM");
-        } else if (command == CMD_GET_WAVEFORM_VOLTAGE) {
-            return std::string("CMD_GET_WAVEFORM_VOLTAGE");
-        } else if (command == CMD_SET_WAVEFORM_VOLTAGE) {
-            return std::string("CMD_SET_WAVEFORM_VOLTAGE");
-        } else if (command == CMD_GET_WAVEFORM_FREQUENCY) {
-            return std::string("CMD_GET_WAVEFORM_FREQUENCY");
-        } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
-            return std::string("CMD_SET_WAVEFORM_FREQUENCY");
-        } else if (command == CMD_GET_SAMPLING_RATE) {
-            return std::string("CMD_GET_SAMPLING_RATE");
-        } else if (command == CMD_SET_SAMPLING_RATE) {
-            return std::string("CMD_SET_SAMPLING_RATE");
-        } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
-            return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
-        } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
-            return std::string("CMD_SET_SERIES_RESISTOR_INDEX");
-        } else if (command == CMD_GET_SERIES_RESISTANCE) {
-            return std::string("CMD_GET_SERIES_RESISTANCE");
-        } else if (command == CMD_SET_SERIES_RESISTANCE) {
-            return std::string("CMD_SET_SERIES_RESISTANCE");
-        } else if (command == CMD_GET_SERIES_CAPACITANCE) {
-            return std::string("CMD_GET_SERIES_CAPACITANCE");
-        } else if (command == CMD_SET_SERIES_CAPACITANCE) {
-            return std::string("CMD_SET_SERIES_CAPACITANCE");
-        } else if (command == CMD_GET_AMPLIFIER_GAIN) {
-            return std::string("CMD_GET_AMPLIFIER_GAIN");
-        } else if (command == CMD_SET_AMPLIFIER_GAIN) {
-            return std::string("CMD_SET_AMPLIFIER_GAIN");
-        } else if (command == CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) {
-            return std::string("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN");
-        } else if (command == CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) {
-            return std::string("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN");
-        } else if (command == CMD_GET_POWER_SUPPLY_PIN) {
-            return std::string("CMD_GET_POWER_SUPPLY_PIN");
-        } else if (command == CMD_GET_WATCHDOG_STATE) {
-            return std::string("CMD_GET_WATCHDOG_STATE");
-        } else if (command == CMD_SET_WATCHDOG_STATE) {
-            return std::string("CMD_SET_WATCHDOG_STATE");
-        } else if (command == CMD_GET_WATCHDOG_ENABLED) {
-            return std::string("CMD_GET_WATCHDOG_ENABLED");
-        } else if (command == CMD_SET_WATCHDOG_ENABLED) {
-            return std::string("CMD_SET_WATCHDOG_ENABLED");
-        } else {
-            throw std::runtime_error("Invalid command.");
+    virtual std::string command_label(uint8_t command) const {
+        try {
+            return RemoteObject::command_label(command);
+        } catch (...) {
+            if (command == CMD_GET_NUMBER_OF_CHANNELS) {
+                return std::string("CMD_GET_NUMBER_OF_CHANNELS");
+            } else if (command == CMD_GET_STATE_OF_ALL_CHANNELS) {
+                return std::string("CMD_GET_STATE_OF_ALL_CHANNELS");
+            } else if (command == CMD_SET_STATE_OF_ALL_CHANNELS) {
+                return std::string("CMD_SET_STATE_OF_ALL_CHANNELS");
+            } else if (command == CMD_GET_STATE_OF_CHANNEL) {
+                return std::string("CMD_GET_STATE_OF_CHANNEL");
+            } else if (command == CMD_SET_STATE_OF_CHANNEL) {
+                return std::string("CMD_SET_STATE_OF_CHANNEL");
+            } else if (command == CMD_GET_WAVEFORM) {
+                return std::string("CMD_GET_WAVEFORM");
+            } else if (command == CMD_SET_WAVEFORM) {
+                return std::string("CMD_SET_WAVEFORM");
+            } else if (command == CMD_GET_WAVEFORM_VOLTAGE) {
+                return std::string("CMD_GET_WAVEFORM_VOLTAGE");
+            } else if (command == CMD_SET_WAVEFORM_VOLTAGE) {
+                return std::string("CMD_SET_WAVEFORM_VOLTAGE");
+            } else if (command == CMD_GET_WAVEFORM_FREQUENCY) {
+                return std::string("CMD_GET_WAVEFORM_FREQUENCY");
+            } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
+                return std::string("CMD_SET_WAVEFORM_FREQUENCY");
+            } else if (command == CMD_GET_SAMPLING_RATE) {
+                return std::string("CMD_GET_SAMPLING_RATE");
+            } else if (command == CMD_SET_SAMPLING_RATE) {
+                return std::string("CMD_SET_SAMPLING_RATE");
+            } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
+                return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
+            } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
+                return std::string("CMD_SET_SERIES_RESISTOR_INDEX");
+            } else if (command == CMD_GET_SERIES_RESISTANCE) {
+                return std::string("CMD_GET_SERIES_RESISTANCE");
+            } else if (command == CMD_SET_SERIES_RESISTANCE) {
+                return std::string("CMD_SET_SERIES_RESISTANCE");
+            } else if (command == CMD_GET_SERIES_CAPACITANCE) {
+                return std::string("CMD_GET_SERIES_CAPACITANCE");
+            } else if (command == CMD_SET_SERIES_CAPACITANCE) {
+                return std::string("CMD_SET_SERIES_CAPACITANCE");
+            } else if (command == CMD_GET_AMPLIFIER_GAIN) {
+                return std::string("CMD_GET_AMPLIFIER_GAIN");
+            } else if (command == CMD_SET_AMPLIFIER_GAIN) {
+                return std::string("CMD_SET_AMPLIFIER_GAIN");
+            } else if (command == CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+                return std::string("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN");
+            } else if (command == CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+                return std::string("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN");
+            } else if (command == CMD_GET_POWER_SUPPLY_PIN) {
+                return std::string("CMD_GET_POWER_SUPPLY_PIN");
+            } else if (command == CMD_GET_WATCHDOG_STATE) {
+                return std::string("CMD_GET_WATCHDOG_STATE");
+            } else if (command == CMD_SET_WATCHDOG_STATE) {
+                return std::string("CMD_SET_WATCHDOG_STATE");
+            } else if (command == CMD_GET_WATCHDOG_ENABLED) {
+                return std::string("CMD_GET_WATCHDOG_ENABLED");
+            } else if (command == CMD_SET_WATCHDOG_ENABLED) {
+                return std::string("CMD_SET_WATCHDOG_ENABLED");
+            } else {
+                throw std::runtime_error("Invalid command.");
+            }
         }
     }
+
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
@@ -260,41 +265,6 @@ public:
   uint8_t power_supply_pin();
   bool watchdog_state();
   bool watchdog_enabled();
-
-    template <typename Output>
-    Output send_read_command(uint8_t command, const char* function_name) {
-        LogSeparator();
-        LogMessage("send command", function_name);
-        if (SendCommand(command) == RETURN_OK) {
-            LogMessage(command_label(command).c_str(), function_name);
-            if (payload_length() == sizeof(Output)) {
-                Output value = Read<Output>();
-                LogMessage(boost::str(boost::format(command_label(command) +
-                                                    "=" +
-                                                    type_format<Output>()) %
-                                      value).c_str(), function_name);
-                return value;
-            } else {
-                LogMessage((command_label(command) +
-                            ", Bad packet size").c_str(), function_name);
-                throw std::runtime_error("Bad packet size.");
-            }
-        }
-        throw std::runtime_error("Error processing command.");
-    }
-
-    template <typename T>
-    uint8_t send_set_command(uint8_t command, const char* function_name,
-                             T value) {
-        LogSeparator();
-        LogMessage("send command", function_name);
-        Serialize(&value, sizeof(value));
-        if (SendCommand(command) == RETURN_OK) {
-            LogMessage(command_label(command).c_str(), function_name);
-            LogMessage("  --> set successfully", function_name);
-        }
-        return return_code();
-    }
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
