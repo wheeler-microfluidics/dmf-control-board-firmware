@@ -1323,22 +1323,8 @@ void /* DEVICE */ DmfControlBoard::persistent_write(uint16_t address,
 ///////////////////////////////////////////////////////////////////////////////
 
 uint16_t DmfControlBoard::number_of_channels() {
-  const char* function_name = "number_of_channels()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_NUMBER_OF_CHANNELS) == RETURN_OK) {
-    if (payload_length() == sizeof(uint16_t)) {
-      uint16_t number_of_channels = ReadUint16();
-      LogMessage(str(format("number_of_channels=%d") %
-        number_of_channels).c_str(), function_name);
-      return number_of_channels;
-    } else {
-      LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<uint16_t>(CMD_GET_NUMBER_OF_CHANNELS,
+                                     "number_of_channels()");
 }
 
 vector<uint8_t> DmfControlBoard::state_of_all_channels() {
@@ -1359,42 +1345,88 @@ vector<uint8_t> DmfControlBoard::state_of_all_channels() {
 };
 
 uint8_t DmfControlBoard::state_of_channel(const uint16_t channel) {
-  const char* function_name = "state_of_channel()";
-  LogSeparator();
-  LogMessage("send command", function_name);
   Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_STATE_OF_CHANNEL) == RETURN_OK) {
-    LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t state = ReadUint8();
-      LogMessage(str(format("state=%d") % state).c_str(), function_name);
-      return state;
-    } else {
-      LogError("Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<uint8_t>(CMD_GET_STATE_OF_CHANNEL,
+                                    "state_of_channel()");
 };
 
 float DmfControlBoard::sampling_rate() {
-  const char* function_name = "sampling_rate()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_SAMPLING_RATE) == RETURN_OK) {
-    LogMessage("CMD_GET_SAMPLING_RATE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float sampling_rate = ReadFloat();
-      LogMessage(str(format("sampling_rate_=%.1e") % sampling_rate).c_str(),
-        function_name);
-      return sampling_rate;
+  return send_read_command<float>(CMD_GET_SAMPLING_RATE,
+                                  "sampling_rate()");
+}
+
+uint8_t DmfControlBoard::series_resistor_index(const uint8_t channel) {
+  Serialize(&channel, sizeof(channel));
+  return send_read_command<uint8_t>(CMD_GET_SERIES_RESISTOR_INDEX,
+                                    "series_resistor_index()");
+}
+
+float DmfControlBoard::series_resistance(const uint8_t channel) {
+  Serialize(&channel, sizeof(channel));
+  return send_read_command<float>(CMD_GET_SERIES_RESISTANCE,
+                                  "series_resistance()");
+}
+
+float DmfControlBoard::series_capacitance(const uint8_t channel) {
+  Serialize(&channel, sizeof(channel));
+  return send_read_command<float>(CMD_GET_SERIES_CAPACITANCE,
+                                  "series_capacitance()");
+}
+
+float DmfControlBoard::amplifier_gain() {
+    return send_read_command<float>(CMD_GET_AMPLIFIER_GAIN,
+                                    "amplifier_gain()");
+}
+
+bool DmfControlBoard::auto_adjust_amplifier_gain() {
+    uint8_t result = send_read_command<uint8_t>(
+        CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, "auto_adjust_amplifier_gain()");
+    return result > 0;
+}
+
+std::string DmfControlBoard::waveform() {
+    const char* function_name = "waveform()";
+    uint8_t waveform_type = send_read_command<uint8_t>(CMD_GET_WAVEFORM,
+                                                       function_name);
+    std::string waveform_str;
+    if (waveform_type == SINE || waveform_type == SQUARE) {
+        if (waveform_type == SINE) {
+          waveform_str = "SINE";
+        } else if (waveform_type == SQUARE) {
+          waveform_str = "SQUARE";
+        }
+        LogMessage(str(format("waveform=%s") % waveform_str).c_str(),
+                   function_name);
+        return waveform_str;
     } else {
-      LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
+        return_code_ = RETURN_BAD_VALUE;
+        LogMessage("CMD_GET_WAVEFORM, Bad value", function_name);
     }
-  }
-  return 0;
+}
+
+float DmfControlBoard::waveform_voltage() {
+    return send_read_command<float>(CMD_GET_WAVEFORM_VOLTAGE,
+                                    "waveform_voltage()");
+}
+
+float DmfControlBoard::waveform_frequency() {
+    return send_read_command<float>(CMD_GET_WAVEFORM_FREQUENCY,
+                                    "waveform_frequency()");
+}
+
+uint8_t DmfControlBoard::power_supply_pin() {
+    return send_read_command<uint8_t>(CMD_GET_POWER_SUPPLY_PIN,
+                                      "power_supply_pin()");
+}
+
+bool DmfControlBoard::watchdog_state() {
+    return send_read_command<uint8_t>(CMD_GET_WATCHDOG_STATE,
+                                      "watchdog_state()");
+}
+
+bool DmfControlBoard::watchdog_enabled() {
+    return send_read_command<uint8_t>(CMD_GET_WATCHDOG_ENABLED,
+                                      "watchdog_enabled()");
 }
 
 uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
@@ -1407,225 +1439,6 @@ uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
     LogMessage("sampling rate set successfully", function_name);
   }
   return return_code();
-}
-
-uint8_t DmfControlBoard::series_resistor_index(const uint8_t channel) {
-  const char* function_name = "series_resistor_index()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_RESISTOR_INDEX) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_RESISTOR_INDEX", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t index = ReadUint8();
-      LogMessage(str(format("series_resistor_index=%d") % index).c_str(),
-        function_name);
-      return index;
-    } else {
-      LogMessage("CMD_GET_SERIES_RESISTOR_INDEX, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-float DmfControlBoard::series_resistance(const uint8_t channel) {
-  const char* function_name = "series_resistance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_RESISTANCE) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_RESISTANCE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float series_resistance = ReadFloat();
-      LogMessage(str(format("series_resistance=%.1e") %
-        series_resistance).c_str(), function_name);
-      return series_resistance;
-    } else {
-      LogMessage("CMD_GET_SERIES_RESISTANCE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-float DmfControlBoard::series_capacitance(const uint8_t channel) {
-  const char* function_name = "series_capacitance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_CAPACITANCE) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_CAPACITANCE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float series_capacitance = ReadFloat();
-      LogMessage(str(format("series_capacitance=%.1e") %
-        series_capacitance).c_str(), function_name);
-      return series_capacitance;
-    } else {
-      LogMessage("CMD_GET_SERIES_CAPACITANCE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-float DmfControlBoard::amplifier_gain() {
-  const char* function_name = "amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_GET_AMPLIFIER_GAIN", function_name);
-    if (payload_length() == sizeof(float)) {
-      float gain = ReadFloat();
-      LogMessage(str(format("amplifier_gain=%.1e") % gain).c_str(),
-        function_name);
-      return gain;
-    } else {
-      LogMessage("CMD_GET_AMPLIFIER_GAIN, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-bool DmfControlBoard::auto_adjust_amplifier_gain() {
-  const char* function_name = "auto_adjust_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t value = ReadUint8();
-      LogMessage(str(format("auto_adjust_amplifier_gain=%d") % value).c_str(),
-        function_name);
-      return value > 0;
-    } else {
-      LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return false;
-}
-
-std::string DmfControlBoard::waveform() {
-  const char* function_name = "waveform()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM", function_name);
-    if (payload_length() == 1) {
-      uint8_t waveform = ReadUint8();
-      std::string waveform_str;
-      if (waveform == SINE || waveform == SQUARE) {
-        if (waveform == SINE) {
-          waveform_str = "SINE";
-        } else if (waveform == SQUARE) {
-          waveform_str = "SQUARE";
-        }
-        LogMessage(str(format("waveform=%s") % waveform_str).c_str(),
-          function_name);
-        return waveform_str;
-      } else {
-        return_code_ = RETURN_BAD_VALUE;
-        LogMessage("CMD_GET_WAVEFORM, Bad value",
-                   function_name);
-      }
-    } else {
-      LogMessage("CMD_GET_WAVEFORM, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return "";
-}
-
-float DmfControlBoard::waveform_voltage() {
-  const char* function_name = "waveform_voltage()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM_VOLTAGE) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float v_rms = ReadFloat();
-      LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
-        function_name);
-      return v_rms;
-    } else {
-      LogMessage("CMD_GET_WAVEFORM_VOLTAGE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-float DmfControlBoard::waveform_frequency() {
-  const char* function_name = "waveform_frequency()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM_FREQUENCY) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM_FREQUENCY", function_name);
-    if (payload_length() == sizeof(float)) {
-      float freq_hz = ReadFloat();
-      LogMessage(str(format("waveform_frequency=%.1f") % freq_hz).c_str(),
-        function_name);
-      return freq_hz;
-    } else {
-      LogMessage("CMD_GET_WAVEFORM_FREQUENCY, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-uint8_t DmfControlBoard::power_supply_pin() {
-  const char* function_name = "power_supply_pin()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_POWER_SUPPLY_PIN) == RETURN_OK) {
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t power_supply_pin = ReadUint8();
-      LogMessage(str(format("power_supply_pin=%d") % power_supply_pin).c_str(),
-                 function_name);
-      return power_supply_pin;
-    } else {
-      LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-bool DmfControlBoard::watchdog_state() {
-    const char* function_name = "watchdog_state()";
-    bool watchdog_state = send_read_command<uint8_t>(CMD_GET_WATCHDOG_STATE,
-                                                     function_name);
-    return watchdog_state;
-}
-
-bool DmfControlBoard::watchdog_enabled() {
-  const char* function_name = "watchdog_enabled()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WATCHDOG_ENABLED) == RETURN_OK) {
-    LogMessage("CMD_GET_WATCHDOG_ENABLED", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t value = ReadUint8();
-      LogMessage(str(format("watchdog_enabled=%d") % value).c_str(),
-                 function_name);
-      return value > 0;
-    } else {
-      LogMessage("CMD_GET_WATCHDOG_ENABLED, Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return false;
 }
 
 uint8_t DmfControlBoard::set_watchdog_state(bool on) {
