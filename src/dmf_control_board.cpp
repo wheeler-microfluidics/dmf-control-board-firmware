@@ -695,7 +695,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
     case CMD_GET_POWER_SUPPLY_PIN:
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
-        uint8_t power_supply_pin = PWR_SUPPLY_ON_;
+        uint8_t power_supply_pin = POWER_SUPPLY_ON_PIN_;
         Serialize(&power_supply_pin, sizeof(power_supply_pin));
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -746,7 +746,31 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-#endif
+#ifdef ATX_POWER_SUPPLY
+    case CMD_GET_ATX_POWER_STATE:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = atx_power_state();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_ATX_POWER_STATE:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          atx_power_on();
+        } else {
+          atx_power_off();
+        }
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#endif  // ATX_POWER_SUPPLY
+#endif  // #ifdef AVR
   }
   RemoteObject::ProcessCommand(cmd);
 #ifndef AVR
@@ -791,8 +815,8 @@ void DmfControlBoard::begin() {
   // versions > 1.1 need to pull a pin low to turn on the power supply
   #if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) \
     || ___HARDWARE_MAJOR_VERSION___ > 1
-    pinMode(PWR_SUPPLY_ON_, OUTPUT);
-    digitalWrite(PWR_SUPPLY_ON_, LOW);
+    pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
+    digitalWrite(POWER_SUPPLY_ON_PIN_, LOW);
 
     // wait for the power supply to turn on
     delay(500);
@@ -1429,6 +1453,11 @@ bool DmfControlBoard::watchdog_enabled() {
                                       "watchdog_enabled()");
 }
 
+bool DmfControlBoard::atx_power_state() {
+    return send_read_command<uint8_t>(CMD_GET_ATX_POWER_STATE,
+                                      "atx_power_state()");
+}
+
 uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
     return send_set_command(CMD_SET_SAMPLING_RATE, "set_sampling_rate()",
                             sampling_rate);
@@ -1442,6 +1471,11 @@ uint8_t DmfControlBoard::set_watchdog_state(bool state) {
 uint8_t DmfControlBoard::set_watchdog_enabled(bool on) {
     return send_set_command(CMD_SET_WATCHDOG_ENABLED, "set_watchdog_enabled()",
                             (uint8_t)on);
+}
+
+uint8_t DmfControlBoard::set_atx_power_state(bool state) {
+    return send_set_command(CMD_SET_ATX_POWER_STATE, "set_atx_power_state()",
+                            (uint8_t)state);
 }
 
 uint8_t DmfControlBoard::set_series_resistor_index(const uint8_t channel,

@@ -32,6 +32,10 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 #include "RemoteObject.h"
 
+#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) ||\
+        ___HARDWARE_MAJOR_VERSION___ == 2
+#define ATX_POWER_SUPPLY
+#endif
 
 class DmfControlBoard : public RemoteObject {
 public:
@@ -70,7 +74,7 @@ public:
     bool enabled;
     bool state;
 
-    watchdog_t() : enabled(true), state(false) {}
+    watchdog_t() : enabled(false), state(false) {}
   };
 
   struct config_settings_t {
@@ -161,6 +165,8 @@ public:
   static const uint8_t CMD_SET_WATCHDOG_STATE =             0xB9;
   static const uint8_t CMD_GET_WATCHDOG_ENABLED =           0xBA;
   static const uint8_t CMD_SET_WATCHDOG_ENABLED =           0xBB;
+  static const uint8_t CMD_GET_ATX_POWER_STATE =            0xBC;
+  static const uint8_t CMD_SET_ATX_POWER_STATE =            0xBD;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -184,71 +190,75 @@ public:
 
 // In our case, the PC is the only one sending commands
 #ifndef AVR
-    virtual std::string command_label(uint8_t command) const {
-        try {
-            return RemoteObject::command_label(command);
-        } catch (...) {
-            if (command == CMD_GET_NUMBER_OF_CHANNELS) {
-                return std::string("CMD_GET_NUMBER_OF_CHANNELS");
-            } else if (command == CMD_GET_STATE_OF_ALL_CHANNELS) {
-                return std::string("CMD_GET_STATE_OF_ALL_CHANNELS");
-            } else if (command == CMD_SET_STATE_OF_ALL_CHANNELS) {
-                return std::string("CMD_SET_STATE_OF_ALL_CHANNELS");
-            } else if (command == CMD_GET_STATE_OF_CHANNEL) {
-                return std::string("CMD_GET_STATE_OF_CHANNEL");
-            } else if (command == CMD_SET_STATE_OF_CHANNEL) {
-                return std::string("CMD_SET_STATE_OF_CHANNEL");
-            } else if (command == CMD_GET_WAVEFORM) {
-                return std::string("CMD_GET_WAVEFORM");
-            } else if (command == CMD_SET_WAVEFORM) {
-                return std::string("CMD_SET_WAVEFORM");
-            } else if (command == CMD_GET_WAVEFORM_VOLTAGE) {
-                return std::string("CMD_GET_WAVEFORM_VOLTAGE");
-            } else if (command == CMD_SET_WAVEFORM_VOLTAGE) {
-                return std::string("CMD_SET_WAVEFORM_VOLTAGE");
-            } else if (command == CMD_GET_WAVEFORM_FREQUENCY) {
-                return std::string("CMD_GET_WAVEFORM_FREQUENCY");
-            } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
-                return std::string("CMD_SET_WAVEFORM_FREQUENCY");
-            } else if (command == CMD_GET_SAMPLING_RATE) {
-                return std::string("CMD_GET_SAMPLING_RATE");
-            } else if (command == CMD_SET_SAMPLING_RATE) {
-                return std::string("CMD_SET_SAMPLING_RATE");
-            } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
-                return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
-            } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
-                return std::string("CMD_SET_SERIES_RESISTOR_INDEX");
-            } else if (command == CMD_GET_SERIES_RESISTANCE) {
-                return std::string("CMD_GET_SERIES_RESISTANCE");
-            } else if (command == CMD_SET_SERIES_RESISTANCE) {
-                return std::string("CMD_SET_SERIES_RESISTANCE");
-            } else if (command == CMD_GET_SERIES_CAPACITANCE) {
-                return std::string("CMD_GET_SERIES_CAPACITANCE");
-            } else if (command == CMD_SET_SERIES_CAPACITANCE) {
-                return std::string("CMD_SET_SERIES_CAPACITANCE");
-            } else if (command == CMD_GET_AMPLIFIER_GAIN) {
-                return std::string("CMD_GET_AMPLIFIER_GAIN");
-            } else if (command == CMD_SET_AMPLIFIER_GAIN) {
-                return std::string("CMD_SET_AMPLIFIER_GAIN");
-            } else if (command == CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) {
-                return std::string("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN");
-            } else if (command == CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) {
-                return std::string("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN");
-            } else if (command == CMD_GET_POWER_SUPPLY_PIN) {
-                return std::string("CMD_GET_POWER_SUPPLY_PIN");
-            } else if (command == CMD_GET_WATCHDOG_STATE) {
-                return std::string("CMD_GET_WATCHDOG_STATE");
-            } else if (command == CMD_SET_WATCHDOG_STATE) {
-                return std::string("CMD_SET_WATCHDOG_STATE");
-            } else if (command == CMD_GET_WATCHDOG_ENABLED) {
-                return std::string("CMD_GET_WATCHDOG_ENABLED");
-            } else if (command == CMD_SET_WATCHDOG_ENABLED) {
-                return std::string("CMD_SET_WATCHDOG_ENABLED");
-            } else {
-                throw std::runtime_error("Invalid command.");
-            }
-        }
+  virtual std::string command_label(uint8_t command) const {
+    try {
+      return RemoteObject::command_label(command);
+    } catch (...) {
+      if (command == CMD_GET_NUMBER_OF_CHANNELS) {
+        return std::string("CMD_GET_NUMBER_OF_CHANNELS");
+      } else if (command == CMD_GET_STATE_OF_ALL_CHANNELS) {
+        return std::string("CMD_GET_STATE_OF_ALL_CHANNELS");
+      } else if (command == CMD_SET_STATE_OF_ALL_CHANNELS) {
+        return std::string("CMD_SET_STATE_OF_ALL_CHANNELS");
+      } else if (command == CMD_GET_STATE_OF_CHANNEL) {
+        return std::string("CMD_GET_STATE_OF_CHANNEL");
+      } else if (command == CMD_SET_STATE_OF_CHANNEL) {
+        return std::string("CMD_SET_STATE_OF_CHANNEL");
+      } else if (command == CMD_GET_WAVEFORM) {
+        return std::string("CMD_GET_WAVEFORM");
+      } else if (command == CMD_SET_WAVEFORM) {
+        return std::string("CMD_SET_WAVEFORM");
+      } else if (command == CMD_GET_WAVEFORM_VOLTAGE) {
+        return std::string("CMD_GET_WAVEFORM_VOLTAGE");
+      } else if (command == CMD_SET_WAVEFORM_VOLTAGE) {
+        return std::string("CMD_SET_WAVEFORM_VOLTAGE");
+      } else if (command == CMD_GET_WAVEFORM_FREQUENCY) {
+        return std::string("CMD_GET_WAVEFORM_FREQUENCY");
+      } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
+        return std::string("CMD_SET_WAVEFORM_FREQUENCY");
+      } else if (command == CMD_GET_SAMPLING_RATE) {
+        return std::string("CMD_GET_SAMPLING_RATE");
+      } else if (command == CMD_SET_SAMPLING_RATE) {
+        return std::string("CMD_SET_SAMPLING_RATE");
+      } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
+        return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
+      } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
+        return std::string("CMD_SET_SERIES_RESISTOR_INDEX");
+      } else if (command == CMD_GET_SERIES_RESISTANCE) {
+        return std::string("CMD_GET_SERIES_RESISTANCE");
+      } else if (command == CMD_SET_SERIES_RESISTANCE) {
+        return std::string("CMD_SET_SERIES_RESISTANCE");
+      } else if (command == CMD_GET_SERIES_CAPACITANCE) {
+        return std::string("CMD_GET_SERIES_CAPACITANCE");
+      } else if (command == CMD_SET_SERIES_CAPACITANCE) {
+        return std::string("CMD_SET_SERIES_CAPACITANCE");
+      } else if (command == CMD_GET_AMPLIFIER_GAIN) {
+        return std::string("CMD_GET_AMPLIFIER_GAIN");
+      } else if (command == CMD_SET_AMPLIFIER_GAIN) {
+        return std::string("CMD_SET_AMPLIFIER_GAIN");
+      } else if (command == CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+        return std::string("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN");
+      } else if (command == CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+        return std::string("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN");
+      } else if (command == CMD_GET_POWER_SUPPLY_PIN) {
+        return std::string("CMD_GET_POWER_SUPPLY_PIN");
+      } else if (command == CMD_GET_WATCHDOG_STATE) {
+        return std::string("CMD_GET_WATCHDOG_STATE");
+      } else if (command == CMD_SET_WATCHDOG_STATE) {
+        return std::string("CMD_SET_WATCHDOG_STATE");
+      } else if (command == CMD_GET_WATCHDOG_ENABLED) {
+        return std::string("CMD_GET_WATCHDOG_ENABLED");
+      } else if (command == CMD_SET_WATCHDOG_ENABLED) {
+        return std::string("CMD_SET_WATCHDOG_ENABLED");
+      } else if (command == CMD_GET_ATX_POWER_STATE) {
+        return std::string("CMD_GET_ATX_POWER_STATE");
+      } else if (command == CMD_SET_ATX_POWER_STATE) {
+        return std::string("CMD_SET_ATX_POWER_STATE");
+      } else {
+        throw std::runtime_error("Invalid command.");
+      }
     }
+  }
 
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
@@ -265,6 +275,7 @@ public:
   uint8_t power_supply_pin();
   bool watchdog_state();
   bool watchdog_enabled();
+  bool atx_power_state();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -283,6 +294,7 @@ public:
   uint8_t set_auto_adjust_amplifier_gain(bool on);
   uint8_t set_watchdog_state(bool state);
   uint8_t set_watchdog_enabled(bool state);
+  uint8_t set_atx_power_state(bool state);
 
   // other functions
   void MeasureImpedanceNonBlocking(
@@ -313,7 +325,13 @@ public:
   const char* hardware_version();
   const char* url() { return URL_; }
   virtual void persistent_write(uint16_t address, uint8_t value);
-  bool watchdog_enabled() { return watchdog_.enabled; }
+#ifdef ATX_POWER_SUPPLY
+  /* Note that the ATX power-supply output-enable is _active-low_. */
+  void atx_power_on() const { digitalWrite(POWER_SUPPLY_ON_PIN_, LOW); }
+  void atx_power_off() const { digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH); }
+  bool atx_power_state() const { return !digitalRead(POWER_SUPPLY_ON_PIN_); }
+#endif  // ATX_POWER_SUPPLY
+  bool watchdog_enabled() const { return watchdog_.enabled; }
   void watchdog_enabled(bool state) { watchdog_.enabled = state; }
   bool watchdog_state() const { return watchdog_.state; }
   void watchdog_state(bool state) { watchdog_.state = state; }
@@ -344,6 +362,9 @@ public:
   }
 
   virtual void watchdog_error() const {
+#ifdef ATX_POWER_SUPPLY
+    atx_power_off();
+#endif  // ATX_POWER_SUPPLY
   }
 
   /* Expose to allow timer callback to check state. */
@@ -374,9 +395,9 @@ private:
   #endif
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
-    static const uint8_t PWR_SUPPLY_ON_ = 8;
+    static const uint8_t POWER_SUPPLY_ON_PIN_ = 8;
   #elif ___HARDWARE_MAJOR_VERSION___ == 2
-    static const uint8_t PWR_SUPPLY_ON_ = 2;
+    static const uint8_t POWER_SUPPLY_ON_PIN_ = 2;
   #endif
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1

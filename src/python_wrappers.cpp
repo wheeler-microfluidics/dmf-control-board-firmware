@@ -141,6 +141,9 @@ object DmfControlBoard_class
                   &DmfControlBoard::set_watchdog_enabled)
     .add_property("watchdog_state", &DmfControlBoard::watchdog_state,
                   &DmfControlBoard::set_watchdog_state)
+    .add_property("atx_power_state",
+                  &DmfControlBoard::atx_power_state,
+                  &DmfControlBoard::set_atx_power_state)
   ;
 DmfControlBoard_class.attr("PERSISTENT_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
 DmfControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
