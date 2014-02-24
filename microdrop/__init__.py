@@ -140,6 +140,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         self.load_log_calibration_menu_item = gtk.MenuItem("Load calibration "
                                                            "from file")
         self.timeout_id = None
+        self.watchdog_timeout_id = None
 
     def on_plugin_enable(self):
         if not self.initialized:
@@ -266,6 +267,21 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.set_app_values(app_values)
         else:
             raise Exception("No serial ports available.")
+        # Enable watchdog-timer to shut off power supply when the `MicroDrop`
+        # app is closed.
+        self.control_board.watchdog_state = True
+        self.control_board.watchdog_enabled = True
+        self.watchdog_timeout_id = gobject.timeout_add(
+            2000,  # Trigger every 2 seconds.
+            self._callback_reset_watchdog)
+
+    def _callback_reset_watchdog(self):
+        if self.control_board.connected():
+            self.control_board.watchdog_state = True
+        # [Return `True`][1] to request to be called again.
+        #
+        # [1]: http://www.pygtk.org/pygtk2reference/gobject-functions.html#function-gobject--timeout-add
+        return True
 
     def check_device_name_and_version(self):
         '''
@@ -1120,12 +1136,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     def on_experiment_log_created(self, log):
         data = {}
         if self.control_board.connected():
-            data["control board name"] = \
-                self.control_board.name()
-            data["control board hardware version"] = \
-                self.control_board.hardware_version()
-            data["control board software version"] = \
-                self.control_board.software_version()
+            data["control board name"] = self.control_board.name()
+            data["control board hardware version"] = (self.control_board
+                                                      .hardware_version())
+            data["control board software version"] = (self.control_board
+                                                      .software_version())
         log.add_data(data)
 
     def get_schedule_requests(self, function_name):

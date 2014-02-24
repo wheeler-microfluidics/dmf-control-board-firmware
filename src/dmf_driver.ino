@@ -27,11 +27,13 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include "dmf_control_board.h"
 
 DmfControlBoard dmf_control_board;
+volatile unsigned int timer_count = 1;
 
 void callback();
 
 void setup() {
-  Timer1.initialize(2500000);
+  /* Trigger timer to callback every 5 seconds _(5000000 microseconds)_. */
+  Timer1.initialize(5000000L);
   Timer1.attachInterrupt(callback);
   dmf_control_board.begin();
   Serial.print("ram="); Serial.println(ram_size(), DEC);
@@ -42,10 +44,14 @@ void setup() {
   Serial.print("free memory="); Serial.println(free_memory(), DEC);
 }
 
-void callback() {
-  dmf_control_board.watchdog_timeout();
-}
+void callback() { timer_count += 1; }
 
 void loop() {
   dmf_control_board.Listen();
+  if (timer_count % 25 == 0) {
+    /* Check the watchdog-state every 24 timer periods, _i.e., every 120
+     * seconds_. */
+    dmf_control_board.watchdog_timeout();
+    timer_count = 1;
+  }
 }
