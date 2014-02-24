@@ -192,13 +192,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-#endif
+#endif  //#if ___HARDWARE_MAJOR_VERSION___ == 1
     case CMD_GET_WAVEFORM_VOLTAGE:
       if (payload_length() == 0) {
 #if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
@@ -217,7 +217,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             }
           }
         }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -234,7 +234,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
@@ -252,7 +252,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               }
             }
           }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -281,7 +281,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           Wire.endTransmission();     // stop transmitting
           return_code_ = RETURN_OK;
         }
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         waveform_frequency_ = ReadFloat();
         uint8_t data[5];
         data[0] = cmd;
@@ -301,7 +301,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               sizeof(return_code_));
           }
         }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -629,7 +629,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                                              + pow(10e6 * C * 2 * M_PI *
                                                    waveform_frequency_, 2)));
                 set_voltage = waveform_voltage_ + V_fb;
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
                 measured_voltage = (hv_pk_pk * 5.0 / 1023.0  // measured Vrms /
                                     / sqrt(2) / 2) /
                                    (1 / sqrt(pow(10e6 / R,   // transfer
@@ -637,10 +637,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                                              pow(10e6 * C * 2 * M_PI *
                                                  waveform_frequency_, 2)));
                 set_voltage = waveform_voltage_;
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
                 // if we're outside of the voltage tolerance, update the gain
                 if (abs(measured_voltage - set_voltage) >
-                   config_settings_.voltage_tolerance) {
+                    config_settings_.voltage_tolerance) {
                   amplifier_gain_ *= measured_voltage / set_voltage;
 
                   // enforce minimum gain of 1 because if gain goes to zero,
@@ -652,10 +652,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   // update output voltage (accounting for amplifier gain and
                   // for the voltage drop across the feedback resistor)
                   SetWaveformVoltage(waveform_voltage_ + V_fb);
-#else
+#else   // #if ___HARDWARE_MAJOR_VERSION___ == 1
                   // update output voltage (but don't wait for i2c response)
                   SetWaveformVoltage(waveform_voltage_, false);
-#endif
+#endif // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
                 }
               }
               hv_resistor = A0_series_resistor_index_;
@@ -859,7 +859,7 @@ void DmfControlBoard::begin() {
     printlne(config_settings_.A1_series_capacitance[2]);
     Serial.print("A1_series_capacitance[3]=");
     printlne(config_settings_.A1_series_capacitance[3]);
-  #else
+  #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
     Serial.print("A0_series_resistance[0]=");
     Serial.println(config_settings_.A0_series_resistance[0]);
     Serial.print("A0_series_resistance[1]=");
@@ -894,7 +894,7 @@ void DmfControlBoard::begin() {
     printlne(config_settings_.A1_series_capacitance[4]);
     Serial.print("signal_generator_board_i2c_address=");
     Serial.println(config_settings_.signal_generator_board_i2c_address, DEC);
-  #endif
+  #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
 
   Serial.print("switching_board_i2c_address=");
   Serial.println(config_settings_.switching_board_i2c_address, DEC);
@@ -1218,7 +1218,7 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
       config_settings_.A1_series_resistance[1] = 1e4;
       config_settings_.A1_series_resistance[2] = 1e5;
       config_settings_.A1_series_resistance[3] = 1e6;
-    #else
+    #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
       config_settings_.A0_series_resistance[0] = 20e3;
       config_settings_.A0_series_resistance[1] = 200e3;
       config_settings_.A0_series_resistance[2] = 2e6;
@@ -1230,7 +1230,7 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
       config_settings_.A0_series_capacitance[2] = 50e-12;
       config_settings_.A1_series_capacitance[4] = 50e-12;
       config_settings_.signal_generator_board_i2c_address = 10;
-    #endif
+    #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
     config_settings_.A0_series_capacitance[0] = 0;
     config_settings_.A0_series_capacitance[1] = 0;
     config_settings_.A1_series_capacitance[0] = 50e-12;
@@ -1275,7 +1275,7 @@ uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
     SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
     return_code = RETURN_OK;
   }
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___==1
   float vrms = output_vrms / amplifier_gain_;
   uint8_t data[5];
   data[0] = CMD_SET_WAVEFORM_VOLTAGE;
@@ -1303,7 +1303,7 @@ uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
     waveform_voltage_ = output_vrms;
     return_code = RETURN_OK;
   }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___==1 / #else
   return return_code;
 }
 
@@ -1315,7 +1315,7 @@ void /* DEVICE */ DmfControlBoard::persistent_write(uint16_t address,
     LoadConfig();
 }
 
-#else
+#else   // #ifdef AVR
 ///////////////////////////////////////////////////////////////////////////////
 //
 // These functions are only defined on the PC.
@@ -1536,7 +1536,7 @@ void DmfControlBoard::MeasureImpedanceNonBlocking(
   SendNonBlockingCommand(CMD_MEASURE_IMPEDANCE);
 }
 
-std::vector < float> DmfControlBoard::GetImpedanceData() {
+std::vector<float> DmfControlBoard::GetImpedanceData() {
   const char* function_name = "GetImpedanceData()";
   if (ValidateReply(CMD_MEASURE_IMPEDANCE) == RETURN_OK) {
     uint16_t n_samples = payload_length() / (2 * sizeof(int16_t) + 2 *
@@ -1558,7 +1558,7 @@ std::vector < float> DmfControlBoard::GetImpedanceData() {
                % (bytes_read() - payload_length())).c_str(), function_name);
     return impedance_buffer;
   }
-  return std::vector < float > (); // return an empty vector
+  return std::vector<float>(); // return an empty vector
 }
 
 uint8_t DmfControlBoard::ResetConfigToDefaults() {
@@ -1572,4 +1572,4 @@ uint8_t DmfControlBoard::ResetConfigToDefaults() {
 }
 
 
-#endif // AVR
+#endif // #ifdef AVR / #else

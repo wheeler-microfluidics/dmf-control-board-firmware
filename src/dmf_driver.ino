@@ -32,8 +32,8 @@ void callback();
 
 void setup() {
   Timer1.initialize(2500000);
+  Timer1.attachInterrupt(callback);
   dmf_control_board.begin();
-  dmf_control_board.watchdog_reset(Timer1, callback);
   Serial.print("ram="); Serial.println(ram_size(), DEC);
   Serial.print(".data="); Serial.println(data_size(), DEC);
   Serial.print(".bss="); Serial.println(bss_size(), DEC);
@@ -43,7 +43,7 @@ void setup() {
 }
 
 void callback() {
-    dmf_control_board.watchdog_timeout();
+  dmf_control_board.watchdog_timeout();
 }
 
 void loop() {

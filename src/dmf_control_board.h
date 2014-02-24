@@ -105,7 +105,7 @@ public:
       float A1_series_resistance[4];
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[4];
-    #else
+    #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
       /**\brief i2c address of first signal generator board.*/
       uint8_t signal_generator_board_i2c_address;
       /**\brief Series resistor values for channel 0.*/
@@ -116,7 +116,7 @@ public:
       float A1_series_resistance[5];
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[5];
-    #endif
+    #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1
 
     /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
     adjusted based on the measured voltage from the amplifier.*/
@@ -125,7 +125,7 @@ public:
     /**\brief voltage tolerance for amplifier gain adjustment.*/
     float voltage_tolerance;
   };
-#endif
+#endif  // #ifdef AVR
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
@@ -301,7 +301,7 @@ public:
   std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
   std::string host_url() { return URL_; }
-#else
+#else  // #ifndef AVR
   void begin();
 
   // local accessors
@@ -315,43 +315,40 @@ public:
   virtual void persistent_write(uint16_t address, uint8_t value);
   bool watchdog_enabled() { return watchdog_.enabled; }
   void watchdog_enabled(bool state) { watchdog_.enabled = state; }
-  bool watchdog_state() { return watchdog_.state; }
+  bool watchdog_state() const { return watchdog_.state; }
   void watchdog_state(bool state) { watchdog_.state = state; }
-
-  template <typename Timer, typename Function>
-  void watchdog_reset(Timer &timer, Function &f) {
-    timer.detachInterrupt();
-    watchdog_state(true);
-    timer.restart();
-    timer.attachInterrupt(f);
-  }
+  void watchdog_reset() { watchdog_state(true); }
 
   /* Callback function when watchdog timer period is finished. */
   void watchdog_timeout() {
-    /*
-     * If the watchdog timer is enabled, _i.e., `enabled=true`, when
-     * the timer period finishes:
+    /* If the watchdog timer is enabled, _i.e., `enabled=true`, when the timer
+     * period finishes:
      *
-     *  - If the `state` is not `true`, the power-supply must be
-     *   turned off.
+     *  - If the `state` is not `true`, the power-supply must be turned off.
      *  - The `state` must be set to `false`.
      *
      * When the watchdog timer is enabled, it is the responsibility of the
      * client to reset the watchdog-state before each timer period ends to
      * prevent the power supply from being turned off. */
     if (watchdog_enabled()) {
-        if (!watchdog_state()) {
-            /* Watchdog timer has timed out! */
-            digitalWrite(13, 0);
-        } else {
-            watchdog_state(false);
-        }
+      if (!watchdog_state()) {
+        /* Watchdog timer has timed out and the state has not been reset since
+         * the previous timeout, so execute error handler. */
+        watchdog_error();
+      } else {
+        /* Watchdog timer has timed out, but the state has been reset.  Prepare
+         * for next timeout event. */
+        watchdog_state(false);
+      }
     }
+  }
+
+  virtual void watchdog_error() const {
   }
 
   /* Expose to allow timer callback to check state. */
   watchdog_t watchdog_;
-#endif
+#endif  // #ifndef AVR
 
 private:
   // private static members
@@ -416,9 +413,9 @@ private:
 
   // LTC6904 (programmable oscillator) chip address
   static const uint8_t LTC6904_ = 0x17;
-#else
+#else  // #ifdef AVR
   static const char CSV_INDENT_[];
-#endif
+#endif  // #ifdef AVR
 
   // private functions
   virtual uint8_t ProcessCommand(uint8_t cmd);
@@ -435,7 +432,7 @@ private:
   version_t ConfigVersion();
   uint8_t SetWaveformVoltage(const float output_vrms,
                              const bool wait_for_reply=true);
-#endif
+#endif  // #ifdef AVR
 
   //private members
 #ifdef AVR
@@ -449,7 +446,7 @@ private:
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;
-#endif
+#endif  // #ifdef AVR
 };
 #endif // _DMF_CONTROL_BOARD_H_
 

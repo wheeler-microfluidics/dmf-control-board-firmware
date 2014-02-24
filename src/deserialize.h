@@ -43,45 +43,49 @@ template <> struct bit_width<const char *> { static const int value = 2; };
 
 template <typename Buffer, typename T>
 inline T deserialize(Buffer buffer, T &result) {
-    result = *(T *)(buffer);
-    return sizeof(T);
+  result = *(T *)(buffer);
+  return sizeof(T);
 }
 
 
 #ifndef AVR
 template <typename T>
 inline std::string type_format() {
-    if (bit_width<T>::value == 0 && bit_width<T>::value == 1) {
-        /* `float` or `double` */
-        return "%f";
-    } else if (is_numeric<T>::value) {
-        /* `integer` */
-        return "%d";
-    } else {
-        /* `const char *` */
-        return "%s";
-    }
+  /* Return the format string to print out a value of type `T` using `printf`.
+   * */
+  if (bit_width<T>::value == 0 && bit_width<T>::value == 1) {
+    /* `float` or `double` */
+    return "%f";
+  } else if (is_numeric<T>::value) {
+    /* `integer` */
+    return "%d";
+  } else {
+    /* `const char *` */
+    return "%s";
+  }
 }
 
 
 template <typename T>
 inline std::string type_label() {
-    if (bit_width<T>::value == 0) {
-        return "float";
-    } else if (bit_width<T>::value == 1) {
-        return "double";
-    } else if (is_numeric<T>::value) {
-        size_t bits = bit_width<T>::value;
-        std::string base_str;
-        if (is_numeric<T>::value) {
-            base_str = "uint";
-        } else {
-            base_str = "int";
-        }
-        return str(boost::format("%s%d_t") % base_str % bits);
+  /* Return the name of a type as a `std::string`.  For example, if `T` is an
+   * 8-bit unsigned integer, the label will be `uint8_t`. */
+  if (bit_width<T>::value == 0) {
+    return "float";
+  } else if (bit_width<T>::value == 1) {
+    return "double";
+  } else if (is_numeric<T>::value) {
+    size_t bits = bit_width<T>::value;
+    std::string base_str;
+    if (is_numeric<T>::value) {
+      base_str = "uint";
     } else {
-        return "string";
+      base_str = "int";
     }
+    return str(boost::format("%s%d_t") % base_str % bits);
+  } else {
+    return "string";
+  }
 }
 #endif  // AVR
 
