@@ -104,6 +104,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                                      ],),
         Enum.named('serial_port').using(default=default_port_,
                                         optional=True).valued(*serial_ports_),
+        Boolean.named('auto_atx_power_off').using(default=True, optional=True),
     )
 
     StepFields = Form.of(
@@ -267,13 +268,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.set_app_values(app_values)
         else:
             raise Exception("No serial ports available.")
-        # Enable watchdog-timer to shut off power supply when the `MicroDrop`
-        # app is closed.
-        self.control_board.watchdog_state = True
-        self.control_board.watchdog_enabled = True
-        self.watchdog_timeout_id = gobject.timeout_add(
-            2000,  # Trigger every 2 seconds.
-            self._callback_reset_watchdog)
+
+        app_values = self.get_app_values()
+
+        if app_values.get('auto_atx_power_off', True):
+            # Enable watchdog-timer to shut off power supply when the
+            # `MicroDrop` app is closed.
+            self.control_board.watchdog_state = True
+            self.control_board.watchdog_enabled = True
+            self.watchdog_timeout_id = gobject.timeout_add(
+                2000,  # Trigger every 2 seconds.
+                self._callback_reset_watchdog)
 
     def _callback_reset_watchdog(self):
         if self.control_board.connected():
