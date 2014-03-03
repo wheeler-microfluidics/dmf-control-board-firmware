@@ -192,13 +192,13 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-#endif
+#endif  //#if ___HARDWARE_MAJOR_VERSION___ == 1
     case CMD_GET_WAVEFORM_VOLTAGE:
       if (payload_length() == 0) {
 #if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_voltage_, sizeof(waveform_voltage_));
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
@@ -217,7 +217,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
             }
           }
         }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -234,7 +234,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 #if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         Serialize(&waveform_frequency_, sizeof(waveform_frequency_));
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
         delay(I2C_DELAY);
         Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
@@ -252,7 +252,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               }
             }
           }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -281,7 +281,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
           Wire.endTransmission();     // stop transmitting
           return_code_ = RETURN_OK;
         }
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
         waveform_frequency_ = ReadFloat();
         uint8_t data[5];
         data[0] = cmd;
@@ -301,7 +301,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
               sizeof(return_code_));
           }
         }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -594,7 +594,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid feedback sample during the sampling
             // time, return -1 as the index
-            if (fb_max == 0 || fb_min == 1023 && fb_resistor != -1) {
+            if (fb_max == 0 || (fb_min == 1023 && fb_resistor != -1)) {
               fb_resistor = -1;
             } else {
               fb_resistor = A1_series_resistor_index_;
@@ -602,7 +602,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
 
             // if we didn't get a valid high voltage sample during the
             // sampling time, return -1 as the index
-            if (hv_max == 0 || hv_min == 1023 && hv_resistor != -1) {
+            if (hv_max == 0 || (hv_min == 1023 && hv_resistor != -1)) {
               hv_resistor = -1;
             } else {
               // adjust amplifier gain (only if the hv resistor is the same
@@ -629,7 +629,7 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                                              + pow(10e6 * C * 2 * M_PI *
                                                    waveform_frequency_, 2)));
                 set_voltage = waveform_voltage_ + V_fb;
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
                 measured_voltage = (hv_pk_pk * 5.0 / 1023.0  // measured Vrms /
                                     / sqrt(2) / 2) /
                                    (1 / sqrt(pow(10e6 / R,   // transfer
@@ -637,10 +637,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                                              pow(10e6 * C * 2 * M_PI *
                                                  waveform_frequency_, 2)));
                 set_voltage = waveform_voltage_;
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
                 // if we're outside of the voltage tolerance, update the gain
                 if (abs(measured_voltage - set_voltage) >
-                   config_settings_.voltage_tolerance) {
+                    config_settings_.voltage_tolerance) {
                   amplifier_gain_ *= measured_voltage / set_voltage;
 
                   // enforce minimum gain of 1 because if gain goes to zero,
@@ -652,10 +652,10 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
                   // update output voltage (accounting for amplifier gain and
                   // for the voltage drop across the feedback resistor)
                   SetWaveformVoltage(waveform_voltage_ + V_fb);
-#else
+#else   // #if ___HARDWARE_MAJOR_VERSION___ == 1
                   // update output voltage (but don't wait for i2c response)
                   SetWaveformVoltage(waveform_voltage_, false);
-#endif
+#endif // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
                 }
               }
               hv_resistor = A0_series_resistor_index_;
@@ -690,7 +690,87 @@ uint8_t DmfControlBoard::ProcessCommand(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) ||\
+        ___HARDWARE_MAJOR_VERSION___ == 2
+    case CMD_GET_POWER_SUPPLY_PIN:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t power_supply_pin = POWER_SUPPLY_ON_PIN_;
+        Serialize(&power_supply_pin, sizeof(power_supply_pin));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
+    case CMD_GET_WATCHDOG_ENABLED:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = watchdog_enabled();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_WATCHDOG_ENABLED:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          watchdog_enabled(true);
+        } else {
+          watchdog_enabled(false);
+        }
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_WATCHDOG_STATE:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = watchdog_state();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_WATCHDOG_STATE:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          watchdog_state(true);
+        } else {
+          watchdog_state(false);
+        }
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#ifdef ATX_POWER_SUPPLY
+    case CMD_GET_ATX_POWER_STATE:
+      if (payload_length() == 0) {
+        return_code_ = RETURN_OK;
+        uint8_t value = atx_power_state();
+        Serialize(&value, sizeof(value));
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_ATX_POWER_STATE:
+      if (payload_length() == sizeof(uint8_t)) {
+        uint8_t value = ReadUint8();
+        if (value > 0) {
+          atx_power_on();
+        } else {
+          atx_power_off();
+        }
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#endif  // ATX_POWER_SUPPLY
+#endif  // #ifdef AVR
   }
   RemoteObject::ProcessCommand(cmd);
 #ifndef AVR
@@ -735,8 +815,8 @@ void DmfControlBoard::begin() {
   // versions > 1.1 need to pull a pin low to turn on the power supply
   #if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) \
     || ___HARDWARE_MAJOR_VERSION___ > 1
-    pinMode(PWR_SUPPLY_ON_, OUTPUT);
-    digitalWrite(PWR_SUPPLY_ON_, LOW);
+    pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
+    digitalWrite(POWER_SUPPLY_ON_PIN_, LOW);
 
     // wait for the power supply to turn on
     delay(500);
@@ -803,7 +883,7 @@ void DmfControlBoard::begin() {
     printlne(config_settings_.A1_series_capacitance[2]);
     Serial.print("A1_series_capacitance[3]=");
     printlne(config_settings_.A1_series_capacitance[3]);
-  #else
+  #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
     Serial.print("A0_series_resistance[0]=");
     Serial.println(config_settings_.A0_series_resistance[0]);
     Serial.print("A0_series_resistance[1]=");
@@ -838,7 +918,7 @@ void DmfControlBoard::begin() {
     printlne(config_settings_.A1_series_capacitance[4]);
     Serial.print("signal_generator_board_i2c_address=");
     Serial.println(config_settings_.signal_generator_board_i2c_address, DEC);
-  #endif
+  #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
 
   Serial.print("switching_board_i2c_address=");
   Serial.println(config_settings_.switching_board_i2c_address, DEC);
@@ -1162,7 +1242,7 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
       config_settings_.A1_series_resistance[1] = 1e4;
       config_settings_.A1_series_resistance[2] = 1e5;
       config_settings_.A1_series_resistance[3] = 1e6;
-    #else
+    #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
       config_settings_.A0_series_resistance[0] = 20e3;
       config_settings_.A0_series_resistance[1] = 200e3;
       config_settings_.A0_series_resistance[2] = 2e6;
@@ -1174,7 +1254,7 @@ void DmfControlBoard::LoadConfig(bool use_defaults) {
       config_settings_.A0_series_capacitance[2] = 50e-12;
       config_settings_.A1_series_capacitance[4] = 50e-12;
       config_settings_.signal_generator_board_i2c_address = 10;
-    #endif
+    #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
     config_settings_.A0_series_capacitance[0] = 0;
     config_settings_.A0_series_capacitance[1] = 0;
     config_settings_.A1_series_capacitance[0] = 50e-12;
@@ -1219,7 +1299,7 @@ uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
     SetPot(POT_INDEX_WAVEOUT_GAIN_2_, step);
     return_code = RETURN_OK;
   }
-#else
+#else  // #if ___HARDWARE_MAJOR_VERSION___==1
   float vrms = output_vrms / amplifier_gain_;
   uint8_t data[5];
   data[0] = CMD_SET_WAVEFORM_VOLTAGE;
@@ -1247,7 +1327,7 @@ uint8_t DmfControlBoard::SetWaveformVoltage(const float output_vrms,
     waveform_voltage_ = output_vrms;
     return_code = RETURN_OK;
   }
-#endif
+#endif  // #if ___HARDWARE_MAJOR_VERSION___==1 / #else
   return return_code;
 }
 
@@ -1259,7 +1339,7 @@ void /* DEVICE */ DmfControlBoard::persistent_write(uint16_t address,
     LoadConfig();
 }
 
-#else
+#else   // #ifdef AVR
 ///////////////////////////////////////////////////////////////////////////////
 //
 // These functions are only defined on the PC.
@@ -1267,22 +1347,8 @@ void /* DEVICE */ DmfControlBoard::persistent_write(uint16_t address,
 ///////////////////////////////////////////////////////////////////////////////
 
 uint16_t DmfControlBoard::number_of_channels() {
-  const char* function_name = "number_of_channels()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_NUMBER_OF_CHANNELS) == RETURN_OK) {
-    if (payload_length() == sizeof(uint16_t)) {
-      uint16_t number_of_channels = ReadUint16();
-      LogMessage(str(format("number_of_channels=%d") %
-        number_of_channels).c_str(), function_name);
-      return number_of_channels;
-    } else {
-      LogMessage("CMD_GET_NUMBER_OF_CHANNELS, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<uint16_t>(CMD_GET_NUMBER_OF_CHANNELS,
+                                     "number_of_channels()");
 }
 
 vector<uint8_t> DmfControlBoard::state_of_all_channels() {
@@ -1303,296 +1369,145 @@ vector<uint8_t> DmfControlBoard::state_of_all_channels() {
 };
 
 uint8_t DmfControlBoard::state_of_channel(const uint16_t channel) {
-  const char* function_name = "state_of_channel()";
-  LogSeparator();
-  LogMessage("send command", function_name);
   Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_STATE_OF_CHANNEL) == RETURN_OK) {
-    LogMessage("CMD_GET_STATE_OF_CHANNEL", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t state = ReadUint8();
-      LogMessage(str(format("state=%d") % state).c_str(), function_name);
-      return state;
-    } else {
-      LogError("Bad packet size", function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<uint8_t>(CMD_GET_STATE_OF_CHANNEL,
+                                    "state_of_channel()");
 };
 
 float DmfControlBoard::sampling_rate() {
-  const char* function_name = "sampling_rate()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_SAMPLING_RATE) == RETURN_OK) {
-    LogMessage("CMD_GET_SAMPLING_RATE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float sampling_rate = ReadFloat();
-      LogMessage(str(format("sampling_rate_=%.1e") % sampling_rate).c_str(),
-        function_name);
-      return sampling_rate;
-    } else {
-      LogMessage("CMD_GET_SAMPLING_RATE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
-}
-
-uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
-  const char* function_name = "set_sampling_rate()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&sampling_rate, sizeof(sampling_rate));
-  if (SendCommand(CMD_SET_SAMPLING_RATE) == RETURN_OK) {
-    LogMessage("CMD_SET_SAMPLING_RATE", function_name);
-    LogMessage("sampling rate set successfully", function_name);
-  }
-  return return_code();
+  return send_read_command<float>(CMD_GET_SAMPLING_RATE,
+                                  "sampling_rate()");
 }
 
 uint8_t DmfControlBoard::series_resistor_index(const uint8_t channel) {
-  const char* function_name = "series_resistor_index()";
-  LogSeparator();
-  LogMessage("send command", function_name);
   Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_RESISTOR_INDEX) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_RESISTOR_INDEX", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t index = ReadUint8();
-      LogMessage(str(format("series_resistor_index=%d") % index).c_str(),
-        function_name);
-      return index;
-    } else {
-      LogMessage("CMD_GET_SERIES_RESISTOR_INDEX, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<uint8_t>(CMD_GET_SERIES_RESISTOR_INDEX,
+                                    "series_resistor_index()");
 }
 
 float DmfControlBoard::series_resistance(const uint8_t channel) {
-  const char* function_name = "series_resistance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
   Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_RESISTANCE) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_RESISTANCE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float series_resistance = ReadFloat();
-      LogMessage(str(format("series_resistance=%.1e") %
-        series_resistance).c_str(), function_name);
-      return series_resistance;
-    } else {
-      LogMessage("CMD_GET_SERIES_RESISTANCE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<float>(CMD_GET_SERIES_RESISTANCE,
+                                  "series_resistance()");
 }
 
 float DmfControlBoard::series_capacitance(const uint8_t channel) {
-  const char* function_name = "series_capacitance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
   Serialize(&channel, sizeof(channel));
-  if (SendCommand(CMD_GET_SERIES_CAPACITANCE) == RETURN_OK) {
-    LogMessage("CMD_GET_SERIES_CAPACITANCE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float series_capacitance = ReadFloat();
-      LogMessage(str(format("series_capacitance=%.1e") %
-        series_capacitance).c_str(), function_name);
-      return series_capacitance;
-    } else {
-      LogMessage("CMD_GET_SERIES_CAPACITANCE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+  return send_read_command<float>(CMD_GET_SERIES_CAPACITANCE,
+                                  "series_capacitance()");
 }
 
 float DmfControlBoard::amplifier_gain() {
-  const char* function_name = "amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_GET_AMPLIFIER_GAIN", function_name);
-    if (payload_length() == sizeof(float)) {
-      float gain = ReadFloat();
-      LogMessage(str(format("amplifier_gain=%.1e") % gain).c_str(),
-        function_name);
-      return gain;
-    } else {
-      LogMessage("CMD_GET_AMPLIFIER_GAIN, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+    return send_read_command<float>(CMD_GET_AMPLIFIER_GAIN,
+                                    "amplifier_gain()");
 }
 
 bool DmfControlBoard::auto_adjust_amplifier_gain() {
-  const char* function_name = "auto_adjust_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
-    if (payload_length() == sizeof(uint8_t)) {
-      uint8_t value = ReadUint8();
-      LogMessage(str(format("auto_adjust_amplifier_gain=%d") % value).c_str(),
-        function_name);
-      return value > 0;
-    } else {
-      LogMessage("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return false;
+    uint8_t result = send_read_command<uint8_t>(
+        CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN, "auto_adjust_amplifier_gain()");
+    return result > 0;
 }
 
 std::string DmfControlBoard::waveform() {
-  const char* function_name = "waveform()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM", function_name);
-    if (payload_length() == 1) {
-      uint8_t waveform = ReadUint8();
-      std::string waveform_str;
-      if (waveform == SINE || waveform == SQUARE) {
-        if (waveform == SINE) {
+    const char* function_name = "waveform()";
+    uint8_t waveform_type = send_read_command<uint8_t>(CMD_GET_WAVEFORM,
+                                                       function_name);
+    std::string waveform_str;
+    if (waveform_type == SINE || waveform_type == SQUARE) {
+        if (waveform_type == SINE) {
           waveform_str = "SINE";
-        } else if (waveform == SQUARE) {
+        } else if (waveform_type == SQUARE) {
           waveform_str = "SQUARE";
         }
         LogMessage(str(format("waveform=%s") % waveform_str).c_str(),
-          function_name);
-        return waveform_str;
-      } else {
-        return_code_ = RETURN_BAD_VALUE;
-        LogMessage("CMD_GET_WAVEFORM, Bad value",
                    function_name);
-      }
+        return waveform_str;
     } else {
-      LogMessage("CMD_GET_WAVEFORM, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
+        return_code_ = RETURN_BAD_VALUE;
+        LogMessage("CMD_GET_WAVEFORM, Bad value", function_name);
     }
-  }
-  return "";
 }
 
 float DmfControlBoard::waveform_voltage() {
-  const char* function_name = "waveform_voltage()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM_VOLTAGE) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM_VOLTAGE", function_name);
-    if (payload_length() == sizeof(float)) {
-      float v_rms = ReadFloat();
-      LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
-        function_name);
-      return v_rms;
-    } else {
-      LogMessage("CMD_GET_WAVEFORM_VOLTAGE, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+    return send_read_command<float>(CMD_GET_WAVEFORM_VOLTAGE,
+                                    "waveform_voltage()");
 }
 
 float DmfControlBoard::waveform_frequency() {
-  const char* function_name = "waveform_frequency()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  if (SendCommand(CMD_GET_WAVEFORM_FREQUENCY) == RETURN_OK) {
-    LogMessage("CMD_GET_WAVEFORM_FREQUENCY", function_name);
-    if (payload_length() == sizeof(float)) {
-      float freq_hz = ReadFloat();
-      LogMessage(str(format("waveform_frequency=%.1f") % freq_hz).c_str(),
-        function_name);
-      return freq_hz;
-    } else {
-      LogMessage("CMD_GET_WAVEFORM_FREQUENCY, Bad packet size",
-                 function_name);
-      throw runtime_error("Bad packet size.");
-    }
-  }
-  return 0;
+    return send_read_command<float>(CMD_GET_WAVEFORM_FREQUENCY,
+                                    "waveform_frequency()");
+}
+
+uint8_t DmfControlBoard::power_supply_pin() {
+    return send_read_command<uint8_t>(CMD_GET_POWER_SUPPLY_PIN,
+                                      "power_supply_pin()");
+}
+
+bool DmfControlBoard::watchdog_state() {
+    return send_read_command<uint8_t>(CMD_GET_WATCHDOG_STATE,
+                                      "watchdog_state()");
+}
+
+bool DmfControlBoard::watchdog_enabled() {
+    return send_read_command<uint8_t>(CMD_GET_WATCHDOG_ENABLED,
+                                      "watchdog_enabled()");
+}
+
+bool DmfControlBoard::atx_power_state() {
+    return send_read_command<uint8_t>(CMD_GET_ATX_POWER_STATE,
+                                      "atx_power_state()");
+}
+
+uint8_t DmfControlBoard::set_sampling_rate(const uint8_t sampling_rate) {
+    return send_set_command(CMD_SET_SAMPLING_RATE, "set_sampling_rate()",
+                            sampling_rate);
+}
+
+uint8_t DmfControlBoard::set_watchdog_state(bool state) {
+    return send_set_command(CMD_SET_WATCHDOG_STATE, "set_watchdog_state()",
+                            (uint8_t)state);
+}
+
+uint8_t DmfControlBoard::set_watchdog_enabled(bool on) {
+    return send_set_command(CMD_SET_WATCHDOG_ENABLED, "set_watchdog_enabled()",
+                            (uint8_t)on);
+}
+
+uint8_t DmfControlBoard::set_atx_power_state(bool state) {
+    return send_set_command(CMD_SET_ATX_POWER_STATE, "set_atx_power_state()",
+                            (uint8_t)state);
 }
 
 uint8_t DmfControlBoard::set_series_resistor_index(const uint8_t channel,
                                                    const uint8_t index) {
-  const char* function_name = "set_series_resistor_index()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&index, sizeof(index));
-  if (SendCommand(CMD_SET_SERIES_RESISTOR_INDEX) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_RESISTOR_INDEX", function_name);
-    LogMessage("series resistor index set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_RESISTOR_INDEX,
+                            "set_series_resistor_index()", index);
 }
 
 uint8_t DmfControlBoard::set_series_resistance(const uint8_t channel,
                                                float resistance) {
-  const char* function_name = "set_series_resistance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&resistance, sizeof(resistance));
-  if (SendCommand(CMD_SET_SERIES_RESISTANCE) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_RESISTANCE", function_name);
-    LogMessage("series resistance set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_RESISTANCE,
+                            "set_series_resistance()", resistance);
 }
 
 uint8_t DmfControlBoard::set_series_capacitance(const uint8_t channel,
                                                 float capacitance) {
-  const char* function_name = "set_series_capacitance()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&capacitance, sizeof(capacitance));
-  if (SendCommand(CMD_SET_SERIES_CAPACITANCE) == RETURN_OK) {
-    LogMessage("CMD_SET_SERIES_CAPACITANCE", function_name);
-    LogMessage("series capacitance set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_SERIES_CAPACITANCE,
+                            "set_series_capacitance()", capacitance);
 }
 
 uint8_t DmfControlBoard::set_amplifier_gain(float gain) {
-  const char* function_name = "set_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&gain, sizeof(gain));
-  if (SendCommand(CMD_SET_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_SET_AMPLIFIER_GAIN", function_name);
-    LogMessage("amplifier gain set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_AMPLIFIER_GAIN, "set_amplifier_gain()",
+                            gain);
 }
 
 uint8_t DmfControlBoard::set_auto_adjust_amplifier_gain(bool on) {
-  const char* function_name = "set_auto_adjust_amplifier_gain()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t value = on;
-  Serialize(&value, sizeof(value));
-  if (SendCommand(CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) == RETURN_OK) {
-    LogMessage("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN", function_name);
-    LogMessage("auto adjust amplifier gain set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN,
+                            "set_auto_adjust_amplifier_gain()",
+                            (uint8_t)on);
 }
 
 uint8_t DmfControlBoard::set_state_of_all_channels(const vector <uint8_t>
@@ -1610,57 +1525,23 @@ uint8_t DmfControlBoard::set_state_of_all_channels(const vector <uint8_t>
 
 uint8_t DmfControlBoard::set_state_of_channel(const uint16_t channel,
                                               const uint8_t state) {
-  const char* function_name = "set_state_of_channel()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&channel, sizeof(channel));
-  Serialize(&state, sizeof(state));
-  if (SendCommand(CMD_SET_STATE_OF_CHANNEL) == RETURN_OK) {
-    LogMessage("CMD_SET_STATE_OF_CHANNEL", function_name);
-    LogMessage("channel set successfully", function_name);
-  }
-  return return_code();
+    Serialize(&channel, sizeof(channel));
+    return send_set_command(CMD_SET_STATE_OF_CHANNEL, "set_state_of_channel()",
+                            state);
 }
 
 uint8_t DmfControlBoard::set_waveform(bool waveform) {
-  const char* function_name = "set_waveform()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  uint8_t data = waveform;
-  LogMessage(str(format("waveform=%d") % waveform).c_str(), function_name);
-  Serialize(&data, sizeof(data));
-  if (SendCommand(CMD_SET_WAVEFORM) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM", function_name);
-    LogMessage("waveform set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM, "set_waveform()", waveform);
 }
 
 uint8_t DmfControlBoard::set_waveform_voltage(const float v_rms){
-  const char* function_name = "set_waveform_voltage()";
-  LogSeparator();
-  LogMessage("send command", function_name);
-  Serialize(&v_rms, sizeof(v_rms));
-  LogMessage(str(format("waveform_voltage=%.1f") % v_rms).c_str(),
-    function_name);
-  if (SendCommand(CMD_SET_WAVEFORM_VOLTAGE) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM_VOLTAGE", function_name);
-    LogMessage("voltage set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM_VOLTAGE, "set_waveform_voltage()",
+                            v_rms);
 }
 
 uint8_t DmfControlBoard::set_waveform_frequency(const float freq_hz) {
-  const char* function_name = "set_waveform_frequency()";
-  LogSeparator();
-  LogMessage(str(format("freq_hz=%.1f") % freq_hz).c_str(), function_name);
-  LogMessage("send command", function_name);
-  Serialize(&freq_hz, sizeof(freq_hz));
-  if (SendCommand(CMD_SET_WAVEFORM_FREQUENCY) == RETURN_OK) {
-    LogMessage("CMD_SET_WAVEFORM_FREQUENCY", function_name);
-    LogMessage("frequency set successfully", function_name);
-  }
-  return return_code();
+    return send_set_command(CMD_SET_WAVEFORM_FREQUENCY,
+                            "set_waveform_frequency()", freq_hz);
 }
 
 std::vector <float> DmfControlBoard::MeasureImpedance(
@@ -1689,7 +1570,7 @@ void DmfControlBoard::MeasureImpedanceNonBlocking(
   SendNonBlockingCommand(CMD_MEASURE_IMPEDANCE);
 }
 
-std::vector < float> DmfControlBoard::GetImpedanceData() {
+std::vector<float> DmfControlBoard::GetImpedanceData() {
   const char* function_name = "GetImpedanceData()";
   if (ValidateReply(CMD_MEASURE_IMPEDANCE) == RETURN_OK) {
     uint16_t n_samples = payload_length() / (2 * sizeof(int16_t) + 2 *
@@ -1711,7 +1592,7 @@ std::vector < float> DmfControlBoard::GetImpedanceData() {
                % (bytes_read() - payload_length())).c_str(), function_name);
     return impedance_buffer;
   }
-  return std::vector < float > (); // return an empty vector
+  return std::vector<float>(); // return an empty vector
 }
 
 uint8_t DmfControlBoard::ResetConfigToDefaults() {
@@ -1724,4 +1605,5 @@ uint8_t DmfControlBoard::ResetConfigToDefaults() {
   return return_code();
 }
 
-#endif // AVR
+
+#endif // #ifdef AVR / #else

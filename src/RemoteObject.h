@@ -68,12 +68,15 @@ __________________________________________________________________________
 #define	_REMOTE_OBJECT_H
 
 #include <stdint.h>
+#include "deserialize.h"
 
 #ifndef AVR
   #include "logging.h"
   #include "SimpleSerial.h"
   #include <string>
+  #include <boost/format.hpp>
 #endif
+
 
 class RemoteObject {
 public:
@@ -183,6 +186,59 @@ public:
   virtual std::string host_url() = 0;
   virtual std::string host_manufacturer() = 0;
 
+    virtual std::string command_label(uint8_t command) const {
+        if (command == CMD_GET_PROTOCOL_NAME) {
+            return std::string("CMD_GET_PROTOCOL_NAME");
+        } else if (command == CMD_GET_PROTOCOL_VERSION) {
+            return std::string("CMD_GET_PROTOCOL_VERSION");
+        } else if (command == CMD_GET_DEVICE_NAME) {
+            return std::string("CMD_GET_DEVICE_NAME");
+        } else if (command == CMD_GET_MANUFACTURER) {
+            return std::string("CMD_GET_MANUFACTURER");
+        } else if (command == CMD_GET_HARDWARE_VERSION) {
+            return std::string("CMD_GET_HARDWARE_VERSION");
+        } else if (command == CMD_GET_SOFTWARE_VERSION) {
+            return std::string("CMD_GET_SOFTWARE_VERSION");
+        } else if (command == CMD_GET_URL) {
+            return std::string("CMD_GET_URL");
+        } else if (command == CMD_SET_PIN_MODE) {
+            return std::string("CMD_SET_PIN_MODE");
+        } else if (command == CMD_DIGITAL_READ) {
+            return std::string("CMD_DIGITAL_READ");
+        } else if (command == CMD_DIGITAL_WRITE) {
+            return std::string("CMD_DIGITAL_WRITE");
+        } else if (command == CMD_ANALOG_READ) {
+            return std::string("CMD_ANALOG_READ");
+        } else if (command == CMD_ANALOG_WRITE) {
+            return std::string("CMD_ANALOG_WRITE");
+        } else if (command == CMD_PERSISTENT_READ) {
+            return std::string("CMD_PERSISTENT_READ");
+        } else if (command == CMD_PERSISTENT_WRITE) {
+            return std::string("CMD_PERSISTENT_WRITE");
+        } else if (command == CMD_ONEWIRE_GET_ADDRESS) {
+            return std::string("CMD_ONEWIRE_GET_ADDRESS");
+        } else if (command == CMD_ONEWIRE_WRITE) {
+            return std::string("CMD_ONEWIRE_WRITE");
+        } else if (command == CMD_ONEWIRE_READ) {
+            return std::string("CMD_ONEWIRE_READ");
+        } else if (command == CMD_I2C_WRITE) {
+            return std::string("CMD_I2C_WRITE");
+        } else if (command == CMD_I2C_READ) {
+            return std::string("CMD_I2C_READ");
+        } else if (command == CMD_SPI_SET_BIT_ORDER) {
+            return std::string("CMD_SPI_SET_BIT_ORDER");
+        } else if (command == CMD_SPI_SET_CLOCK_DIVIDER) {
+            return std::string("CMD_SPI_SET_CLOCK_DIVIDER");
+        } else if (command == CMD_SPI_SET_DATA_MODE) {
+            return std::string("CMD_SPI_SET_DATA_MODE");
+        } else if (command == CMD_SPI_TRANSFER) {
+            return std::string("CMD_SPI_TRANSFER");
+        } else if (command == CMD_GET_DEBUG_BUFFER) {
+            return std::string("CMD_GET_DEBUG_BUFFER");
+        } else {
+            throw std::runtime_error("Invalid command.");
+        }
+    }
   /////////////////////////////////////////////////////////////////////////
   //
   // Remote accessors
@@ -271,6 +327,42 @@ public:
   uint8_t Connect(const char* port);
   uint8_t Disconnect() { Serial.end(); return RETURN_OK; }
   void flush() { Serial.flush(); }
+
+  template <typename Output>
+  Output send_read_command(uint8_t command, const char* function_name) {
+      LogSeparator();
+      LogMessage("send command", function_name);
+      if (SendCommand(command) == RETURN_OK) {
+          LogMessage(command_label(command).c_str(), function_name);
+          if (payload_length() == sizeof(Output)) {
+              Output value = Read<Output>();
+              LogMessage(boost::str(boost::format(command_label(command) +
+                                                  "=" +
+                                                  type_format<Output>()) %
+                                    value).c_str(), function_name);
+              return value;
+          } else {
+              LogMessage((command_label(command) +
+                          ", Bad packet size").c_str(), function_name);
+              throw std::runtime_error("Bad packet size.");
+          }
+      }
+      throw std::runtime_error("Error processing command.");
+  }
+
+  template <typename T>
+  uint8_t send_set_command(uint8_t command, const char* function_name,
+                           T value) {
+      LogSeparator();
+      LogMessage("send command", function_name);
+      Serialize(&value, sizeof(value));
+      if (SendCommand(command) == RETURN_OK) {
+          LogMessage(command_label(command).c_str(), function_name);
+          LogMessage("  --> set successfully", function_name);
+      }
+      return return_code();
+  }
+
 #endif
 
 protected:
@@ -302,11 +394,25 @@ protected:
     memcpy(array,payload_+bytes_read_-size,size);
   }
   const char* ReadString();
-  uint16_t ReadUint16();
-  int16_t ReadInt16();
-  uint8_t ReadUint8();
-  int8_t ReadInt8();
-  float ReadFloat();
+
+  template <typename T>
+  T Read() {
+    T result;
+    uint32_t size = deserialize(payload_ + bytes_read_, result);
+    bytes_read_ += size;
+#ifndef AVR
+    std::string function_name = "Read<" + type_label<T>() + ">";
+    std::string format_str = "=" + type_format<T>() + ", bytes_read_=%d";
+    LogMessage(boost::str(boost::format(format_str) % result %
+               bytes_read_).c_str(), function_name.c_str());
+#endif
+    return result;
+  }
+  uint16_t ReadUint16() { return Read<uint16_t>(); }
+  int16_t ReadInt16() { return Read<int16_t>(); }
+  uint8_t ReadUint8() { return Read<uint8_t>(); }
+  int8_t ReadInt8() { return Read<int8_t>(); }
+  float ReadFloat() { return Read<float>(); }
   uint8_t WaitForReply();
 
   /**
