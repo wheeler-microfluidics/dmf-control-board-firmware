@@ -74,6 +74,8 @@ class GitUtil(object):
     def describe(self):
         return self.command('describe')
 
+    def branch(self):
+        return self.command(['rev-parse', '--abbrev-ref', 'HEAD'])
 
     def summary(self, color=False):
         if color:
