@@ -15,15 +15,15 @@ def get_version_string():
     version = GitUtil(None).describe()
     branch = GitUtil(None).branch()
     if branch == "master":
-        branch = ""
+        tags = ""
     else:
-        branch = branch + "-"
+        tags = "-" + branch
     m = re.search('^v(?P<major>\d+)\.(?P<minor>\d+)(-(?P<micro>\d+))?', version)
     if m.group('micro'):
         micro = m.group('micro')
     else:
         micro = '0'
-    return "%s%s.%s.%s" % (branch, m.group('major'), m.group('minor'), micro)
+    return "%s.%s.%s%s" % (m.group('major'), m.group('minor'), micro, tags)
 
 
 PYTHON_VERSION = "%s.%s" % (sys.version_info[0],
