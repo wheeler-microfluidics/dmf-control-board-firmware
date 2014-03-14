@@ -137,6 +137,14 @@ object DmfControlBoard_class
     .def("host_manufacturer",&DmfControlBoard::host_manufacturer)
     .def("host_software_version",&DmfControlBoard::host_software_version)
     .def("host_url",&DmfControlBoard::host_url)
+    .add_property("power_supply_pin", &DmfControlBoard::power_supply_pin)
+    .add_property("watchdog_enabled", &DmfControlBoard::watchdog_enabled,
+                  &DmfControlBoard::set_watchdog_enabled)
+    .add_property("watchdog_state", &DmfControlBoard::watchdog_state,
+                  &DmfControlBoard::set_watchdog_state)
+    .add_property("atx_power_state",
+                  &DmfControlBoard::atx_power_state,
+                  &DmfControlBoard::set_atx_power_state)
   ;
 DmfControlBoard_class.attr("PERSISTENT_PIN_MODE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_MODE_ADDRESS;
 DmfControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = DmfControlBoard::PERSISTENT_PIN_STATE_ADDRESS;

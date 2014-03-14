@@ -41,7 +41,6 @@ from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
                                                 FigureCanvasGTK)
 from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
                                                 NavigationToolbar)
-
 from microdrop_utility import SetOfInts, Version, FutureVersionError, is_float
 from microdrop_utility.gui import (textentry_validate,
                                    combobox_set_model_from_list,
@@ -52,7 +51,8 @@ from flatland.validation import ValueAtLeast
 from microdrop.plugin_manager import (emit_signal, IWaveformGenerator, IPlugin,
                                       get_service_instance_by_name)
 from microdrop.app_context import get_app
-from ...dmf_control_board import *
+
+from ..dmf_control_board import FeedbackCalibration
 
 
 class AmplifierGainNotCalibrated(Exception):
@@ -1453,7 +1453,7 @@ class FeedbackResultsController():
                         np.logical_and(
                             np.concatenate(([0], np.diff(results.fb_resistor)))
                             == 0,
-                            np.concatenate(([0],np.diff(results.hv_resistor)))
+                            np.concatenate(([0], np.diff(results.hv_resistor)))
                             == 0)))
 
                     if y_axis == "Impedance":
@@ -1625,16 +1625,15 @@ class FeedbackResultsController():
                         self.export_data.append('std(impedance) (Ohms%s):, '
                                                 % normalization_string +
                                                 ", ".join([str(x) for x in
-                                                           np.std( results
+                                                           np.std(results
                                                                   .Z_device(),
                                                                   1) /
                                                            normalization]))
-                    elif y_axis=="Capacitance":
+                    elif y_axis == "Capacitance":
                         self.axis.errorbar(results.voltage,
                                            np.mean(results.capacitance(), 1) /
-                                           normalization, np.std(results
-                                                                 .capacitance(),
-                                                                 1) /
+                                           normalization,
+                                           np.std(results.capacitance(), 1) /
                                            normalization, fmt='.')
                         self.export_data.append('mean(capacitance) (F):, ' +
                                                 ", "
@@ -1686,8 +1685,8 @@ class FeedbackCalibrationController():
         selected_data = self.experiment_log_controller.get_selected_data()
         calibration = None
         if len(selected_data) > 1:
-            logger.error("Multiple steps are selected. Please choose a single "
-                         "step.")
+            logging.error("Multiple steps are selected. Please choose a "
+                          "single step.")
             return
         try:
             if 'FeedbackResults' in selected_data[0][self.plugin.name]:
@@ -1700,7 +1699,7 @@ class FeedbackCalibrationController():
                 calibration = (selected_data[0][self.plugin.name]
                                ['SweepVoltageResults'].calibration)
         except:
-            logger.error("This step does not contain any calibration data.")
+            logging.error("This step does not contain any calibration data.")
             return
 
         dialog = gtk.FileChooserDialog(title="Save feedback calibration",
@@ -1722,7 +1721,7 @@ class FeedbackCalibrationController():
                 else:
                     break
             except Exception, why:
-                logger.error("Error saving calibration file. %s." % why)
+                logging.error("Error saving calibration file. %s." % why)
         dialog.destroy()
 
     def on_load_log_calibration(self, widget, data=None):
@@ -1775,7 +1774,7 @@ class FeedbackCalibrationController():
         emit_signal("on_experiment_log_selection_changed", [selected_data])
 
     def on_edit_log_calibration(self, widget, data=None):
-        logger.debug("on_edit_log_calibration()")
+        logging.debug("on_edit_log_calibration()")
         settings = {}
         schema_entries = []
         calibration_list = []
@@ -1862,20 +1861,20 @@ class FeedbackCalibrationController():
         if not valid:
             return
 
-        logger.debug("Applying updated calibration settings to log file.")
+        logging.debug("Applying updated calibration settings to log file.")
 
         def get_field_value(name, multiplier=1):
             try:
-                logger.debug('response[%s]=' % name, response[name])
-                logger.debug('settings[%s]=' % name, settings[name])
+                logging.debug('response[%s]=' % name, response[name])
+                logging.debug('settings[%s]=' % name, settings[name])
                 if (response[name] and (settings[name] is None or
                                         abs(float(response[name]) / multiplier
                                             - settings[name]) / settings[name]
                                         > .0001)):
                     return float(response[name]) / multiplier
             except ValueError:
-                logger.error('C_drop value (%s) is invalid.' %
-                             response['C_drop'])
+                logging.error('C_drop value (%s) is invalid.' %
+                              response['C_drop'])
             return None
 
         value = get_field_value('C_drop', 1e12)
@@ -1983,7 +1982,7 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                 try:
                     pickle.dump(results, output)
                 except Exception, why:
-                    logger.error("Error saving calibration file. %s." % why)
+                    logging.error("Error saving calibration file. %s." % why)
             self.process_hv_calibration(results)
 
     def prompt_for_frequency_range(self, title="Perform calibration"):
@@ -2100,7 +2099,7 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                 try:
                     pickle.dump(results, output)
                 except Exception, why:
-                    logger.error("Error saving calibration file. %s." % why)
+                    logging.error("Error saving calibration file. %s." % why)
             self.process_fb_calibration(results)
 
     def sweep_frequencies(self,
@@ -2203,8 +2202,8 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         voltage_filter = [.1, 1.3]
         # only include data points where the voltage falls within a specified
         # range
-        x,y = np.nonzero(np.logical_or(V_fb < voltage_filter[0],
-                                       V_fb > voltage_filter[1]))
+        x, y = np.nonzero(np.logical_or(V_fb < voltage_filter[0],
+                                        V_fb > voltage_filter[1]))
         V_fb[x, y] = 0
 
         schema_entries = []
@@ -2220,7 +2219,7 @@ bration#high-voltage-attenuation-calibration'''.strip(),
 
         form = Form.of(*schema_entries)
         dialog = FormViewDialog('Fit paramters')
-        valid, response =  dialog.run(form)
+        valid, response = dialog.run(form)
 
         # fit parameters
         C_device = response['C_device_pF'] * 1e-12
@@ -2256,14 +2255,14 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         )
         p1 = np.abs(p1)
 
-        logger.info("p0=%s" % p0)
-        logger.info("SOS before=%s" % np.sum(e(p0, V_hv, V_fb, frequencies,
+        logging.info("p0=%s" % p0)
+        logging.info("SOS before=%s" % np.sum(e(p0, V_hv, V_fb, frequencies,
+                                                C_device) ** 2))
+        logging.info("p1=%s" % p1)
+        logging.info(mesg)
+        logging.info("SOS after=%s" % np.sum(e(p1, V_hv, V_fb, frequencies,
                                                C_device) ** 2))
-        logger.info("p1=%s" % p1)
-        logger.info(mesg)
-        logger.info("SOS after=%s" % np.sum(e(p1, V_hv, V_fb, frequencies,
-                                              C_device) ** 2))
-        logger.info("diff =%s" % (p1 - p0))
+        logging.info("diff =%s" % (p1 - p0))
 
         canvas, a = self.create_plot('residuals')
         legend = []
@@ -2354,10 +2353,9 @@ bration#high-voltage-attenuation-calibration'''.strip(),
             if len(ind):
                 legend.append("R$_{fb,%d}$" % i)
                 a.semilogx(frequencies[ind], 1e12 / (Z_1[ind, i] *
-                                                  frequencies[ind] * 2 *
-                                                  np.pi), 'o')
-        a.plot(frequencies, C_device * np.ones(frequencies.shape),
-               'k -- ')
+                                                     frequencies[ind] * 2 *
+                                                     np.pi), 'o')
+        a.plot(frequencies, C_device * np.ones(frequencies.shape), 'k -- ')
         a.legend(legend)
         a.set_xlabel('Frequency (Hz)')
         a.set_ylabel('C$_{device}$ (pF)')
@@ -2430,14 +2428,14 @@ bration#high-voltage-attenuation-calibration'''.strip(),
                     * (V_hv / V_fb))
 
     def process_hv_calibration(self, results):
-        hardware_version = utility.Version.fromstring(
-            self.plugin.control_board.hardware_version())
+        hardware_version = Version.fromstring(self.plugin.control_board
+                                              .hardware_version())
         input_voltage = np.array(results['input_voltage'])
         frequencies = np.array(results['frequencies'])
         hv_measurements = (np.array(results['hv_measurements']) / 1023.0 * 5 -
                            2.5)
-        hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :],1) -
-                                        np.min(hv_measurements[:, j, :],1)
+        hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :], 1) -
+                                        np.min(hv_measurements[:, j, :], 1)
                                         for j in range(0, len(frequencies))]) /
                               2. / np.sqrt(2))
 
@@ -2452,8 +2450,8 @@ bration#high-voltage-attenuation-calibration'''.strip(),
         f = lambda p, x, R1: np.abs(1 / (R1 / p[1] + 1 + R1 * 2 * np.pi * p[0]
                                          * complex(0, 1) * x))
         if hardware_version.major == 2:
-            f = lambda p, x, R1: np.abs(1 / (R1 / p[1] + R1 * 2*np.pi * p[0] *
-                                             complex(0, 1) * x))
+            f = lambda p, x, R1: np.abs(1 / (R1 / p[1] + R1 * 2 * np.pi * p[0]
+                                             * complex(0, 1) * x))
         e = lambda p, x, y, R1: f(p, x, R1) - y
         fit_params = []
 

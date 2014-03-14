@@ -25,8 +25,17 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include <fstream>
   #include <string>
   #include <vector>
+  #include <stdint.h>
+  #include <stdexcept>
+#else
+  #include "Arduino.h"
 #endif
 #include "RemoteObject.h"
+
+#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) ||\
+        ___HARDWARE_MAJOR_VERSION___ == 2
+#define ATX_POWER_SUPPLY
+#endif
 
 class DmfControlBoard : public RemoteObject {
 public:
@@ -44,6 +53,29 @@ public:
   };
 
 #if defined(AVR) || defined(__SAM3X8E__)
+  struct watchdog_t {
+    /* # `watchdog_t` #
+     *
+     * This structure is used to maintain the state of a watchdog timer, which
+     * can be used for any purpose.  For now, the watchdog timer is used to
+     * maintain the state of the ATX power supply control signal.
+     *
+     * If the watchdog timer is enabled, _i.e., `enabled=true`, when
+     * the timer period finishes:
+     *
+     *  - If the `state` is not `true`, the power-supply must be
+     *   turned off.
+     *  - The `state` must be set to `false`.
+     *
+     * When the watchdog timer is enabled, it is the responsibility of the
+     * client to reset the watchdog-state before each timer period ends to
+     * prevent the power supply from being turned off. */
+    bool enabled;
+    bool state;
+
+    watchdog_t() : enabled(false), state(false) {}
+  };
+
   struct config_settings_t {
     /**\brief This is the software version that the persistent configuration
      * data was written with.*/
@@ -76,7 +108,7 @@ public:
       float A1_series_resistance[4];
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[4];
-    #else
+    #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
       /**\brief i2c address of first signal generator board.*/
       uint8_t signal_generator_board_i2c_address;
       /**\brief Series resistor values for channel 0.*/
@@ -87,7 +119,7 @@ public:
       float A1_series_resistance[5];
       /**\brief Series capacitance values for channel 1.*/
       float A1_series_capacitance[5];
-    #endif
+    #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1
 
     /**\brief Amplifier gain (if >0). If <=0, the gain is automatically
     adjusted based on the measured voltage from the amplifier.*/
@@ -96,7 +128,7 @@ public:
     /**\brief voltage tolerance for amplifier gain adjustment.*/
     float voltage_tolerance;
   };
-#endif
+#endif  // #ifdef AVR
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
@@ -127,6 +159,13 @@ public:
   static const uint8_t CMD_SET_AMPLIFIER_GAIN =             0xB4;
   static const uint8_t CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB5;
   static const uint8_t CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB6;
+  static const uint8_t CMD_GET_POWER_SUPPLY_PIN =           0xB7;
+  static const uint8_t CMD_GET_WATCHDOG_STATE =             0xB8;
+  static const uint8_t CMD_SET_WATCHDOG_STATE =             0xB9;
+  static const uint8_t CMD_GET_WATCHDOG_ENABLED =           0xBA;
+  static const uint8_t CMD_SET_WATCHDOG_ENABLED =           0xBB;
+  static const uint8_t CMD_GET_ATX_POWER_STATE =            0xBC;
+  static const uint8_t CMD_SET_ATX_POWER_STATE =            0xBD;
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -150,6 +189,76 @@ public:
 
 // In our case, the PC is the only one sending commands
 #if !( defined(AVR) || defined(__SAM3X8E__) )
+  virtual std::string command_label(uint8_t command) const {
+    try {
+      return RemoteObject::command_label(command);
+    } catch (...) {
+      if (command == CMD_GET_NUMBER_OF_CHANNELS) {
+        return std::string("CMD_GET_NUMBER_OF_CHANNELS");
+      } else if (command == CMD_GET_STATE_OF_ALL_CHANNELS) {
+        return std::string("CMD_GET_STATE_OF_ALL_CHANNELS");
+      } else if (command == CMD_SET_STATE_OF_ALL_CHANNELS) {
+        return std::string("CMD_SET_STATE_OF_ALL_CHANNELS");
+      } else if (command == CMD_GET_STATE_OF_CHANNEL) {
+        return std::string("CMD_GET_STATE_OF_CHANNEL");
+      } else if (command == CMD_SET_STATE_OF_CHANNEL) {
+        return std::string("CMD_SET_STATE_OF_CHANNEL");
+      } else if (command == CMD_GET_WAVEFORM) {
+        return std::string("CMD_GET_WAVEFORM");
+      } else if (command == CMD_SET_WAVEFORM) {
+        return std::string("CMD_SET_WAVEFORM");
+      } else if (command == CMD_GET_WAVEFORM_VOLTAGE) {
+        return std::string("CMD_GET_WAVEFORM_VOLTAGE");
+      } else if (command == CMD_SET_WAVEFORM_VOLTAGE) {
+        return std::string("CMD_SET_WAVEFORM_VOLTAGE");
+      } else if (command == CMD_GET_WAVEFORM_FREQUENCY) {
+        return std::string("CMD_GET_WAVEFORM_FREQUENCY");
+      } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
+        return std::string("CMD_SET_WAVEFORM_FREQUENCY");
+      } else if (command == CMD_GET_SAMPLING_RATE) {
+        return std::string("CMD_GET_SAMPLING_RATE");
+      } else if (command == CMD_SET_SAMPLING_RATE) {
+        return std::string("CMD_SET_SAMPLING_RATE");
+      } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
+        return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
+      } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
+        return std::string("CMD_SET_SERIES_RESISTOR_INDEX");
+      } else if (command == CMD_GET_SERIES_RESISTANCE) {
+        return std::string("CMD_GET_SERIES_RESISTANCE");
+      } else if (command == CMD_SET_SERIES_RESISTANCE) {
+        return std::string("CMD_SET_SERIES_RESISTANCE");
+      } else if (command == CMD_GET_SERIES_CAPACITANCE) {
+        return std::string("CMD_GET_SERIES_CAPACITANCE");
+      } else if (command == CMD_SET_SERIES_CAPACITANCE) {
+        return std::string("CMD_SET_SERIES_CAPACITANCE");
+      } else if (command == CMD_GET_AMPLIFIER_GAIN) {
+        return std::string("CMD_GET_AMPLIFIER_GAIN");
+      } else if (command == CMD_SET_AMPLIFIER_GAIN) {
+        return std::string("CMD_SET_AMPLIFIER_GAIN");
+      } else if (command == CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+        return std::string("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN");
+      } else if (command == CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN) {
+        return std::string("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN");
+      } else if (command == CMD_GET_POWER_SUPPLY_PIN) {
+        return std::string("CMD_GET_POWER_SUPPLY_PIN");
+      } else if (command == CMD_GET_WATCHDOG_STATE) {
+        return std::string("CMD_GET_WATCHDOG_STATE");
+      } else if (command == CMD_SET_WATCHDOG_STATE) {
+        return std::string("CMD_SET_WATCHDOG_STATE");
+      } else if (command == CMD_GET_WATCHDOG_ENABLED) {
+        return std::string("CMD_GET_WATCHDOG_ENABLED");
+      } else if (command == CMD_SET_WATCHDOG_ENABLED) {
+        return std::string("CMD_SET_WATCHDOG_ENABLED");
+      } else if (command == CMD_GET_ATX_POWER_STATE) {
+        return std::string("CMD_GET_ATX_POWER_STATE");
+      } else if (command == CMD_SET_ATX_POWER_STATE) {
+        return std::string("CMD_SET_ATX_POWER_STATE");
+      } else {
+        throw std::runtime_error("Invalid command.");
+      }
+    }
+  }
+
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
@@ -162,6 +271,10 @@ public:
   float waveform_voltage();
   float amplifier_gain();
   bool auto_adjust_amplifier_gain();
+  uint8_t power_supply_pin();
+  bool watchdog_state();
+  bool watchdog_enabled();
+  bool atx_power_state();
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -178,6 +291,9 @@ public:
                                  float capacitance);
   uint8_t set_amplifier_gain(float gain);
   uint8_t set_auto_adjust_amplifier_gain(bool on);
+  uint8_t set_watchdog_state(bool state);
+  uint8_t set_watchdog_enabled(bool state);
+  uint8_t set_atx_power_state(bool state);
 
   // other functions
   void MeasureImpedanceNonBlocking(
@@ -196,7 +312,7 @@ public:
   std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
   std::string host_url() { return URL_; }
-#else
+#else  // #ifndef AVR
   void begin();
 
   // local accessors
@@ -208,7 +324,51 @@ public:
   const char* hardware_version();
   const char* url() { return URL_; }
   virtual void persistent_write(uint16_t address, uint8_t value);
-#endif
+#ifdef ATX_POWER_SUPPLY
+  /* Note that the ATX power-supply output-enable is _active-low_. */
+  void atx_power_on() const { digitalWrite(POWER_SUPPLY_ON_PIN_, LOW); }
+  void atx_power_off() const { digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH); }
+  bool atx_power_state() const { return !digitalRead(POWER_SUPPLY_ON_PIN_); }
+#endif  // ATX_POWER_SUPPLY
+  bool watchdog_enabled() const { return watchdog_.enabled; }
+  void watchdog_enabled(bool state) { watchdog_.enabled = state; }
+  bool watchdog_state() const { return watchdog_.state; }
+  void watchdog_state(bool state) { watchdog_.state = state; }
+  void watchdog_reset() { watchdog_state(true); }
+
+  /* Callback function when watchdog timer period is finished. */
+  void watchdog_timeout() {
+    /* If the watchdog timer is enabled, _i.e., `enabled=true`, when the timer
+     * period finishes:
+     *
+     *  - If the `state` is not `true`, the power-supply must be turned off.
+     *  - The `state` must be set to `false`.
+     *
+     * When the watchdog timer is enabled, it is the responsibility of the
+     * client to reset the watchdog-state before each timer period ends to
+     * prevent the power supply from being turned off. */
+    if (watchdog_enabled()) {
+      if (!watchdog_state()) {
+        /* Watchdog timer has timed out and the state has not been reset since
+         * the previous timeout, so execute error handler. */
+        watchdog_error();
+      } else {
+        /* Watchdog timer has timed out, but the state has been reset.  Prepare
+         * for next timeout event. */
+        watchdog_state(false);
+      }
+    }
+  }
+
+  virtual void watchdog_error() const {
+#ifdef ATX_POWER_SUPPLY
+    atx_power_off();
+#endif  // ATX_POWER_SUPPLY
+  }
+
+  /* Expose to allow timer callback to check state. */
+  watchdog_t watchdog_;
+#endif  // #ifndef AVR
 
 private:
   // private static members
@@ -234,9 +394,9 @@ private:
   #endif
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1
-    static const uint8_t PWR_SUPPLY_ON_ = 8;
+    static const uint8_t POWER_SUPPLY_ON_PIN_ = 8;
   #elif ___HARDWARE_MAJOR_VERSION___ == 2
-    static const uint8_t PWR_SUPPLY_ON_ = 2;
+    static const uint8_t POWER_SUPPLY_ON_PIN_ = 2;
   #endif
 
   #if ___HARDWARE_MAJOR_VERSION___ == 1
@@ -273,9 +433,9 @@ private:
 
   // LTC6904 (programmable oscillator) chip address
   static const uint8_t LTC6904_ = 0x17;
-#else
+#else  // #ifdef AVR
   static const char CSV_INDENT_[];
-#endif
+#endif  // #ifdef AVR
 
   // private functions
   virtual uint8_t ProcessCommand(uint8_t cmd);
@@ -292,7 +452,7 @@ private:
   uint8_t SetWaveformVoltage(const float output_vrms,
                              const bool wait_for_reply=true);
 #endif
-#ifdef AVR
+#ifdef AVR  
   uint8_t SetAdcPrescaler(const uint8_t index);
 #endif
 
@@ -308,7 +468,7 @@ private:
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
   config_settings_t config_settings_;
-#endif
+#endif  // #ifdef AVR
 };
 #endif // _DMF_CONTROL_BOARD_H_
 
