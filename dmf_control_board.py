@@ -704,3 +704,6 @@ class DmfControlBoard(Base, SerialDevice):
             if k in common_keys and (device_config[k] is not None and
                                      config[k] is not None):
                 setattr(self, k, config[k])
+
+    def debug_string(self):
+        return "".join(map(chr, self.debug_buffer()))
