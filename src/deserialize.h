@@ -2,7 +2,7 @@
 #define ___DESERIALIZE__HPP___
 
 #include <stdint.h>
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
 #include <boost/format.hpp>
 #endif
 
@@ -48,7 +48,7 @@ inline T deserialize(Buffer buffer, T &result) {
 }
 
 
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
 template <typename T>
 inline std::string type_format() {
   /* Return the format string to print out a value of type `T` using `printf`.
@@ -87,6 +87,6 @@ inline std::string type_label() {
     return "string";
   }
 }
-#endif  // AVR
+#endif  // !( defined(AVR) || defined(__SAM3X8E__) )
 
 #endif

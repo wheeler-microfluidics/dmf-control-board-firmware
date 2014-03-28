@@ -401,7 +401,7 @@ protected:
     T result;
     uint32_t size = deserialize(payload_ + bytes_read_, result);
     bytes_read_ += size;
-#ifndef AVR
+#if !( defined(AVR) || defined(__SAM3X8E__) )
     std::string function_name = "Read<" + type_label<T>() + ">";
     std::string format_str = "=" + type_format<T>() + ", bytes_read_=%d";
     LogMessage(boost::str(boost::format(format_str) % result %

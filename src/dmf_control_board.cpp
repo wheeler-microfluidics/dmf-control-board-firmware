@@ -937,32 +937,50 @@ void DmfControlBoard::begin() {
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
   number_of_channels_ = 0;
+
+  uint8_t data[2];
   for (uint8_t chip = 0; chip < 8; chip++) {
-    Wire.beginTransmission(
-      config_settings_.switching_board_i2c_address + chip);
-    Wire.write(PCA9505_CONFIG_IO_REGISTER_);
-    Wire.endTransmission();
-    Wire.requestFrom(
-      config_settings_.switching_board_i2c_address + chip,1);
-    if (Wire.available()) {
-      Wire.read();
-      if (number_of_channels_ == 40 * chip) {
-        number_of_channels_ = 40 * (chip + 1);
-      }
-      Serial.print("HV board ");
-      Serial.print((int)chip);
-      Serial.println(" connected.");
-      uint8_t data[2];
-      // set all PCA0505 ports in output mode and initialize to ground
-      for (uint8_t port=0; port<5; port++) {
+    // set IO ports as inputs
+    data[0] = PCA9505_CONFIG_IO_REGISTER_;
+    data[1] = 0xFF;
+    i2c_write(config_settings_.switching_board_i2c_address + chip,
+              data, 2);
+
+    // read back the register value
+    i2c_read(config_settings_.switching_board_i2c_address + chip,
+             data, 1);
+
+    // if it matches what we previously set, this might be a PCA9505 chip
+    if (data[0] == 0xFF) {
+      // try setting all ports in output mode and initialize to ground
+      uint8_t port=0;
+      for (; port<5; port++) {
         data[0] = PCA9505_CONFIG_IO_REGISTER_ + port;
         data[1] = 0x00;
         i2c_write(config_settings_.switching_board_i2c_address + chip,
                   data, 2);
+        i2c_read(config_settings_.switching_board_i2c_address + chip,
+                  data, 1);
+
+        // check that we successfully set the IO config register to 0x00
+        if (data[0] != 0x00) {
+          break;
+        }
         data[0] = PCA9505_OUTPUT_PORT_REGISTER_ + port;
         data[1] = 0xFF;
         i2c_write(config_settings_.switching_board_i2c_address + chip,
                   data, 2);
+      }
+
+      // if port=5, it means that we successfully initialized all IO config
+      // registers to 0x00, and this is probably a PCA9505 chip
+      if (port==5) {
+        Serial.print("HV board ");
+        Serial.print((int)chip);
+        Serial.println(" connected.");
+        if (number_of_channels_ == 40 * chip) {
+          number_of_channels_ = 40 * (chip + 1);
+        }
       }
     }
   }

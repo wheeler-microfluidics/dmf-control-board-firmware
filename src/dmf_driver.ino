@@ -28,7 +28,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 #include <OneWire.h>
 #include <TimerOne.h>
-#include "Memory.h"
 #include "RemoteObject.h"
 #include "dmf_control_board.h"
 
