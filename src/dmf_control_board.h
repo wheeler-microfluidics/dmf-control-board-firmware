@@ -405,13 +405,20 @@ private:
     static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
     static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
     static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
-  #else
+  #elif ___HARDWARE_MAJOR_VERSION___ == 2 && ___HARDWARE_MINOR_VERSION___ == 0
     static const uint8_t A0_SERIES_RESISTOR_0_ = 8;
     static const uint8_t A0_SERIES_RESISTOR_1_ = 9;
     static const uint8_t A1_SERIES_RESISTOR_0_ = 10;
     static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
     static const uint8_t A1_SERIES_RESISTOR_2_ = 12;
     static const uint8_t A1_SERIES_RESISTOR_3_ = 13;
+  #else // 2.1
+    static const uint8_t A0_SERIES_RESISTOR_0_ = 4;
+    static const uint8_t A0_SERIES_RESISTOR_1_ = 5;
+    static const uint8_t A1_SERIES_RESISTOR_0_ = 6;
+    static const uint8_t A1_SERIES_RESISTOR_1_ = 7;
+    static const uint8_t A1_SERIES_RESISTOR_2_ = 8;
+    static const uint8_t A1_SERIES_RESISTOR_3_ = 9;
   #endif
 
   static const float SAMPLING_RATES_[];
