@@ -29,7 +29,7 @@ from microdrop_utility import Version, FutureVersionError
 
 from .__init__ import package_path
 from .__init__ import logger
-from .dmf_control_board_base import DMFControlBoardBoard as Base
+from .dmf_control_board_base import DMFControlBoard as Base
 from .dmf_control_board_base import uint8_tVector
 # Import firmware constants
 from .dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
