@@ -29,7 +29,7 @@ from microdrop_utility import Version, FutureVersionError
 
 from .__init__ import package_path
 from .__init__ import logger
-from .dmf_control_board_base import DmfControlBoard as Base
+from .dmf_control_board_base import DMFControlBoardBoard as Base
 from .dmf_control_board_base import uint8_tVector
 # Import firmware constants
 from .dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
@@ -190,7 +190,7 @@ def safe_series_resistor_index_write(f, self, channel, value,
     return value
 
 
-class DmfControlBoard(Base, SerialDevice):
+class DMFControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
         SerialDevice.__init__(self)
@@ -453,7 +453,7 @@ class DmfControlBoard(Base, SerialDevice):
         return False
 
     def flash_firmware(self, hardware_version):
-        logger.info("[DmfControlBoard].flash_firmware()")
+        logger.info("[DMFControlBoard].flash_firmware()")
         reconnect = self.connected()
         if reconnect:
             self.disconnect()

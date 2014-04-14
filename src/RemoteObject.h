@@ -39,7 +39,7 @@ Total packet length (not including flags) = Header Length (2-3 bytes)
                                             (+ 2 if CRC is enabled)
 
 To use this class, you must derive a class based on it and reimplement the
-virtual member function ProcessCommand().
+virtual member function process_command().
 */
 /*
 __________________________________________________________________________
@@ -68,10 +68,10 @@ __________________________________________________________________________
 #define	_REMOTE_OBJECT_H
 
 #include <stdint.h>
-#include "deserialize.h"
+#include "Deserialize.h"
 
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
-  #include "logging.h"
+  #include "Logging.h"
   #include "SimpleSerial.h"
   #include <string>
   #include <boost/format.hpp>
@@ -145,11 +145,11 @@ public:
 
   uint8_t return_code() { return return_code_; }
   bool crc_enabled() { return crc_enabled_; }
-  void Listen();
-  void SendInterrupt();
+  void listen();
+  void send_interrupt();
   uint16_t bytes_read() { return bytes_read_; }
   bool waiting_for_reply() {
-      Listen();
+      listen();
       return waiting_for_reply_to_>0;
   }
 
@@ -325,25 +325,25 @@ public:
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }
-  uint8_t Connect(const char* port, uint32_t baud_rate);
-  uint8_t Disconnect() { Serial.end(); return RETURN_OK; }
+  uint8_t connect(const char* port, uint32_t baud_rate);
+  uint8_t disconnect() { Serial.end(); return RETURN_OK; }
   void flush() { Serial.flush(); }
 
   template <typename Output>
   Output send_read_command(uint8_t command, const char* function_name) {
-      LogSeparator();
-      LogMessage("send command", function_name);
-      if (SendCommand(command) == RETURN_OK) {
-          LogMessage(command_label(command).c_str(), function_name);
+      log_separator();
+      log_message("send command", function_name);
+      if (send_command(command) == RETURN_OK) {
+          log_message(command_label(command).c_str(), function_name);
           if (payload_length() == sizeof(Output)) {
-              Output value = Read<Output>();
-              LogMessage(boost::str(boost::format(command_label(command) +
+              Output value = read<Output>();
+              log_message(boost::str(boost::format(command_label(command) +
                                                   "=" +
                                                   type_format<Output>()) %
                                     value).c_str(), function_name);
               return value;
           } else {
-              LogMessage((command_label(command) +
+              log_message((command_label(command) +
                           ", Bad packet size").c_str(), function_name);
               throw std::runtime_error("Bad packet size.");
           }
@@ -354,12 +354,12 @@ public:
   template <typename T>
   uint8_t send_set_command(uint8_t command, const char* function_name,
                            T value) {
-      LogSeparator();
-      LogMessage("send command", function_name);
-      Serialize(&value, sizeof(value));
-      if (SendCommand(command) == RETURN_OK) {
-          LogMessage(command_label(command).c_str(), function_name);
-          LogMessage("  --> set successfully", function_name);
+      log_separator();
+      log_message("send command", function_name);
+      serialize(&value, sizeof(value));
+      if (send_command(command) == RETURN_OK) {
+          log_message(command_label(command).c_str(), function_name);
+          log_message("  --> set successfully", function_name);
       }
       return return_code();
   }
@@ -373,73 +373,73 @@ protected:
   \param cmd command code
   \returns RETURN_OK if successfull
   */
-  virtual uint8_t ProcessCommand(uint8_t cmd) = 0;
+  virtual uint8_t process_command(uint8_t cmd) = 0;
   uint16_t payload_length() { return payload_length_; }
 
   // WARNING: The following two functions should only be used if you really
-  // know what you are doing!  In most cases you can just use Serialize().
+  // know what you are doing!  In most cases you can just use serialize().
   uint8_t* payload() { return payload_; } // pointer to the payload buffer
   void bytes_written(uint16_t bytes) { bytes_written_+=bytes; }
 
   template<typename T>
-    void Serialize(T data,uint16_t size) {
-      Serialize((const uint8_t*)data,size); }
-  void Serialize(const uint8_t* u, const uint16_t size);
-  void SendReply(const uint8_t return_code);
+    void serialize(T data,uint16_t size) {
+      serialize((const uint8_t*)data,size); }
+  void serialize(const uint8_t* u, const uint16_t size);
+  void send_reply(const uint8_t return_code);
 
-  template<typename T> void ReadArray(T* array, const uint16_t size) {
+  template<typename T> void read_array(T* array, const uint16_t size) {
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
-    LogMessage("","ReadArray()");
+    log_message("","read_array()");
 #endif
     bytes_read_ += size;
     memcpy(array,payload_+bytes_read_-size,size);
   }
-  const char* ReadString();
+  const char* read_string();
 
   template <typename T>
-  T Read() {
+  T read() {
     T result;
     uint32_t size = deserialize(payload_ + bytes_read_, result);
     bytes_read_ += size;
 #if !( defined(AVR) || defined(__SAM3X8E__) )
-    std::string function_name = "Read<" + type_label<T>() + ">";
+    std::string function_name = "read<" + type_label<T>() + ">";
     std::string format_str = "=" + type_format<T>() + ", bytes_read_=%d";
-    LogMessage(boost::str(boost::format(format_str) % result %
+    log_message(boost::str(boost::format(format_str) % result %
                bytes_read_).c_str(), function_name.c_str());
 #endif
     return result;
   }
-  uint16_t ReadUint16() { return Read<uint16_t>(); }
-  int16_t ReadInt16() { return Read<int16_t>(); }
-  uint8_t ReadUint8() { return Read<uint8_t>(); }
-  int8_t ReadInt8() { return Read<int8_t>(); }
-  float ReadFloat() { return Read<float>(); }
-  uint8_t WaitForReply();
+  uint16_t read_uint16() { return read<uint16_t>(); }
+  int16_t read_int16() { return read<int16_t>(); }
+  uint8_t read_uint8() { return read<uint8_t>(); }
+  int8_t read_int8() { return read<int8_t>(); }
+  float read_float() { return read<float>(); }
+  uint8_t wait_for_reply();
 
   /**
   Send a command packet to the Arduino. Prior to calling this function, the
   caller should serialize any data that needs to be included in the payload.
   \returns RETURN_OK if successfull.
-  \sa Serialize()
+  \sa serialize()
   */
-  uint8_t SendCommand(const uint8_t cmd);
-  void SendNonBlockingCommand(const uint8_t cmd);
-  uint8_t ValidateReply(const uint8_t cmd);
+  uint8_t send_command(const uint8_t cmd);
+  void send_non_blocking_command(const uint8_t cmd);
+  uint8_t validate_reply(const uint8_t cmd);
 
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
-  inline void LogMessage(const char* msg,
-                         const char* function_name,
-                         uint8_t level=5) {
+  inline void log_message(const char* msg,
+                          const char* function_name,
+                          uint8_t level=5) {
     if(debug_) {
-      Logging::LogMessage(level,msg,class_name_.c_str(),function_name);
+      Logging::log_message(level,msg,class_name_.c_str(), function_name);
     }
   }
-  inline void LogError(const char* msg, const char* function_name) {
+  inline void log_error(const char* msg, const char* function_name) {
     if(debug_) {
-            Logging::LogError(msg,class_name_.c_str(),function_name);
+            Logging::log_error(msg,class_name_.c_str(), function_name);
     }
   }
-  inline void LogSeparator() { if(debug_) { Logging::LogSeparator(); }}
+  inline void log_separator() { if(debug_) { Logging::log_separator(); }}
 #endif
   char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
   uint16_t debug_buffer_length_;
@@ -451,12 +451,12 @@ private:
   static const uint8_t CONTROL_ESCAPE =           0x7D;
   static const uint8_t ESCAPE_XOR =               0x20;
 
-  void SendPreamble(const uint8_t cmd);
-  void SendPayload();
-  void SendByte(uint8_t b);
-  uint16_t UpdateCrc(uint16_t crc, uint8_t data);
-  void ProcessSerialInput(const uint8_t byte);
-  void ProcessPacket();
+  void send_preamble(const uint8_t cmd);
+  void send_payload();
+  void send_byte(uint8_t b);
+  uint16_t update_crc(uint16_t crc, uint8_t data);
+  void process_serial_input(const uint8_t byte);
+  void process_packet();
 
   uint8_t payload_[MAX_PAYLOAD_LENGTH+2]; // payload (+1 or 2 bytes for payload
                                           // length)
@@ -464,8 +464,8 @@ private:
   uint8_t header_length_; // length of the packet header (2 if payload is
                           // <128 bytes, 3 otherwise)
   uint16_t bytes_received_; // bytes received so far in packet
-  uint16_t bytes_read_; // bytes that have been read (by Read methods)
-  uint16_t bytes_written_; // bytes that have been written (by Serialize method)
+  uint16_t bytes_read_; // bytes that have been read (by read methods)
+  uint16_t bytes_written_; // bytes that have been written (by serialize method)
   bool un_escaping_; // flag that the last byte was an escape
   bool is_reply; // flag that the command we are processing is a reply
   uint8_t waiting_for_reply_to_; // command that we are expecting a reply to

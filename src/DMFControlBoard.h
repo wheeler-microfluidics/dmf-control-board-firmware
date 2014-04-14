@@ -37,7 +37,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #define ATX_POWER_SUPPLY
 #endif
 
-class DmfControlBoard : public RemoteObject {
+class DMFControlBoard : public RemoteObject {
 public:
   static const uint8_t SINE = 0;
   static const uint8_t SQUARE = 1;
@@ -76,7 +76,7 @@ public:
     watchdog_t() : enabled(false), state(false) {}
   };
 
-  struct config_settings_t {
+  struct ConfigSettings {
     /**\brief This is the software version that the persistent configuration
      * data was written with.*/
     version_t version;
@@ -184,8 +184,8 @@ public:
   //
   //////////////////////////////////////////////////////////////////////////////
 
-  DmfControlBoard();
-  ~DmfControlBoard();
+  DMFControlBoard();
+  ~DMFControlBoard();
 
 // In our case, the PC is the only one sending commands
 #if !( defined(AVR) || defined(__SAM3X8E__) )
@@ -296,18 +296,16 @@ public:
   uint8_t set_atx_power_state(bool state);
 
   // other functions
-  void MeasureImpedanceNonBlocking(
-                          uint16_t sampling_time_ms,
-                          uint16_t n_samples,
-                          uint16_t delay_between_samples_ms,
-                          const std::vector<uint8_t> state);
-  std::vector<float> GetImpedanceData();
-  std::vector<float> MeasureImpedance(
-                          uint16_t sampling_time_ms,
-                          uint16_t n_samples,
-                          uint16_t delay_between_samples_ms,
-                          const std::vector<uint8_t> state);
-  uint8_t ResetConfigToDefaults();
+  void measure_impedance_non_blocking(uint16_t sampling_time_ms,
+                                      uint16_t n_samples,
+                                      uint16_t delay_between_samples_ms,
+                                      const std::vector<uint8_t> state);
+  std::vector<float> get_impedance_data();
+  std::vector<float> measure_impedance(uint16_t sampling_time_ms,
+                                       uint16_t n_samples,
+                                       uint16_t delay_between_samples_ms,
+                                       const std::vector<uint8_t> state);
+  uint8_t reset_config_to_defaults();
   std::string host_name() { return NAME_; }
   std::string host_manufacturer() { return MANUFACTURER_; }
   std::string host_software_version() { return SOFTWARE_VERSION_; }
@@ -438,22 +436,22 @@ private:
 #endif  // #ifdef AVR
 
   // private functions
-  virtual uint8_t ProcessCommand(uint8_t cmd);
+  virtual uint8_t process_command(uint8_t cmd);
 #if defined(AVR) || defined(__SAM3X8E__)
-  uint8_t UpdateChannel(const uint16_t channel, const uint8_t state);
-  void UpdateAllChannels();
-  void SendSPI(uint8_t pin, uint8_t address, uint8_t data);
-  uint8_t SetPot(uint8_t index, uint8_t value);
-  uint8_t SetSeriesResistor(const uint8_t channel,
-                            const uint8_t index);
-  void LoadConfig(bool use_defaults=false);
-  void SaveConfig();
-  version_t ConfigVersion();
-  uint8_t SetWaveformVoltage(const float output_vrms,
-                             const bool wait_for_reply=true);
+  uint8_t update_channel(const uint16_t channel, const uint8_t state);
+  void update_all_channels();
+  void send_spi(uint8_t pin, uint8_t address, uint8_t data);
+  uint8_t set_pot(uint8_t index, uint8_t value);
+  uint8_t set_series_resistor(const uint8_t channel,
+                              const uint8_t index);
+  void load_config(bool use_defaults=false);
+  void save_config();
+  version_t config_version();
+  uint8_t set_waveform_voltage(const float output_vrms,
+                               const bool wait_for_reply=true);
 #endif
 #ifdef AVR  
-  uint8_t SetAdcPrescaler(const uint8_t index);
+  uint8_t set_adc_prescaler(const uint8_t index);
 #endif
 
   //private members
@@ -467,7 +465,7 @@ private:
   float waveform_frequency_;
   float amplifier_gain_;
   bool auto_adjust_amplifier_gain_;
-  config_settings_t config_settings_;
+  ConfigSettings config_settings_;
 #endif  // #ifdef AVR
 };
 #endif // _DMF_CONTROL_BOARD_H_
