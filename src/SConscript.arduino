@@ -13,7 +13,7 @@ Import('HARDWARE_MINOR_VERSION')
 
 versions = ((1, 0), (1, 1), (1, 2), (1, 3), (2, 0))
 #versions = ((2, 0),)
-hybrid_sources = re.split(r'\s+', 'dmf_control_board.cpp RemoteObject.cpp')
+hybrid_sources = re.split(r'\s+', 'DMFControlBoard.cpp RemoteObject.cpp')
 
 arduino_hexes = {}
 for major, minor in versions:

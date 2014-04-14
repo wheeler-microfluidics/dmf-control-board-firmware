@@ -29,9 +29,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include <OneWire.h>
 #include <TimerOne.h>
 #include "RemoteObject.h"
-#include "dmf_control_board.h"
+#include "DMFControlBoard.h"
 
-DmfControlBoard dmf_control_board;
+DMFControlBoard dmf_control_board;
 volatile unsigned int timer_count = 1;
 
 void callback();
@@ -54,7 +54,7 @@ void setup() {
 void callback() { timer_count += 1; }
 
 void loop() {
-  dmf_control_board.Listen();
+  dmf_control_board.listen();
   if (timer_count % 25 == 0) {
     /* Check the watchdog-state every 24 timer periods, _i.e., every 120
      * seconds_. */

@@ -45,7 +45,7 @@ from microdrop.plugin_manager import (IPlugin, IWaveformGenerator, Plugin,
 from microdrop.app_context import get_app
 from microdrop.dmf_device import DeviceScaleNotSet
 
-from ..dmf_control_board import DmfControlBoard
+from ..dmf_control_board import DMFControlBoard
 from ..serial_device import SerialDevice
 from .feedback import (FeedbackOptions, FeedbackOptionsController,
                        FeedbackCalibrationController,
@@ -58,7 +58,7 @@ from .feedback import (FeedbackOptions, FeedbackOptionsController,
 PluginGlobals.push_env('microdrop.managed')
 
 
-class DmfControlBoardOptions(object):
+class DMFControlBoardOptions(object):
     def __init__(self, duration=100, voltage=100, frequency=1e3,
                  feedback_options=None):
         self.duration = duration
@@ -81,7 +81,7 @@ def format_func(value):
         return False
 
 
-class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
+class DMFControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     """
     This class is automatically registered with the PluginManager.
     """
@@ -124,7 +124,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
     version = get_plugin_info(path(__file__).parent.parent).version
 
     def __init__(self):
-        self.control_board = DmfControlBoard()
+        self.control_board = DMFControlBoard()
         self.name = get_plugin_info(path(__file__).parent.parent).plugin_name
         self.url = self.control_board.host_url()
         self.steps = []  # list of steps in the protocol
@@ -219,7 +219,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             self.initialized = True
 
-        super(DmfControlBoardPlugin, self).on_plugin_enable()
+        super(DMFControlBoardPlugin, self).on_plugin_enable()
         self.check_device_name_and_version()
         self.control_board_menu_item.show()
         self.edit_log_calibration_menu_item.show()
@@ -266,7 +266,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         '''
         self.current_frequency = None
         self.amplifier_gain_initialized = False
-        if len(DmfControlBoardPlugin.serial_ports_):
+        if len(DMFControlBoardPlugin.serial_ports_):
             app_values = self.get_app_values()
             # try to connect to the last successful port
             try:
@@ -635,7 +635,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             if feedback_options.action.__class__ == RetryAction:
                 attempt = app.protocol.current_step_attempt
                 voltage += (feedback_options.action.increase_voltage * attempt)
-            logger.info('[DmfControlBoardPlugin]'
+            logger.info('[DMFControlBoardPlugin]'
                         '.on_device_impedance_update():')
             logger.info('\tset_voltage=%.1f, measured_voltage=%.1f, '
                         'error=%.1f%%' % (voltage, impedance.V_actuation()[-1],
@@ -692,12 +692,12 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         will wait until all plugins have completed the current step before
         proceeding.
         """
-        logger.debug('[DmfControlBoardPlugin] on_step_run()')
+        logger.debug('[DMFControlBoardPlugin] on_step_run()')
         self._kill_running_step()
         app = get_app()
         options = self.get_step_options()
         dmf_options = app.dmf_device_controller.get_step_options()
-        logger.debug('[DmfControlBoardPlugin] options=%s dmf_options=%s' %
+        logger.debug('[DMFControlBoardPlugin] options=%s dmf_options=%s' %
                      (options, dmf_options))
         feedback_options = options.feedback_options
         app_values = self.get_app_values()
@@ -749,7 +749,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                                               app_values['sampling_time_ms'])),
                                 app_values['delay_between_samples_ms'],
                                 state)
-                            logger.debug('[DmfControlBoardPlugin] on_step_run:'
+                            logger.debug('[DMFControlBoardPlugin] on_step_run:'
                                          ' timeout_add(%d, '
                                          '_callback_retry_action_completed)' %
                                          options.duration)
@@ -824,7 +824,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
             # if a protocol is running, wait for the specified minimum duration
             if app.running:
-                logger.debug('[DmfControlBoardPlugin] on_step_run: '
+                logger.debug('[DMFControlBoardPlugin] on_step_run: '
                              'timeout_add(%d, _callback_step_completed)' %
                              options.duration)
                 self.timeout_id = gobject.timeout_add(
@@ -862,17 +862,17 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
     def _kill_running_step(self):
         if self.timeout_id:
-            logger.debug('[DmfControlBoardPlugin] _kill_running_step: removing'
+            logger.debug('[DMFControlBoardPlugin] _kill_running_step: removing'
                          'timeout_id=%d' % self.timeout_id)
             gobject.source_remove(self.timeout_id)
 
     def _callback_step_completed(self):
-        logger.debug('[DmfControlBoardPlugin] _callback_step_completed')
+        logger.debug('[DMFControlBoardPlugin] _callback_step_completed')
         self.step_complete()
         return False  # stop the timeout from refiring
 
     def _callback_retry_action_completed(self, options):
-        logger.debug('[DmfControlBoardPlugin] '
+        logger.debug('[DMFControlBoardPlugin] '
                      '_callback_retry_action_completed')
         app = get_app()
         app_values = self.get_app_values()
@@ -908,7 +908,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
     def _callback_sweep_frequency(self, options, results, state, frequencies,
                                   first_call=False):
-        logger.debug('[DmfControlBoardPlugin] '
+        logger.debug('[DMFControlBoardPlugin] '
                      '_callback_sweep_frequency')
         app = get_app()
         app_values = self.get_app_values()
@@ -937,7 +937,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 int(math.ceil(options.duration /
                               app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'], state)
-            logger.debug('[DmfControlBoardPlugin] _callback_sweep_frequency: '
+            logger.debug('[DMFControlBoardPlugin] _callback_sweep_frequency: '
                          'timeout_add(%d, _callback_sweep_frequency)' %
                          options.duration)
             self.timeout_id = gobject.timeout_add(options.duration,
@@ -951,7 +951,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
 
     def _callback_sweep_voltage(self, options, results, state, voltages,
                                 first_call=False):
-        logger.debug('[DmfControlBoardPlugin] '
+        logger.debug('[DMFControlBoardPlugin] '
                      '_callback_sweep_voltage')
         app = get_app()
         app_values = self.get_app_values()
@@ -980,7 +980,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
                 int(math.ceil(options.duration /
                               app_values['sampling_time_ms'])),
                 app_values['delay_between_samples_ms'], state)
-            logger.debug('[DmfControlBoardPlugin] _callback_sweep_voltage: '
+            logger.debug('[DMFControlBoardPlugin] _callback_sweep_voltage: '
                          'timeout_add(%d, _callback_sweep_voltage)' %
                          options.duration)
             self.timeout_id = \
@@ -1036,7 +1036,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Parameters:
             voltage : RMS voltage
         """
-        logger.info("[DmfControlBoardPlugin].set_voltage(%.1f)" % voltage)
+        logger.info("[DMFControlBoardPlugin].set_voltage(%.1f)" % voltage)
         self.control_board.set_waveform_voltage(voltage)
 
     def set_frequency(self, frequency):
@@ -1046,7 +1046,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         Parameters:
             frequency : frequency in Hz
         """
-        logger.info("[DmfControlBoardPlugin].set_frequency(%.1f)" % frequency)
+        logger.info("[DMFControlBoardPlugin].set_frequency(%.1f)" % frequency)
         self.control_board.set_waveform_frequency(frequency)
         self.current_frequency = frequency
 
@@ -1081,11 +1081,11 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
         return results
 
     def get_default_step_options(self):
-        return DmfControlBoardOptions()
+        return DMFControlBoardOptions()
 
     def set_step_values(self, values_dict, step_number=None):
         step_number = self.get_step_number(step_number)
-        logger.debug('[DmfControlBoardPlugin] set_step[%d]_values(): '
+        logger.debug('[DMFControlBoardPlugin] set_step[%d]_values(): '
                      'values_dict=%s' % (step_number, values_dict,))
         el = self.StepFields(value=values_dict)
         try:
@@ -1133,7 +1133,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             return getattr(options.feedback_options, name)
 
     def on_step_options_changed(self, plugin, step_number):
-        logger.debug('[DmfControlBoardPlugin] on_step_options_changed(): %s '
+        logger.debug('[DMFControlBoardPlugin] on_step_options_changed(): %s '
                      'step #%d' % (plugin, step_number))
         app = get_app()
         if self.feedback_options_controller:
@@ -1145,7 +1145,7 @@ class DmfControlBoardPlugin(Plugin, StepOptionsController, AppDataController):
             self.on_step_run()
 
     def on_step_swapped(self, original_step_number, new_step_number):
-        logger.debug('[DmfControlBoardPlugin] on_step_swapped():'
+        logger.debug('[DMFControlBoardPlugin] on_step_swapped():'
                      'original_step_number=%d, new_step_number=%d' %
                      (original_step_number, new_step_number))
         self.on_step_options_changed(self.name,

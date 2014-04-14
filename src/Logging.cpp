@@ -18,7 +18,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <string.h>
-#include "logging.h"
+#include "Logging.h"
 
 #include <iostream>
 #include <stdio.h>
@@ -27,14 +27,14 @@ using namespace std;
 
 uint8_t Logging::log_level_ = Logging::DEBUG;
 
-void Logging::LogMessage(uint8_t log_level,
-                         const char* message,
-                         const char* class_name,
-                         const char* function_name) {
-  if(log_level<=log_level_) {
-    PrintClassAndFunction(class_name,function_name);
-    Print(message);
-    Print("\r\n");
+void Logging::log_message(uint8_t log_level,
+                          const char* message,
+                          const char* class_name,
+                          const char* function_name) {
+  if(log_level <= log_level_) {
+    print_class_and_function(class_name, function_name);
+    print(message);
+    print("\r\n");
   }
 }
 
@@ -43,45 +43,45 @@ void Logging::LogMessage(uint8_t log_level,
  * \param log_level message priority
  * \param message the format of the message (same as printf)
  */
-void Logging::LogMessageF(uint8_t log_level,
-			  const char* message,
-			  const char* class_name,
-			  const char* function_name,
-			  ... ) {
-  if(log_level<=log_level_) {
-    PrintClassAndFunction(class_name,function_name);
+void Logging::log_message_f(uint8_t log_level,
+                            const char* message,
+                            const char* class_name,
+                            const char* function_name,
+                            ... ) {
+  if(log_level <= log_level_) {
+    print_class_and_function(class_name, function_name);
     va_list argList;
     va_start(argList, message);
     vprintf(message, argList);
     va_end(argList);
-    Print("\r\n");
+    print("\r\n");
   }
 }
 
-void Logging::LogSeparator(char s) {
+void Logging::log_separator(char s) {
   char separator[81];
   memset(separator,s,80);
   separator[80] = 0;
-  Print(separator);
-  Print("\r\n");
+  print(separator);
+  print("\r\n");
 }
 
-void Logging::PrintClassAndFunction(const char* class_name,
-                                  const char* function_name) {
+void Logging::print_class_and_function(const char* class_name,
+                                       const char* function_name) {
   if(class_name) {
-    Print(class_name);
+    print(class_name);
   }
-  if(class_name&&function_name) {
-    Print("::");
+  if(class_name && function_name) {
+    print("::");
   }
   if(function_name) {
-    Print(function_name);
+    print(function_name);
   }
-  if(class_name||function_name) {
-    Print(": ");
+  if(class_name || function_name) {
+    print(": ");
   }
 }
 
-void Logging::Print(const char* str) {
-  cout<<str<<flush;
+void Logging::print(const char* str) {
+  cout << str << flush;
 }
