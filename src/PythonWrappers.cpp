@@ -26,6 +26,7 @@ using namespace boost::python;
 const uint16_t RemoteObject::PERSISTENT_PIN_MODE_ADDRESS;
 const uint16_t RemoteObject::PERSISTENT_PIN_STATE_ADDRESS;
 const uint16_t RemoteObject::PERSISTENT_BAUD_RATE_ADDRESS;
+const uint16_t RemoteObject::PERSISTENT_SERIAL_NUMBER_ADDRESS;
 const uint8_t RemoteObject::RETURN_OK;
 const uint8_t RemoteObject::RETURN_GENERAL_ERROR;
 const uint8_t RemoteObject::RETURN_UNKNOWN_COMMAND;
@@ -84,6 +85,7 @@ object DMFControlBoard_class
     .def("software_version",&DMFControlBoard::software_version)
     .def("hardware_version",&DMFControlBoard::hardware_version)
     .def("url",&DMFControlBoard::url)
+    .def("mcu_type",&DMFControlBoard::mcu_type)
     .def("set_pin_mode",&DMFControlBoard::set_pin_mode)
     .def("digital_read",&DMFControlBoard::digital_read)
     .def("digital_write",&DMFControlBoard::digital_write)
@@ -157,6 +159,8 @@ DMFControlBoard_class.attr("PERSISTENT_PIN_STATE_ADDRESS") = \
     DMFControlBoard::PERSISTENT_PIN_STATE_ADDRESS;
 DMFControlBoard_class.attr("PERSISTENT_BAUD_RATE_ADDRESS") = \
     DMFControlBoard::PERSISTENT_BAUD_RATE_ADDRESS;
+DMFControlBoard_class.attr("PERSISTENT_SERIAL_NUMBER_ADDRESS") = \
+    DMFControlBoard::PERSISTENT_SERIAL_NUMBER_ADDRESS;
 DMFControlBoard_class.attr("RETURN_OK") = DMFControlBoard::RETURN_OK;
 DMFControlBoard_class.attr("RETURN_GENERAL_ERROR") = \
     DMFControlBoard::RETURN_GENERAL_ERROR;

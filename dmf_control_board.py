@@ -320,6 +320,22 @@ class DMFControlBoard(Base, SerialDevice):
         self.__baud_rate = rate
 
     @property
+    def serial_number(self):
+        data = np.zeros(4)
+        for i in range(0, 4):
+            data[i] = self.persistent_read(
+                self.PERSISTENT_SERIAL_NUMBER_ADDRESS + i)
+        return unpack('L', pack('BBBB', *data))[0]
+
+    @serial_number.setter
+    def serial_number(self, number):
+        data = unpack('BBBB', pack('L', number))
+        for i in range(0, 4):
+            self.persistent_write(self.PERSISTENT_SERIAL_NUMBER_ADDRESS + i,
+                                  data[i])
+        self.__serial_number = number
+
+    @property
     def voltage_tolerance(self):
         data = np.zeros(4)
         for i in range(0, 4):

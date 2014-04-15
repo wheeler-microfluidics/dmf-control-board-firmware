@@ -89,9 +89,10 @@ public:
                                         // communication bus
 #endif
   // Persistent storage _(e.g., EEPROM)_ addresses.
-  static const uint16_t PERSISTENT_PIN_MODE_ADDRESS =      0;
-  static const uint16_t PERSISTENT_PIN_STATE_ADDRESS =     7;
-  static const uint16_t PERSISTENT_BAUD_RATE_ADDRESS =    15;
+  static const uint16_t PERSISTENT_PIN_MODE_ADDRESS =       0;
+  static const uint16_t PERSISTENT_PIN_STATE_ADDRESS =      7;
+  static const uint16_t PERSISTENT_BAUD_RATE_ADDRESS =     15;
+  static const uint16_t PERSISTENT_SERIAL_NUMBER_ADDRESS = 19;
 
   // protocol constants
   static const uint16_t MAX_PAYLOAD_LENGTH =            2000;
@@ -122,7 +123,7 @@ public:
   static const uint8_t CMD_SPI_SET_DATA_MODE =          0x95;
   static const uint8_t CMD_SPI_TRANSFER =               0x96;
   static const uint8_t CMD_GET_DEBUG_BUFFER =           0x97;
-
+  static const uint8_t CMD_GET_MCU_TYPE =               0x98;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                      0x00;
@@ -135,6 +136,8 @@ public:
   static const uint8_t RETURN_BAD_CRC =                 0x07;
   static const uint8_t RETURN_BAD_VALUE =               0x08;
   static const uint8_t RETURN_MAX_PAYLOAD_EXCEEDED =    0x09;
+
+  static const char MCU_TYPE_[];
 
   RemoteObject(bool crc_enabled_
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
@@ -236,6 +239,8 @@ public:
             return std::string("CMD_SPI_TRANSFER");
         } else if (command == CMD_GET_DEBUG_BUFFER) {
             return std::string("CMD_GET_DEBUG_BUFFER");
+        } else if (command == CMD_GET_MCU_TYPE) {
+            return std::string("CMD_GET_MCU_TYPE");
         } else {
             throw std::runtime_error("Invalid command.");
         }
@@ -260,6 +265,8 @@ public:
   std::string hardware_version();
   /**\brief Get the remote device's url.*/
   std::string url();
+  /**\brief Get the mcu type of the remote device.*/
+  std::string mcu_type();
   std::vector<uint8_t> debug_buffer();
   void set_pin_mode(uint8_t pin, bool mode);
   uint8_t digital_read(uint8_t pin);

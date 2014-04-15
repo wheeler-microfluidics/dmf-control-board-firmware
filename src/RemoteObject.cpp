@@ -46,6 +46,13 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   using boost::format;
 #endif
 
+
+#ifdef __SAM3X8E__
+  const char RemoteObject::MCU_TYPE_[] = "SAM3X8E";
+#else
+  const char RemoteObject::MCU_TYPE_[] = "ATmega2560";
+#endif // __SAM3X8E__
+
 RemoteObject::RemoteObject(bool crc_enabled
 #if !( defined(AVR) || defined(__SAM3X8E__) ) 
                            ,const char* class_name //used for logging
@@ -371,6 +378,14 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
     case CMD_GET_URL:
       if (payload_length() == 0) {
         serialize(url(), strlen(url()));
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_MCU_TYPE:
+      if (payload_length() == 0) {
+        serialize(MCU_TYPE_, strlen(MCU_TYPE_));
         return_code_ = RETURN_OK;
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
@@ -1031,6 +1046,19 @@ string /* HOST */ RemoteObject::url() {
     string url = read_string();
     log_message(str(format("url=%s") % url).c_str(), function_name);
     return url;
+  }
+  return "";
+}
+
+string /* HOST */ RemoteObject::mcu_type() {
+  const char* function_name = "mcu_type()";
+  log_separator();
+  log_message("send command", function_name);
+  if (send_command(CMD_GET_MCU_TYPE) == RETURN_OK) {
+    string mcu_type = read_string();
+    log_message(str(format("mcu_type=%s") % mcu_type).c_str(),
+      function_name);
+    return mcu_type;
   }
   return "";
 }
