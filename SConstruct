@@ -86,7 +86,7 @@ if os.name == 'nt':
     # Build host binaries
 
     Export('env')
-    VariantDir('build/host', 'src', duplicate=0)
+    VariantDir('build/host', 'dmf_control_board/src', duplicate=0)
     SConscript('build/host/SConscript.host')
 
     # Copy dlls to the current dir if necessary
@@ -94,11 +94,11 @@ if os.name == 'nt':
             get_lib('mingwm10.dll')]
     for lib in libs:
         if path(lib.name).exists()==False:
-            path(lib).copy('.')
+            path(lib).copy('dmf_control_board/')
         extra_files.append(lib.name)
 
     # Build Arduino binaries
-    VariantDir('build/arduino', 'src', duplicate=0)
+    VariantDir('build/arduino', 'dmf_control_board/src', duplicate=0)
     SConscript('build/arduino/SConscript.arduino')
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
@@ -111,11 +111,11 @@ else:
     # Build host binaries
 
     Export('env')
-    VariantDir('build/host', 'src', duplicate=0)
+    VariantDir('build/host', 'dmf_control_board/src', duplicate=0)
     SConscript('build/host/SConscript.host')
 
     # Build Arduino binaries
-    SConscript('src/SConscript.arduino')
+    SConscript('dmf_control_board/src/SConscript.arduino')
 
 Import('arduino_hex')
 Import('arduino_hexes')
@@ -123,39 +123,12 @@ Import('pyext')
 #package_hex = Install('.', arduino_hex)
 package_hexes = []
 for k, v in arduino_hexes.iteritems():
-    firmware_path = path('firmware').joinpath(k)
+    firmware_path = path('dmf_control_board/firmware').joinpath(k)
     package_hexes.append(env.Install(firmware_path, v)[0])
-package_pyext = Install('.', pyext)
+package_pyext = Install('dmf_control_board', pyext)
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
-    SConscript('src/SConscript.docs')
+    SConscript('dmf_control_board/src/SConscript.docs')
     Import('doc')
     Alias('docs', doc)
-
-
-tar_env = Environment(tools = ["default", "disttar"],
-        DISTTAR_EXCLUDEDIRS=['.git'],
-        DISTTAR_EXCLUDERES=[r'\.sconsign\.dblite'],
-        DISTTAR_EXCLUDEEXTS=['.gz', '.pyc', '.tgz', '.swp'])
-
-version_target = Command('version.txt', None,
-                        'echo %s > $TARGET' % SOFTWARE_VERSION)
-plugin_root = path('.').abspath()
-properties_target = plugin_root.joinpath('properties.yml')
-properties = {'plugin_name': 'wheelerlab.dmf_control_board',
-        'package_name': str(plugin_root.name), 'version': SOFTWARE_VERSION}
-properties_target.write_bytes(yaml.dump(properties))
-archive_name = '%s-%s.tar.gz' % (properties['package_name'], SOFTWARE_VERSION)
-
-# This will build an archive using what ever DISTTAR_FORMAT that is set.
-tar = tar_env.DistTar('%s' % properties['package_name'], [tar_env.Dir('#')])
-renamed_tar = tar_env.Command(tar_env.File(archive_name), None,
-        Move(archive_name, tar[0]))
-Depends(tar, package_hexes + [package_pyext, version_target] + extra_files)
-Depends(renamed_tar, tar)
-Clean(renamed_tar, tar)
-
-if 'PLUGIN_ARCHIVE_DIR' in os.environ:
-    target_archive_dir = os.environ['PLUGIN_ARCHIVE_DIR']
-    Install(target_archive_dir, renamed_tar)
