@@ -22,12 +22,15 @@ import time
 import re
 import warnings
 from subprocess import Popen, PIPE, CalledProcessError
+import logging
 
 from path import path
 
 from ..serial_device import SerialDevice, ConnectionError
-from ..__init__ import package_path
-from ..__init__ import logger
+
+
+logger = logging.getLogger()
+
 
 class FirmwareError(Exception):
     pass
@@ -35,7 +38,7 @@ class FirmwareError(Exception):
 
 class AvrDude(SerialDevice):
     def __init__(self, port=None):
-        p = package_path() / path("avr")
+        p = path(os.path.abspath(os.path.dirname(__file__)))
         if os.name == 'nt':
             self.avrdude = (p / path('avrdude.exe')).abspath()
         else:
