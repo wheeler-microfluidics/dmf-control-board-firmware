@@ -22,7 +22,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #if defined(AVR)
   #include "Memory.h"
   #include <EEPROM.h>
-//  #include <TimerOne.h>
+  #include <TimerOne.h>
 #elif defined(__SAM3X8E__)
   #include <DueFlashStorage.h>
   DueFlashStorage EEPROM;
@@ -38,8 +38,8 @@ void callback();
 
 void setup() {
   /* Trigger timer to callback every 5 seconds _(5000000 microseconds)_. */
-  //Timer1.initialize(5000000L);
-  //Timer1.attachInterrupt(callback);
+  Timer1.initialize(5000000L);
+  Timer1.attachInterrupt(callback);
   dmf_control_board.begin();
 #ifdef AVR
   Serial.print("ram="); Serial.println(ram_size(), DEC);
