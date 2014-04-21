@@ -29,6 +29,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include <stdexcept>
 #else
   #include "Arduino.h"
+  #include "Config.h"
 #endif
 #include "RemoteObject.h"
 

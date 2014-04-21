@@ -477,7 +477,7 @@ class DMFControlBoard(Base, SerialDevice):
             hex_path = package_path().joinpath('firmware', '%s_%s'
                                                % (hardware_version.major,
                                                   hardware_version.minor),
-                                               'dmf_driver.hex')
+                                               'dmf_control_board.hex')
             logger.info("hex_path=%s" % hex_path)
 
             logger.info("initializing avrdude")

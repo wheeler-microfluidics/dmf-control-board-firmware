@@ -24,6 +24,7 @@ In addition the serial port open ignores the following options: parity,
 character size, flow, stop bits, and defaults to 8N1 format.
 I know it is bad but at least it's better than nothing.
 */
+#if !( defined(AVR) || defined(__SAM3X8E__) )
 
 #include "SimpleSerial.h"
 
@@ -653,3 +654,5 @@ std::vector<char>::iterator SimpleSerial::findStringInVector(
         it=result+1;
     }
 }
+
+#endif //!( defined(AVR) || defined(__SAM3X8E__) )

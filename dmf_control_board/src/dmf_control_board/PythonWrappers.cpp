@@ -16,6 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 */
+#if !( defined(AVR) || defined(__SAM3X8E__) )
 
 #include <boost/python.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
@@ -181,3 +182,5 @@ DMFControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = \
 DMFControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = \
     DMFControlBoard::MAX_PAYLOAD_LENGTH;
 }
+
+#endif //!( defined(AVR) || defined(__SAM3X8E__) )

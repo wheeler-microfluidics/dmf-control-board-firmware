@@ -86,7 +86,7 @@ if os.name == 'nt':
     # Build host binaries
 
     Export('env')
-    VariantDir('build/host', 'dmf_control_board/src', duplicate=0)
+    VariantDir('build/host', 'dmf_control_board/src/dmf_control_board', duplicate=0)
     SConscript('build/host/SConscript.host')
 
     # Copy dlls to the current dir if necessary
@@ -98,7 +98,7 @@ if os.name == 'nt':
         extra_files.append(lib.name)
 
     # Build Arduino binaries
-    VariantDir('build/arduino', 'dmf_control_board/src', duplicate=0)
+    VariantDir('build/arduino', 'dmf_control_board/src/dmf_control_board', duplicate=0)
     SConscript('build/arduino/SConscript.arduino')
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
@@ -111,11 +111,11 @@ else:
     # Build host binaries
 
     Export('env')
-    VariantDir('build/host', 'dmf_control_board/src', duplicate=0)
+    VariantDir('build/host', 'dmf_control_board/src/dmf_control_board', duplicate=0)
     SConscript('build/host/SConscript.host')
 
     # Build Arduino binaries
-    SConscript('dmf_control_board/src/SConscript.arduino')
+    SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
 
 Import('arduino_hex')
 Import('arduino_hexes')
@@ -129,6 +129,6 @@ package_pyext = Install('dmf_control_board', pyext)
 
 # Build documentation
 if 'docs' in COMMAND_LINE_TARGETS:
-    SConscript('dmf_control_board/src/SConscript.docs')
+    SConscript('dmf_control_board/src/dmf_control_board/SConscript.docs')
     Import('doc')
     Alias('docs', doc)

@@ -35,12 +35,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
     extern DueFlashStorage EEPROM;
   #endif
   #include <math.h>
-
-  // macros for converting hardware major/minor versions to a version string
-  #define STR_VALUE(arg) #arg
-  #define DEFINE_TO_STRING(name) STR_VALUE(name)
-  #define ___HARDWARE_VERSION___ \
-   DEFINE_TO_STRING(___HARDWARE_MAJOR_VERSION___.___HARDWARE_MINOR_VERSION___)
 #endif
 
 #ifdef AVR // only on Arduino Mega 2560

@@ -12,3 +12,4 @@ dist
 *.yml
 RELEASE-VERSION
 *.egg-info
+dmf_control_board/src/dmf_control_board/Config.h
