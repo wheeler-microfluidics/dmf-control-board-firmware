@@ -24,7 +24,8 @@ In addition the serial port open ignores the following options: parity,
 character size, flow, stop bits, and defaults to 8N1 format.
 I know it is bad but at least it's better than nothing.
 */
-#if !( defined(AVR) || defined(__SAM3X8E__) )
+
+#if !( defined(AVR) || defined(__SAM3X8E__) ) // this file is not compiled by the Arduino IDE
 
 #include "SimpleSerial.h"
 

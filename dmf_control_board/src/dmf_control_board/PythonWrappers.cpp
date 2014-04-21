@@ -16,7 +16,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 */
-#if !( defined(AVR) || defined(__SAM3X8E__) )
+
+#if !( defined(AVR) || defined(__SAM3X8E__) ) // this file is not compiled by the Arduino IDE
 
 #include <boost/python.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
