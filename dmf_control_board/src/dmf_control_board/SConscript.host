@@ -2,16 +2,17 @@ Import('env')
 
 import os
 import re
+from pprint import pprint
 
 Import('SOFTWARE_VERSION')
 
 host_defines = {'___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION}
 host_defines.update(env.get('CPPDEFINES', {}))
 
-pyext = env.SharedLibrary('dmf_control_board_base',
-                Glob('*.cpp'),
-                CPPDEFINES=host_defines,
-                SHLIBPREFIX='')
+
+pyext = env.SharedLibrary('dmf_control_board_base', Glob('*.cpp'),
+                          CPPDEFINES=host_defines, SHLIBPREFIX='')
+
 if os.name == 'nt':
     # In Windows, we must rename the compiled dll to have the extension 'pyd'.
     # Otherwise, it will not be recognizes as a Python extension.

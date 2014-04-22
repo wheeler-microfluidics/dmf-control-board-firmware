@@ -3,7 +3,7 @@ import sys
 
 from SCons.Script import File
 
-from path import path
+from path_helpers import path
 
 
 def get_lib_paths():
@@ -15,7 +15,8 @@ def get_lib_paths():
             lib_paths.update(os.environ['LIBRARY_PATH'].split(':'))
         if os.environ.has_key('LD_LIBRARY_PATH'):
             lib_paths.update(os.environ['LD_LIBRARY_PATH'].split(':'))
-        lib_paths = ['/usr/lib', '/usr/local/lib'] + list(lib_paths)
+        lib_paths = (['/usr/lib', '/usr/lib/x86_64-linux-gnu',
+                      '/usr/local/lib'] + list(lib_paths))
     return lib_paths
 
 

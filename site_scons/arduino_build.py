@@ -45,7 +45,7 @@ from itertools import imap
 from subprocess import check_call, CalledProcessError
 import json
 
-from path import path
+from path_helpers import path
 from SCons.Environment import Environment
 from SCons.Builder import Builder
 

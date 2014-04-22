@@ -15,3 +15,6 @@ dist
 RELEASE-VERSION
 *.egg-info
 dmf_control_board/src/dmf_control_board/Config.h
+paver-minilib.zip
+setup.py
+.ropeproject

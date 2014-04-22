@@ -21,7 +21,7 @@ import os
 import itertools
 from time import sleep
 
-from path import path
+from path_helpers import path
 
 
 class ConnectionError(Exception):

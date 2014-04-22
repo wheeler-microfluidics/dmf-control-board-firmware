@@ -25,7 +25,7 @@ import logging
 from struct import pack, unpack
 
 import numpy as np
-from path import path
+from path_helpers import path
 from microdrop_utility import Version, FutureVersionError
 
 from dmf_control_board_base import DMFControlBoard as Base
@@ -62,7 +62,7 @@ def get_includes():
 
     For example:
 
-        import dmf_control_board 
+        import dmf_control_board
         ...
         print ' '.join(['-I%s' % i for i in dmf_control_board.get_includes()])
         ...
@@ -71,25 +71,38 @@ def get_includes():
     return [get_sketch_directory()]
 
 
+def get_firmwares():
+    '''
+    Return `dmf_control_board` compiled Arduino hex file paths.
+
+    This function may be used to locate firmware binaries that are available
+    for flashing to [Arduino Mega2560][1] boards.
+
+    [1]: http://arduino.cc/en/Main/arduinoBoardMega2560
+    '''
+    return [f.abspath() for f in
+            package_path().joinpath('firmware').walkfiles('*.hex')]
+
+
 def get_sources():
     '''
     Return `dmf_control_board` Arduino source file paths.
 
-    Modules that need to compile against `dmf_control_board` should use this function
-    to locate the appropriate source files to compile.
+    Modules that need to compile against `dmf_control_board` should use this
+    function to locate the appropriate source files to compile.
 
     Notes
     =====
 
     For example:
 
-        import dmf_control_board 
+        import dmf_control_board
         ...
         print ' '.join(dmf_control_board.get_sources())
         ...
 
     '''
-    return glob.glob(os.path.join(get_sketch_directory(), '*.c*'))
+    return get_sketch_directory().files('*.c*')
 
 
 def safe_getattr(obj, attr, except_types):
@@ -175,8 +188,8 @@ class FeedbackCalibration():
         """
         logging.debug("[FeedbackCalibration]._upgrade()")
         version = Version.fromstring(self.version)
-        logging.debug('[FeedbackCalibration] version=%s, class_version=%s' %
-                      (str(version), self.class_version))
+        logging.debug('[FeedbackCalibration] version=%s, class_version=%s',
+                      rtr(version), self.class_version)
         if version > Version.fromstring(self.class_version):
             logging.debug('[FeedbackCalibration] version>class_version')
             raise FutureVersionError(Version.fromstring(self.class_version),
@@ -189,8 +202,8 @@ class FeedbackCalibration():
             if version < Version(0, 2):
                 self.hw_version = Version(1)
                 self.version = str(Version(0, 2))
-                logging.info('[FeedbackCalibration] upgrade to version %s'
-                             % self.version)
+                logging.info('[FeedbackCalibration] upgrade to version %s',
+                             self.version)
         # else the versions are equal and don't need to be upgraded
 
 

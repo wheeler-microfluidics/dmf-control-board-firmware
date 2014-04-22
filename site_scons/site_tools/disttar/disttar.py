@@ -22,7 +22,7 @@ import re
 
 
 def file_handler(fpath, source, excluderes, excludeexts):
-    from path import path
+    from path_helpers import path
 
     fpath = path(fpath)
     if not fpath.ext in excludeexts:

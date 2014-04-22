@@ -19,4 +19,3 @@ goto :eof
 echo Usage: flash_firmware.bat COM_PORT HEX_FILE
 
 :eof
-

@@ -1,10 +1,12 @@
+import distutils.sysconfig
+from pprint import pprint
 import re
 import os
 import warnings
 import sys
 
 import yaml
-from path import path
+from path_helpers import path
 
 import auto_config
 from get_libs import get_lib
@@ -37,7 +39,7 @@ SOFTWARE_VERSION = get_version_string()
 Export('SOFTWARE_VERSION')
 
 HARDWARE_MAJOR_VERSION_DEFAULT = 2
-HARDWARE_MAJOR_VERSION = ARGUMENTS.get('HARDWARE_MAJOR_VERSION', HARDWARE_MAJOR_VERSION_DEFAULT) 
+HARDWARE_MAJOR_VERSION = ARGUMENTS.get('HARDWARE_MAJOR_VERSION', HARDWARE_MAJOR_VERSION_DEFAULT)
 Export('HARDWARE_MAJOR_VERSION')
 
 HARDWARE_MINOR_VERSION_DEFAULT = 0
@@ -59,7 +61,7 @@ if os.name == 'nt':
 
     # Initialize ENV with OS environment.  Without this, PATH is not set
     # correctly, leading to doxygen not being found in Windows.
-    env = Environment(tools=['mingw'], ENV=os.environ) 
+    env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
     lib_path = [PYTHON_LIB_PATH, BOOST_LIB_PATH]
 
@@ -83,51 +85,55 @@ if os.name == 'nt':
     env.Append(LIBPATH=lib_path)
     env.Append(CPPFLAGS=['-ftemplate-depth-128', '-fno-inline'])
 
-    # Build host binaries
+    # # Build host binaries #
 
     Export('env')
-    VariantDir('build/host', 'dmf_control_board/src/dmf_control_board', duplicate=0)
-    SConscript('build/host/SConscript.host')
+    SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
+               variant_dir='build/host', duplicate=0)
 
-    # Copy dlls to the current dir if necessary
+    #  - Copy dlls to the current directory if necessary.
     libs = [get_lib('libboost_python-*-mt-*.dll'),
             get_lib('mingwm10.dll')]
     for lib in libs:
-        if path(lib.name).exists()==False:
+        if not path(lib.name).exists():
             path(lib).copy('dmf_control_board/')
         extra_files.append(lib.name)
 
-    # Build Arduino binaries
-    VariantDir('build/arduino', 'dmf_control_board/src/dmf_control_board', duplicate=0)
+    # # Build Arduino binaries #
+    VariantDir('build/arduino', 'dmf_control_board/src/dmf_control_board',
+               duplicate=0)
     SConscript('build/arduino/SConscript.arduino')
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
-                    'libboost_thread-mt.so',
-                    'libboost_filesystem-mt.so',
-                    'libboost_system-mt.so']] \
-                    + [PYTHON_LIB])
-    env.Append(CPPPATH=['/usr/include/%s' % PYTHON_LIB])
+                                              'libboost_thread.so',
+                                              'libboost_filesystem.so',
+                                              'libboost_system.so']] +
+               [PYTHON_LIB])
+    env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
 
-    # Build host binaries
-
+    # # Build host binaries #
     Export('env')
-    VariantDir('build/host', 'dmf_control_board/src/dmf_control_board', duplicate=0)
-    SConscript('build/host/SConscript.host')
+    SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
+               variant_dir='build/host', duplicate=0)
 
-    # Build Arduino binaries
+    # # Build Arduino binaries #
+    sketch_build_root = path('build/arduino').abspath()
+    Export('sketch_build_root')
     SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
 
 Import('arduino_hex')
 Import('arduino_hexes')
 Import('pyext')
-#package_hex = Install('.', arduino_hex)
+
+# # Install compiled firmwares to `firmwares` directory #
 package_hexes = []
+
 for k, v in arduino_hexes.iteritems():
     firmware_path = path('dmf_control_board/firmware').joinpath(k)
     package_hexes.append(env.Install(firmware_path, v)[0])
 package_pyext = Install('dmf_control_board', pyext)
 
-# Build documentation
+# # Build documentation #
 if 'docs' in COMMAND_LINE_TARGETS:
     SConscript('dmf_control_board/src/dmf_control_board/SConscript.docs')
     Import('doc')
