@@ -10,7 +10,7 @@ dmf_control_board_files = find_package_data(package='dmf_control_board',
                                             only_in_packages=False)
 pprint(dmf_control_board_files)
 
-setup(name='dmf_control_board',
+setup(name='wheeler.dmf_control_board',
       version=version.getVersion(),
       description='Arduino-based dmf_control_board firmware and Python API.',
       author='Ryan Fobel',
