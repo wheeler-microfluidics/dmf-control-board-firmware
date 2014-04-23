@@ -48,7 +48,7 @@ Export('HARDWARE_MINOR_VERSION')
 
 Import('PYTHON_LIB')
 
-extra_files = []
+
 if os.name == 'nt':
     Import('BOOST_HOME')
     Import('BOOST_LIB_PATH')
@@ -85,24 +85,13 @@ if os.name == 'nt':
     env.Append(LIBPATH=lib_path)
     env.Append(CPPFLAGS=['-ftemplate-depth-128', '-fno-inline'])
 
-    # # Build host binaries #
-
-    Export('env')
-    SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
-               variant_dir='build/host', duplicate=0)
-
     #  - Copy dlls to the current directory if necessary.
     libs = [get_lib('libboost_python-*-mt-*.dll'),
             get_lib('mingwm10.dll')]
     for lib in libs:
-        if not path(lib.name).exists():
-            path(lib).copy('dmf_control_board/')
-        extra_files.append(lib.name)
-
-    # # Build Arduino binaries #
-    VariantDir('build/arduino', 'dmf_control_board/src/dmf_control_board',
-               duplicate=0)
-    SConscript('build/arduino/SConscript.arduino')
+        lib_destination = path('dmf_control_board').joinpath(lib.name)
+        if not lib_destination.exists():
+            path(lib).copy(lib_destination)
 else:
     env.Append(LIBS=[get_lib(lib) for lib in ['libboost_python.so',
                                               'libboost_thread.so',
@@ -111,15 +100,15 @@ else:
                [PYTHON_LIB])
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
 
-    # # Build host binaries #
-    Export('env')
-    SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
-               variant_dir='build/host', duplicate=0)
+# # Build host binaries #
+Export('env')
+SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
+            variant_dir='build/host', duplicate=0)
 
-    # # Build Arduino binaries #
-    sketch_build_root = path('build/arduino').abspath()
-    Export('sketch_build_root')
-    SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
+# # Build Arduino binaries #
+sketch_build_root = path('build/arduino').abspath()
+Export('sketch_build_root')
+SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
 
 Import('arduino_hex')
 Import('arduino_hexes')
