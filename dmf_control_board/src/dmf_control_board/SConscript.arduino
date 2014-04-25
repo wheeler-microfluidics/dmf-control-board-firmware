@@ -18,12 +18,11 @@ hybrid_sources = re.split(r'\s+', 'DMFControlBoard.cpp RemoteObject.cpp')
 arduino_hexes = {}
 for major, minor in versions:
     version_str = '%s_%s' % (major, minor)
-    context = ArduinoBuildContext(ARGUMENTS,
-                                  build_root=sketch_build_root
-                                  .joinpath(version_str))
+    build_context = ArduinoBuildContext(ARGUMENTS, build_root=sketch_build_root
+                                        .joinpath(version_str))
     version_match = (int(HARDWARE_MAJOR_VERSION) == int(major) and \
                      int(HARDWARE_MINOR_VERSION) == int(minor))
-    arduino_hex = context.build(env_dict={'CPPDEFINES': {
+    arduino_hex = build_context.build(env_dict={'CPPDEFINES': {
             '___SOFTWARE_VERSION___': '\\"%s\\"' % SOFTWARE_VERSION,
             '___HARDWARE_MAJOR_VERSION___': major,
             '___HARDWARE_MINOR_VERSION___': minor}},
@@ -34,5 +33,6 @@ arduino_hex = sorted([(k, v) for k, v in arduino_hexes.items()])[-1][1]
 
 Export('arduino_hex')
 Export('arduino_hexes')
+Export('build_context')
 
 # vim: et sw=4 fenc=utf-8:

@@ -33,7 +33,7 @@ from dmf_control_board_base import uint8_tVector
 # Import firmware constants
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
-from avr import AvrDude
+from avr_helpers import AvrDude
 
 
 logger = logging.getLogger()
@@ -80,8 +80,10 @@ def get_firmwares():
 
     [1]: http://arduino.cc/en/Main/arduinoBoardMega2560
     '''
-    return [f.abspath() for f in
-            package_path().joinpath('firmware').walkfiles('*.hex')]
+    return OrderedDict([(board_dir.name, [f.abspath() for f in
+                                          board_dir.walkfiles('*.hex')])
+                        for board_dir in
+                        package_path().joinpath('firmware').dirs()])
 
 
 def get_sources():
@@ -542,14 +544,18 @@ class DMFControlBoard(Base, SerialDevice):
         if reconnect:
             self.disconnect()
         try:
-            hex_path = package_path().joinpath('firmware', '%s_%s'
+            hex_path = package_path().joinpath('firmware', 'mega2560', '%s_%s'
                                                % (hardware_version.major,
                                                   hardware_version.minor),
                                                'dmf_control_board.hex')
             logger.info("hex_path=%s" % hex_path)
 
             logger.info("initializing avrdude")
-            avrdude = AvrDude(self.port)
+            protocol = 'wiring'
+            baud_rate = 115200
+            microcontroller = 'mega2560'
+            avrdude = AvrDude(protocol, microcontroller, baud_rate,
+                              port=self.port)
 
             logger.info("flashing firmware: hardware version %s"
                         % (hardware_version))

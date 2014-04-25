@@ -113,12 +113,15 @@ SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
 Import('arduino_hex')
 Import('arduino_hexes')
 Import('pyext')
+Import('build_context')
 
 # # Install compiled firmwares to `firmwares` directory #
 package_hexes = []
 
 for k, v in arduino_hexes.iteritems():
-    firmware_path = path('dmf_control_board/firmware').joinpath(k)
+    firmware_path = path('dmf_control_board').joinpath('firmware',
+                                                       build_context
+                                                       .ARDUINO_BOARD, k)
     package_hexes.append(env.Install(firmware_path, v)[0])
 package_pyext = Install('dmf_control_board', pyext)
 
