@@ -484,13 +484,13 @@ class DMFControlBoard(Base, SerialDevice):
     def analog_reads(self, pin, n_samples):
         return np.array(Base.analog_reads(self, pin, n_samples))
 
-    def measure_impedance_non_blocking(self, sampling_time_ms, n_samples,
-                                       delay_between_samples_ms, state):
+    def measure_impedance_non_blocking(self, settling_time_ms, delta_t_ms,
+                                       n_samples, state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        Base.measure_impedance_non_blocking(self, sampling_time_ms, n_samples,
-                                            delay_between_samples_ms, state_)
+        Base.measure_impedance_non_blocking(self, settling_time_ms,
+                                            delt_t_ms, n_samples, state_)
 
     def get_impedance_data(self):
         impedance = np.array(Base.get_impedance_data(self))
@@ -500,14 +500,14 @@ class DMFControlBoard(Base, SerialDevice):
         fb_resistor = impedance[3::4].astype(int)
         return (V_hv, hv_resistor, V_fb, fb_resistor)
 
-    def measure_impedance(self, sampling_time_ms, n_samples,
-                          delay_between_samples_ms, state):
+    def measure_impedance(self, settling_time_ms, delta_t_ms, n_samples,
+                          state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        impedance = np.array(Base.measure_impedance(self,
-                             sampling_time_ms, n_samples,
-                             delay_between_samples_ms, state_))
+        impedance = np.array(Base.measure_impedance(self, settling_time_ms,
+                                                    delta_t_ms, n_samples,
+                                                    state_))
         V_hv = impedance[0::4]
         hv_resistor = impedance[1::4].astype(int)
         V_fb = impedance[2::4]

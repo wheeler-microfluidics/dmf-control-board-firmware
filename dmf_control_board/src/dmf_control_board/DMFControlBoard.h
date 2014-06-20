@@ -38,6 +38,9 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #define ATX_POWER_SUPPLY
 #endif
 
+
+#if defined(AVR) || defined(__SAM3X8E__)
+
 class DMFControlBoard : public RemoteObject {
 public:
   static const uint8_t SINE = 0;
@@ -53,7 +56,6 @@ public:
     uint16_t micro;
   };
 
-#if defined(AVR) || defined(__SAM3X8E__)
   struct watchdog_t {
     /* # `watchdog_t` #
      *
@@ -78,6 +80,51 @@ public:
   };
 
   struct ConfigSettings {
+    uint8_t n_series_resistors(uint8_t channel) {
+      switch(channel) {
+        case 0:
+          return sizeof(A0_series_resistance)/sizeof(float);
+          break;
+        case 1:
+          return sizeof(A1_series_resistance)/sizeof(float);
+          break;
+        // we should never get here
+        default:
+          return 0;
+          break;
+      }
+    }
+
+    float series_resistance(uint8_t channel, uint8_t index) {
+      switch(channel) {
+        case 0:
+          return A0_series_resistance[index];
+          break;
+        case 1:
+          return A1_series_resistance[index];
+          break;
+        // we should never get here
+        default:
+          return 0;
+          break;
+      }
+    }
+
+    float series_capacitance(uint8_t channel, uint8_t index) {
+      switch(channel) {
+        case 0:
+          return A0_series_capacitance[index];
+          break;
+        case 1:
+          return A1_series_capacitance[index];
+          break;
+        // we should never get here
+        default:
+          return 0;
+          break;
+      }
+    }
+
     /**\brief This is the software version that the persistent configuration
      * data was written with.*/
     version_t version;
@@ -97,8 +144,8 @@ public:
       POT_WAVEOUT_GAIN_2 is set to 255.*/
       uint8_t waveout_gain_1;
 
-      /**\brief This byte sets the value of the virtual ground reference (between
-      0 and 5V).*/
+      /**\brief This byte sets the value of the virtual ground reference
+      (between 0 and 5V).*/
       uint8_t vgnd;
 
       /**\brief Series resistor values for channel 0.*/
@@ -297,14 +344,14 @@ public:
   uint8_t set_atx_power_state(bool state);
 
   // other functions
-  void measure_impedance_non_blocking(uint16_t sampling_time_ms,
+  void measure_impedance_non_blocking(uint16_t settling_time_ms,
+                                      uint16_t delta_t_ms,
                                       uint16_t n_samples,
-                                      uint16_t delay_between_samples_ms,
                                       const std::vector<uint8_t> state);
   std::vector<float> get_impedance_data();
-  std::vector<float> measure_impedance(uint16_t sampling_time_ms,
+  std::vector<float> measure_impedance(uint16_t settling_time_ms,
+                                       uint16_t delta_t_ms,
                                        uint16_t n_samples,
-                                       uint16_t delay_between_samples_ms,
                                        const std::vector<uint8_t> state);
   uint8_t reset_config_to_defaults();
   std::string host_name() { return NAME_; }
@@ -313,6 +360,11 @@ public:
   std::string host_url() { return URL_; }
 #else  // #ifndef AVR
   void begin();
+
+  void update_amplifier_gain();
+  uint16_t measure_impedance(uint16_t settling_time_ms,
+                             uint16_t delta_t_ms,
+                             uint16_t n_samples);
 
   // local accessors
   const char* protocol_name() { return PROTOCOL_NAME_; }
@@ -466,9 +518,13 @@ private:
 #if defined(AVR) || defined(__SAM3X8E__)
   uint16_t number_of_channels_;
   uint8_t sampling_rate_index_;
-  uint8_t A0_series_resistor_index_;
-  uint8_t A1_series_resistor_index_;
-  uint8_t peak_;
+  uint8_t series_resistor_indices_[2];
+  ADCBuffer hv_buffer_;
+  ADCBuffer fb_buffer_;
+  /* Relative fraction of time between impedance samples to sample the ADC,
+  leaving (1- relative_sampling_time_) for filtering and/or calculating
+  pk-pk/rms.*/
+  float relative_sampling_time_;
   float waveform_voltage_;
   float waveform_frequency_;
   float amplifier_gain_;
