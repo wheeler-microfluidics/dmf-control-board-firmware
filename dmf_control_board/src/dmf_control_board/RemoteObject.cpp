@@ -21,6 +21,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #if defined(AVR)
   #include <util/crc16.h>
+  #include <AdvancedADC.h>
 #endif
 #if defined(AVR) || defined(__SAM3X8E__)
   #include "Arduino.h"
@@ -28,6 +29,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include <SPI.h>
   #include <OneWire.h>
   #ifdef AVR
+    #include <AdvancedADC.h>
     #include <EEPROM.h>
   #elif defined(__SAM3X8E__)
     #include <DueFlashStorage.h>
@@ -446,15 +448,13 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
           return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
         } else {
           return_code_ = RETURN_OK;
-
-          // point the voltage_buffer_ to the payload_buffer_
-          uint16_t* buffer_ = (uint16_t*)payload();
+          // perform analog reads
+          AdvancedADC.setBuffer((uint16_t*)payload(), n_samples);
+          AdvancedADC.setChannel(pin);
+          AdvancedADC.begin();
+          while(!AdvancedADC.finished());
           // update the number of bytes written
           bytes_written(n_samples*sizeof(uint16_t));
-          // perform analogReads
-          for (uint16_t i = 0; i < n_samples; i++) {
-            buffer_[i] = analogRead(pin);
-          }
         }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
