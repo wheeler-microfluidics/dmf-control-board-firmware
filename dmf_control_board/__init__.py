@@ -191,7 +191,7 @@ class FeedbackCalibration():
         logging.debug("[FeedbackCalibration]._upgrade()")
         version = Version.fromstring(self.version)
         logging.debug('[FeedbackCalibration] version=%s, class_version=%s',
-                      rtr(version), self.class_version)
+                      str(version), self.class_version)
         if version > Version.fromstring(self.class_version):
             logging.debug('[FeedbackCalibration] version>class_version')
             raise FutureVersionError(Version.fromstring(self.class_version),

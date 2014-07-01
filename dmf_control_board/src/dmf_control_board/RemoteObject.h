@@ -96,7 +96,7 @@ public:
 
   // protocol constants
   static const uint16_t MAX_PAYLOAD_LENGTH =            2000;
-  static const uint16_t MAX_DEBUG_BUFFER_LENGTH =       1000;
+  static const uint16_t MAX_DEBUG_BUFFER_LENGTH =       100;
 
   // reserved commands
   static const uint8_t CMD_GET_PROTOCOL_NAME =          0x80;

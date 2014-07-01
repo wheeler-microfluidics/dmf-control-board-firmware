@@ -23,6 +23,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
   #include "Memory.h"
   #include <EEPROM.h>
   #include <TimerOne.h>
+  #include <AdvancedADC.h>
 #elif defined(__SAM3X8E__)
   #include <DueFlashStorage.h>
   DueFlashStorage EEPROM;
