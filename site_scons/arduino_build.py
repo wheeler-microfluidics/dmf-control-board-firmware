@@ -46,6 +46,7 @@ from subprocess import check_call, CalledProcessError
 import json
 
 from path_helpers import path
+import serial_device
 from SCons.Environment import Environment
 from SCons.Builder import Builder
 
@@ -167,10 +168,8 @@ class ArduinoBuildContext(object):
             # For Ubuntu Linux (12.04 or higher)
             self.ARDUINO_HOME = self.resolve_var('ARDUINO_HOME',
                                                  '/usr/share/arduino/')
-            self.ARDUINO_PORT = self.resolve_var('ARDUINO_PORT',
-                                                 get_usb_tty('/dev/ttyUSB*'))
-            default_sketchbook_home = os.path.expanduser('~/share/arduino/'
-                                                         'sketchbook/')
+            self.ARDUINO_PORT = self.resolve_var('ARDUINO_PORT', None)
+            default_sketchbook_home = os.path.expanduser('~/sketchbook/')
             if not os.path.exists(default_sketchbook_home):
                 default_sketchbook_home = ''
             self.SKETCHBOOK_HOME = self.resolve_var('SKETCHBOOK_HOME',
@@ -525,6 +524,18 @@ class ArduinoBuildContext(object):
         '''
         Return handle to built `.hex`-file rule.
         '''
+        if not self.ARDUINO_PORT:
+            # Discover available serial ports.
+            available_ports = list(serial_device.get_serial_ports())
+            if len(available_ports) > 1:
+                raise SystemExit('There are multiple serial ports.  Use '
+                                 '`ARDUINO_PORT=<port>` to specify which '
+                                 'port to use. Available ports: %s' %
+                                 available_ports)
+            elif not available_ports:
+                raise SystemExit('There are no available serial ports.')
+            else:
+                self.ARDUINO_PORT = available_ports[0]
         if hex_root is None:
             hex_root = self.build_root.joinpath('hex')
         else:
