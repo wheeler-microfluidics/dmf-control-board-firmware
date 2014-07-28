@@ -376,7 +376,7 @@ class ArduinoBuildContext(object):
         upload_protocol = self.get_board_conf('upload.protocol')
         upload_speed = self.get_board_conf('upload.speed')
 
-        avrdude_opts = ['-V', '-F', '-c %s' % upload_protocol,
+        avrdude_opts = ['-D', '-V', '-F', '-c %s' % upload_protocol,
                         '-b %s' % upload_speed, '-p %s' % self.MCU,
                         '-P %s' % self.ARDUINO_PORT,
                         '-U flash:w:$SOURCES']
