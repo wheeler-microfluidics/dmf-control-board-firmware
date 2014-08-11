@@ -434,30 +434,36 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
       }
       break;
     case CMD_ANALOG_READ:
-      uint8_t pin;
+      uint8_t n_channels;
       uint16_t n_samples;
-      if (payload_length() == 1 ||
-         payload_length() == sizeof(uint8_t) + sizeof(uint16_t)) {
-        pin = read<uint8_t>();
-        if (payload_length() == 1) {
-          n_samples = 1;
-        } else {
-          n_samples = read<uint16_t>();
+      return_code_ = RETURN_BAD_PACKET_SIZE;
+      if (payload_length() >= 2) {
+        n_channels = read<uint8_t>();
+        uint8_t pins[n_channels];
+        if ( (payload_length() == 2 && n_channels == 1) ||
+             (payload_length() == (1+n_channels)*sizeof(uint8_t) +
+                 sizeof(uint16_t)) ) {
+          for (uint8_t i = 0; i < n_channels; i++) {
+            pins[i] = read<uint8_t>();
+          }
+          if (payload_length() == 2) {
+            n_samples = 1;
+          } else {
+            n_samples = read<uint16_t>();
+          }
+          if (n_samples > (MAX_PAYLOAD_LENGTH)/sizeof(uint16_t)) {
+            return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
+          } else {
+            return_code_ = RETURN_OK;
+            // perform analog reads
+            AdvancedADC.setBuffer((uint16_t*)payload(), n_samples);
+            AdvancedADC.setChannels(pins, n_channels);
+            AdvancedADC.begin();
+            while(!AdvancedADC.finished());
+            // update the number of bytes written
+            bytes_written(n_samples*sizeof(uint16_t));
+          }
         }
-        if (n_samples > (MAX_PAYLOAD_LENGTH)/sizeof(uint16_t)) {
-          return_code_ = RETURN_MAX_PAYLOAD_EXCEEDED;
-        } else {
-          return_code_ = RETURN_OK;
-          // perform analog reads
-          AdvancedADC.setBuffer((uint16_t*)payload(), n_samples);
-          AdvancedADC.setChannel(pin);
-          AdvancedADC.begin();
-          while(!AdvancedADC.finished());
-          // update the number of bytes written
-          bytes_written(n_samples*sizeof(uint16_t));
-        }
-      } else {
-        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_PERSISTENT_WRITE:
@@ -619,6 +625,49 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
       if (payload_length() == 0) {
         serialize(debug_buffer_, debug_buffer_length_);
         return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+#endif
+#ifdef AVR // only on Arduino Mega 2560
+    case CMD_GET_SAMPLING_RATE:
+      if (payload_length() == 0) {
+        float sampling_rate = AdvancedADC.samplingRate();
+        serialize(&sampling_rate, sizeof(sampling_rate));
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_SAMPLING_RATE:
+      if (payload_length() == sizeof(float)) {
+        float sampling_rate = read_float();
+        AdvancedADC.setSamplingRate(sampling_rate);
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_GET_ADC_PRESCALER:
+      if (payload_length() == 0) {
+        uint16_t prescaler = AdvancedADC.prescaler();
+        serialize(&prescaler, sizeof(prescaler));
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
+    case CMD_SET_ADC_PRESCALER:
+      if (payload_length() == sizeof(uint16_t)) {
+        uint16_t prescaler = read_uint16();
+        if (prescaler >=2 && prescaler <= 7) {
+          AdvancedADC.setPrescaler((uint8_t)prescaler);
+          AdvancedADC.setAutoTrigger(false);
+          return_code_ = RETURN_OK;
+        } else {
+          return_code_ = RETURN_BAD_INDEX;
+        }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -1107,6 +1156,8 @@ uint16_t /* HOST */ RemoteObject::analog_read(uint8_t pin) {
   const char* function_name = "analog_read()";
   log_separator();
   log_message("send command", function_name);
+  uint8_t n_channels = 1;
+  serialize(&n_channels,sizeof(n_channels));
   serialize(&pin,sizeof(pin));
   if (send_command(CMD_ANALOG_READ) == RETURN_OK) {
     uint16_t value = read<uint16_t>();
@@ -1118,12 +1169,14 @@ uint16_t /* HOST */ RemoteObject::analog_read(uint8_t pin) {
 }
 
 std::vector<uint16_t> /* HOST */ RemoteObject::analog_reads(
-        uint8_t pin, uint16_t n_samples) {
+    std::vector<uint8_t> pins, uint16_t n_samples) {
   const char* function_name = "analog_reads()";
   log_separator();
   log_message("send command", function_name);
-  serialize(&pin,sizeof(pin));
-  serialize(&n_samples,sizeof(n_samples));
+  uint8_t n_channels = pins.size();
+  serialize(&n_channels, sizeof(n_channels));
+  serialize(&pins[0], n_channels*sizeof(uint8_t));
+  serialize(&n_samples, sizeof(n_samples));
   if (send_command(CMD_ANALOG_READ) == RETURN_OK) {
     if (payload_length()==n_samples*sizeof(uint16_t)) {
       std::vector<uint16_t> buffer(n_samples);
@@ -1334,6 +1387,26 @@ std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {
     return buffer;
   }
   return std::vector<uint8_t>();
+}
+
+float RemoteObject::sampling_rate() {
+  return send_read_command<float>(CMD_GET_SAMPLING_RATE,
+                                  "sampling_rate()");
+}
+
+uint8_t RemoteObject::set_sampling_rate(const float sampling_rate) {
+  return send_set_command(CMD_SET_SAMPLING_RATE, "set_sampling_rate()",
+                          sampling_rate);
+}
+
+uint16_t RemoteObject::adc_prescaler() {
+  return send_read_command<uint16_t>(CMD_GET_ADC_PRESCALER,
+                                  "prescaler()");
+}
+
+uint8_t RemoteObject::set_adc_prescaler(const uint16_t prescaler) {
+    return send_set_command(CMD_SET_ADC_PRESCALER, "set_adc_prescaler()",
+                            prescaler);
 }
 
 #endif

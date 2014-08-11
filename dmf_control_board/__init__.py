@@ -481,8 +481,14 @@ class DMFControlBoard(Base, SerialDevice):
             self.persistent_write(self.PERSISTENT_PIN_STATE_ADDRESS + i, ~state
                                   & 0xFF)
 
-    def analog_reads(self, pin, n_samples):
-        return np.array(Base.analog_reads(self, pin, n_samples))
+    def analog_reads(self, pins, n_samples):
+        pins_ = uint8_tVector()
+        if hasattr(pins, '__len__'):
+            for i in range(0, len(pins)):
+                pins_.append(pins[i])
+        else:
+            pins_.append(pins)
+        return np.array(Base.analog_reads(self, pins_, n_samples))
 
     def measure_impedance_non_blocking(self, settling_time_ms, delta_t_ms,
                                        n_samples, state):

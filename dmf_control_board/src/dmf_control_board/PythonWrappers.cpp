@@ -111,6 +111,7 @@ object DMFControlBoard_class
     .def("state_of_all_channels",&DMFControlBoard::state_of_all_channels)
     .def("state_of_channel",&DMFControlBoard::state_of_channel)
     .def("sampling_rate",&DMFControlBoard::sampling_rate)
+    .def("adc_prescaler",&DMFControlBoard::adc_prescaler)
     .def("series_resistor_index",&DMFControlBoard::series_resistor_index)
     .def("_series_resistance",&DMFControlBoard::series_resistance)
     .def("_series_capacitance",&DMFControlBoard::series_capacitance)
@@ -127,6 +128,7 @@ object DMFControlBoard_class
     .def("set_waveform_voltage",&DMFControlBoard::set_waveform_voltage)
     .def("set_waveform_frequency",&DMFControlBoard::set_waveform_frequency)
     .def("set_sampling_rate",&DMFControlBoard::set_sampling_rate)
+    .def("set_adc_prescaler",&DMFControlBoard::set_adc_prescaler)
     .def("set_series_resistor_index",
          &DMFControlBoard::set_series_resistor_index)
     .def("_set_series_resistance",&DMFControlBoard::set_series_resistance)

@@ -41,6 +41,16 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 
 #if defined(AVR) || defined(__SAM3X8E__)
 
+class ADCBuffer {
+public:
+  ADCBuffer() {}
+  uint16_t peak_to_peak() { return 0; }
+  uint8_t analog_pin_index_;
+  uint8_t resistor_index_;
+};
+
+#endif // defined(AVR) || defined(__SAM3X8E__)
+
 class DMFControlBoard : public RemoteObject {
 public:
   static const uint8_t SINE = 0;
@@ -56,6 +66,7 @@ public:
     uint16_t micro;
   };
 
+#if defined(AVR) || defined(__SAM3X8E__)
   struct watchdog_t {
     /* # `watchdog_t` #
      *
@@ -176,12 +187,14 @@ public:
     /**\brief voltage tolerance for amplifier gain adjustment.*/
     float voltage_tolerance;
   };
-#endif  // #ifdef AVR
+#endif  // #if defined(AVR) || defined(__SAM3X8E__)
 
   // TODO:
   //  Eventually, all of these variables should defined only on the arduino.
   //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS
   static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
+  static const uint8_t ADC_CHANNEL_HV = 0;
+  static const uint8_t ADC_CHANNEL_FB = 1;
 
   // Accessors and mutators
   static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0xA0;
@@ -195,8 +208,6 @@ public:
   static const uint8_t CMD_SET_WAVEFORM_VOLTAGE =           0xA8;
   static const uint8_t CMD_GET_WAVEFORM_FREQUENCY =         0xA9;
   static const uint8_t CMD_SET_WAVEFORM_FREQUENCY =         0xAA;
-  static const uint8_t CMD_GET_SAMPLING_RATE =              0xAB;
-  static const uint8_t CMD_SET_SAMPLING_RATE =              0xAC;
   static const uint8_t CMD_GET_SERIES_RESISTOR_INDEX =      0xAD;
   static const uint8_t CMD_SET_SERIES_RESISTOR_INDEX =      0xAE;
   static const uint8_t CMD_GET_SERIES_RESISTANCE =          0xAF;
@@ -263,10 +274,6 @@ public:
         return std::string("CMD_GET_WAVEFORM_FREQUENCY");
       } else if (command == CMD_SET_WAVEFORM_FREQUENCY) {
         return std::string("CMD_SET_WAVEFORM_FREQUENCY");
-      } else if (command == CMD_GET_SAMPLING_RATE) {
-        return std::string("CMD_GET_SAMPLING_RATE");
-      } else if (command == CMD_SET_SAMPLING_RATE) {
-        return std::string("CMD_SET_SAMPLING_RATE");
       } else if (command == CMD_GET_SERIES_RESISTOR_INDEX) {
         return std::string("CMD_GET_SERIES_RESISTOR_INDEX");
       } else if (command == CMD_SET_SERIES_RESISTOR_INDEX) {
@@ -310,7 +317,6 @@ public:
   uint16_t number_of_channels();
   std::vector<uint8_t> state_of_all_channels();
   uint8_t state_of_channel(const uint16_t channel);
-  float sampling_rate();
   uint8_t series_resistor_index(const uint8_t channel);
   float series_resistance(const uint8_t channel);
   float series_capacitance(const uint8_t channel);
@@ -330,7 +336,6 @@ public:
   uint8_t set_waveform_voltage(const float v_rms);
   uint8_t set_waveform_frequency(const float freq_hz);
   uint8_t set_waveform(bool waveform);
-  uint8_t set_sampling_rate(const uint8_t sampling_rate);
   uint8_t set_series_resistor_index(const uint8_t channel,
                                     const uint8_t index);
   uint8_t set_series_resistance(const uint8_t channel,
@@ -472,8 +477,6 @@ private:
     static const uint8_t A1_SERIES_RESISTOR_3_ = 9;
   #endif
 
-  static const float SAMPLING_RATES_[];
-
   // I2C bus
   // =======
   // A4 SDA
@@ -510,21 +513,12 @@ private:
   uint8_t set_waveform_voltage(const float output_vrms,
                                const bool wait_for_reply=true);
 #endif
-#ifdef AVR  
-  uint8_t set_adc_prescaler(const uint8_t index);
-#endif
 
   //private members
 #if defined(AVR) || defined(__SAM3X8E__)
   uint16_t number_of_channels_;
-  uint8_t sampling_rate_index_;
   uint8_t series_resistor_indices_[2];
-  ADCBuffer hv_buffer_;
-  ADCBuffer fb_buffer_;
-  /* Relative fraction of time between impedance samples to sample the ADC,
-  leaving (1- relative_sampling_time_) for filtering and/or calculating
-  pk-pk/rms.*/
-  float relative_sampling_time_;
+  ADCBuffer adc_buffer_[NUMBER_OF_ADC_CHANNELS];
   float waveform_voltage_;
   float waveform_frequency_;
   float amplifier_gain_;

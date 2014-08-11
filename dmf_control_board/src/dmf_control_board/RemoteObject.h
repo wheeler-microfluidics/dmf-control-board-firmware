@@ -124,6 +124,11 @@ public:
   static const uint8_t CMD_SPI_TRANSFER =               0x96;
   static const uint8_t CMD_GET_DEBUG_BUFFER =           0x97;
   static const uint8_t CMD_GET_MCU_TYPE =               0x98;
+  static const uint8_t CMD_GET_SAMPLING_RATE =          0x99;
+  static const uint8_t CMD_SET_SAMPLING_RATE =          0x9A;
+  static const uint8_t CMD_GET_ADC_PRESCALER =          0x9B;
+  static const uint8_t CMD_SET_ADC_PRESCALER =          0x9C;
+
 
   // reserved return codes
   static const uint8_t RETURN_OK =                      0x00;
@@ -241,6 +246,14 @@ public:
             return std::string("CMD_GET_DEBUG_BUFFER");
         } else if (command == CMD_GET_MCU_TYPE) {
             return std::string("CMD_GET_MCU_TYPE");
+        } else if (command == CMD_GET_SAMPLING_RATE) {
+          return std::string("CMD_GET_SAMPLING_RATE");
+        } else if (command == CMD_SET_SAMPLING_RATE) {
+          return std::string("CMD_SET_SAMPLING_RATE");
+        } else if (command == CMD_GET_ADC_PRESCALER) {
+          return std::string("CMD_GET_ADC_PRESCALER");
+        } else if (command == CMD_SET_ADC_PRESCALER) {
+          return std::string("CMD_SET_ADC_PRESCALER");
         } else {
             throw std::runtime_error("Invalid command.");
         }
@@ -272,7 +285,7 @@ public:
   uint8_t digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
   uint16_t analog_read(uint8_t pin);
-  std::vector<uint16_t> analog_reads(uint8_t pin,
+  std::vector<uint16_t> analog_reads(std::vector<uint8_t> pins,
                                      uint16_t n_samples);
   void analog_write(uint8_t pin, uint16_t value);
   uint8_t persistent_read(uint16_t address);
@@ -329,6 +342,11 @@ public:
   \returns the byte read from the bus
   */
   uint8_t spi_transfer(uint8_t value);
+
+  float sampling_rate();
+  uint16_t adc_prescaler();
+  uint8_t set_sampling_rate(const float sampling_rate);
+  uint8_t set_adc_prescaler(const uint16_t prescaler);
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }
