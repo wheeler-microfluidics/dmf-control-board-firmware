@@ -21,7 +21,7 @@ setup(name='wheeler.dmf_control_board',
       license='GPLv2',
       packages=['dmf_control_board'],
       package_data=dmf_control_board_files,
-      install_requires=['avr_helpers', 'arduino_helpers'])
+      install_requires=['avr_helpers', 'arduino_helpers', 'decorator'])
 
 
 @task
