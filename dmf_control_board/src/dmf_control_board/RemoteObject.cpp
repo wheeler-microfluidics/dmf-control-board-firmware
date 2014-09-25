@@ -672,6 +672,14 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_GET_AREF:
+      if (payload_length() == 0) {
+        serialize(&aref_, sizeof(aref_));
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   send_reply(return_code_);
@@ -895,6 +903,11 @@ void /* DEVICE */ RemoteObject::begin() {
   Serial.begin(baud_rate);
   Wire.begin();
   SPI.begin();
+
+  aref_ = AdvancedADC.readVcc();
+  Serial.print("Analog Reference=");
+  Serial.print(aref_);
+  Serial.println(" V");
 }
 
 void /* DEVICE */ RemoteObject::i2c_scan() {
@@ -1389,24 +1402,27 @@ std::vector<uint8_t> /* HOST */ RemoteObject::debug_buffer() {
   return std::vector<uint8_t>();
 }
 
-float RemoteObject::sampling_rate() {
+float /* HOST */ RemoteObject::sampling_rate() {
   return send_read_command<float>(CMD_GET_SAMPLING_RATE,
                                   "sampling_rate()");
 }
 
-uint8_t RemoteObject::set_sampling_rate(const float sampling_rate) {
+uint8_t /* HOST */ RemoteObject::set_sampling_rate(const float sampling_rate) {
   return send_set_command(CMD_SET_SAMPLING_RATE, "set_sampling_rate()",
                           sampling_rate);
 }
 
-uint16_t RemoteObject::adc_prescaler() {
-  return send_read_command<uint16_t>(CMD_GET_ADC_PRESCALER,
-                                  "prescaler()");
+uint16_t /* HOST */ RemoteObject::adc_prescaler() {
+  return send_read_command<uint16_t>(CMD_GET_ADC_PRESCALER, "prescaler()");
 }
 
-uint8_t RemoteObject::set_adc_prescaler(const uint16_t prescaler) {
-    return send_set_command(CMD_SET_ADC_PRESCALER, "set_adc_prescaler()",
-                            prescaler);
+uint8_t /* HOST */ RemoteObject::set_adc_prescaler(const uint16_t prescaler) {
+  return send_set_command(CMD_SET_ADC_PRESCALER, "set_adc_prescaler()",
+                          prescaler);
+}
+
+float /* HOST */ RemoteObject::aref() {
+  return send_read_command<float>(CMD_GET_AREF, "aref()");
 }
 
 #endif

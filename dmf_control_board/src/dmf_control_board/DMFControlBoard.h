@@ -30,6 +30,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #else
   #include "Arduino.h"
   #include "Config.h"
+  #include "FeedbackController.h"
 #endif
 #include "RemoteObject.h"
 
@@ -39,22 +40,19 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 
-#if defined(AVR) || defined(__SAM3X8E__)
-
-class ADCBuffer {
-public:
-  ADCBuffer() {}
-  uint16_t peak_to_peak() { return 0; }
-  uint8_t analog_pin_index_;
-  uint8_t resistor_index_;
-};
-
-#endif // defined(AVR) || defined(__SAM3X8E__)
-
 class DMFControlBoard : public RemoteObject {
 public:
   static const uint8_t SINE = 0;
   static const uint8_t SQUARE = 1;
+
+  // impedance measurement options (bit definitions)
+  // IMPOPT: - - - - - - RMS INTLV
+  static const uint8_t INTLV = 0;
+  static const uint8_t RMS = 1;
+
+#if ___HARDWARE_MAJOR_VERSION___ == 1
+  static const uint8_t WAVEFORM_SELECT_ = 9;
+#endif
 
   /**\brief Address of config settings in persistent storage _(i.e., EEPROM)_.
    */
@@ -188,13 +186,6 @@ public:
     float voltage_tolerance;
   };
 #endif  // #if defined(AVR) || defined(__SAM3X8E__)
-
-  // TODO:
-  //  Eventually, all of these variables should defined only on the arduino.
-  //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS
-  static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
-  static const uint8_t ADC_CHANNEL_HV = 0;
-  static const uint8_t ADC_CHANNEL_FB = 1;
 
   // Accessors and mutators
   static const uint8_t CMD_GET_NUMBER_OF_CHANNELS =         0xA0;
@@ -349,14 +340,18 @@ public:
   uint8_t set_atx_power_state(bool state);
 
   // other functions
-  void measure_impedance_non_blocking(uint16_t settling_time_ms,
-                                      uint16_t delta_t_ms,
-                                      uint16_t n_samples,
+  void measure_impedance_non_blocking(float sampling_window_ms,
+                                      uint16_t n_sampling_windows,
+                                      float delay_between_windows_ms,
+                                      bool interleave_samples,
+                                      bool rms,
                                       const std::vector<uint8_t> state);
   std::vector<float> get_impedance_data();
-  std::vector<float> measure_impedance(uint16_t settling_time_ms,
-                                       uint16_t delta_t_ms,
-                                       uint16_t n_samples,
+  std::vector<float> measure_impedance(float sampling_window_ms,
+                                       uint16_t n_sampling_windows,
+                                       float delay_between_windows_ms,
+                                       bool interleave_samples,
+                                       bool rms,
                                        const std::vector<uint8_t> state);
   uint8_t reset_config_to_defaults();
   std::string host_name() { return NAME_; }
@@ -365,13 +360,12 @@ public:
   std::string host_url() { return URL_; }
 #else  // #ifndef AVR
   void begin();
-
-  void update_amplifier_gain();
-  uint16_t measure_impedance(uint16_t settling_time_ms,
-                             uint16_t delta_t_ms,
-                             uint16_t n_samples);
+  uint8_t set_waveform_voltage(const float output_vrms,
+                               const bool wait_for_reply=true);
+  void set_amplifier_gain(float gain);
 
   // local accessors
+  ConfigSettings config_settings() { return config_settings_; }
   const char* protocol_name() { return PROTOCOL_NAME_; }
   const char* protocol_version() { return PROTOCOL_VERSION_; }
   const char* name() { return NAME_; } //device name
@@ -380,6 +374,10 @@ public:
   const char* hardware_version();
   const char* url() { return URL_; }
   virtual void persistent_write(uint16_t address, uint8_t value);
+  float waveform_voltage() { return waveform_voltage_; }
+  float waveform_frequency() { return waveform_frequency_; }
+  bool auto_adjust_amplifier_gain() { return auto_adjust_amplifier_gain_; }
+  float amplifier_gain() { return amplifier_gain_; }
 #ifdef ATX_POWER_SUPPLY
   /* Note that the ATX power-supply output-enable is _active-low_. */
   void atx_power_on() const { digitalWrite(POWER_SUPPLY_ON_PIN_, LOW); }
@@ -455,28 +453,6 @@ private:
     static const uint8_t POWER_SUPPLY_ON_PIN_ = 2;
   #endif
 
-  #if ___HARDWARE_MAJOR_VERSION___ == 1
-    static const uint8_t WAVEFORM_SELECT_ = 9;
-    static const uint8_t A0_SERIES_RESISTOR_0_ = 13;
-    static const uint8_t A1_SERIES_RESISTOR_0_ = 12;
-    static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
-    static const uint8_t A1_SERIES_RESISTOR_2_ = 10;
-  #elif ___HARDWARE_MAJOR_VERSION___ == 2 && ___HARDWARE_MINOR_VERSION___ == 0
-    static const uint8_t A0_SERIES_RESISTOR_0_ = 8;
-    static const uint8_t A0_SERIES_RESISTOR_1_ = 9;
-    static const uint8_t A1_SERIES_RESISTOR_0_ = 10;
-    static const uint8_t A1_SERIES_RESISTOR_1_ = 11;
-    static const uint8_t A1_SERIES_RESISTOR_2_ = 12;
-    static const uint8_t A1_SERIES_RESISTOR_3_ = 13;
-  #else // 2.1
-    static const uint8_t A0_SERIES_RESISTOR_0_ = 4;
-    static const uint8_t A0_SERIES_RESISTOR_1_ = 5;
-    static const uint8_t A1_SERIES_RESISTOR_0_ = 6;
-    static const uint8_t A1_SERIES_RESISTOR_1_ = 7;
-    static const uint8_t A1_SERIES_RESISTOR_2_ = 8;
-    static const uint8_t A1_SERIES_RESISTOR_3_ = 9;
-  #endif
-
   // I2C bus
   // =======
   // A4 SDA
@@ -494,6 +470,7 @@ private:
 
   // LTC6904 (programmable oscillator) chip address
   static const uint8_t LTC6904_ = 0x17;
+
 #else  // #ifdef AVR
   static const char CSV_INDENT_[];
 #endif  // #ifdef AVR
@@ -505,20 +482,15 @@ private:
   void update_all_channels();
   void send_spi(uint8_t pin, uint8_t address, uint8_t data);
   uint8_t set_pot(uint8_t index, uint8_t value);
-  uint8_t set_series_resistor(const uint8_t channel,
-                              const uint8_t index);
   void load_config(bool use_defaults=false);
   void save_config();
   version_t config_version();
-  uint8_t set_waveform_voltage(const float output_vrms,
-                               const bool wait_for_reply=true);
 #endif
 
   //private members
 #if defined(AVR) || defined(__SAM3X8E__)
   uint16_t number_of_channels_;
-  uint8_t series_resistor_indices_[2];
-  ADCBuffer adc_buffer_[NUMBER_OF_ADC_CHANNELS];
+  FeedbackController feedback_controller_;
   float waveform_voltage_;
   float waveform_frequency_;
   float amplifier_gain_;

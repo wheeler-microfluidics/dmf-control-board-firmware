@@ -31,6 +31,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include <OneWire.h>
 #include "RemoteObject.h"
 #include "DMFControlBoard.h"
+#include "FeedbackController.h"
 
 DMFControlBoard dmf_control_board;
 volatile unsigned int timer_count = 1;

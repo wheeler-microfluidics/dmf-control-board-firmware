@@ -23,8 +23,10 @@ import time
 import copy
 import logging
 from struct import pack, unpack
+import math
 
 import numpy as np
+import matplotlib.mlab as mlab
 from path_helpers import path
 from microdrop_utility import Version, FutureVersionError
 
@@ -125,6 +127,258 @@ def safe_getattr(obj, attr, except_types):
 
 class PersistentSettingDoesNotExist(Exception):
     pass
+
+
+def feedback_signal(p, frequency, Z, hw_version):
+    """p[0]=C, p[1]=R"""
+    if hw_version.major == 1:
+        return np.abs(1 / (Z / p[1] + 1 + Z * 2 * np.pi * p[0] * complex(0, 1)
+                           * frequency))
+    else:
+        return np.abs(1 / (Z / p[1] + Z * 2 * np.pi * p[0] * complex(0, 1) *
+                           frequency))
+
+
+class FeedbackResults():
+    """
+    This class stores the impedance results for a single step in the protocol.
+    """
+    class_version = str(Version(0, 4))
+
+    def __init__(self, voltage, frequency, dt_ms, V_hv, hv_resistor, V_fb,
+                 fb_resistor, calibration):
+
+        self.voltage = voltage
+        self.frequency = frequency
+        self.V_hv = V_hv
+        self.hv_resistor = hv_resistor
+        self.V_fb = V_fb
+        self.fb_resistor = fb_resistor
+        self.time = np.arange(0, len(V_hv)) * dt_ms
+        self.calibration = calibration
+        self.version = self.class_version
+        self._sanitize_data()
+
+    def _sanitize_data(self):
+        self.V_hv[self.hv_resistor < 0] = np.nan
+        self.V_fb[self.fb_resistor < 0] = np.nan
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug('[FeedbackResults]._upgrade()')
+        if hasattr(self, 'version'):
+            version = Version.fromstring(self.version)
+        else:
+            version = Version(0)
+        logging.debug('[FeedbackResults] version=%s, class_version=%s' %
+                      (str(version), self.class_version))
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[FeedbackResults] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0, 1):
+                self.calibration = FeedbackCalibration()
+            if version < Version(0, 2):
+                # flag invalid data points
+                self.version = str(Version(0, 2))
+                self.fb_resistor[self.V_fb > 5] = -1
+                self.hv_resistor[self.V_hv > 5] = -1
+            if version < Version(0, 3):
+                self.attempt = 0
+                self.version = str(Version(0,    3))
+                logging.info('[FeedbackResults] upgrade to version %s' %
+                             self.version)
+            if version < Version(0, 4):
+                self.dt_ms = self.sampling_time_ms + \
+                    self.delay_between_samples_ms
+                del self.sampling_time_ms
+                del self.delay_between_samples_ms
+                self.voltage = self.options.voltage
+                del self.options
+                del self.attempt
+                self.version = str(Version(0,    4))
+                logging.info('[FeedbackResults] upgrade to version %s' %
+                             self.version)
+        else:
+            # Else the versions are equal and don't need to be upgraded.
+            pass
+
+    def __setstate__(self, state):
+        # convert lists to numpy arrays
+        self.__dict__ = state
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                self.__dict__[k] = np.array(v)
+        self._upgrade()
+        self._sanitize_data()
+
+    def __getstate__(self):
+        # convert numpy arrays/floats to standard lists/floats
+        out = copy.deepcopy(self.__dict__)
+        for k, v in out.items():
+            if isinstance(v, np.ndarray):
+                out[k] = v.tolist()
+        return out
+
+    def V_total(self):
+        ind = mlab.find(self.hv_resistor >= 0)
+        T = np.zeros(self.hv_resistor.shape)
+        T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
+                                  self.calibration.R_hv
+                                  [self.hv_resistor[ind]]],
+                                 self.frequency, 10e6,
+                                 self.calibration.hw_version)
+        return self.V_hv / T
+
+    def V_actuation(self):
+        if self.calibration.hw_version.major == 1:
+            return self.V_total() - np.array(self.V_fb)
+        else:
+            return self.V_total()
+
+    def Z_device(self):
+        ind = mlab.find(self.fb_resistor >= 0)
+        R_fb = np.zeros(self.fb_resistor.shape)
+        C_fb = np.zeros(self.fb_resistor.shape)
+        R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
+        C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
+        if self.calibration.hw_version.major == 1:
+            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
+                                                 2 * math.pi)) *
+                    (self.V_total() / self.V_fb - 1))
+        else:
+            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
+                                                 2 * math.pi)) *
+                    (self.V_total() / self.V_fb))
+
+    def min_impedance(self):
+        return min(self.Z_device())
+
+    def capacitance(self):
+        return 1.0 / (2 * math.pi * self.frequency * self.Z_device())
+
+    def x_position(self, area):
+        if self.calibration.C_drop:
+            C_drop = self.calibration.C_drop
+        else:
+            C_drop = self.capacitance()[-1] / area
+        if self.calibration.C_filler:
+            C_filler = self.calibration.C_filler
+        else:
+            C_filler = 0
+        return ((self.capacitance() / area - C_filler) /
+                (C_drop - C_filler) * np.sqrt(area))
+
+    def mean_velocity(self, area, ind=None, threshold=0.95):
+        if ind is None:
+            ind = range(len(self.time))
+        t, dxdt = self.dxdt(area, ind, threshold)
+        x = self.x_position(area)
+        ind_stop = ind[mlab.find(dxdt == 0)[0]]
+        dx = x[ind_stop] - x[ind[0]]
+        if max(dxdt > 0) and ind_stop < len(t):
+            dt = t[ind_stop] - t[ind[0]]
+            return dx / dt
+        else:
+            return 0
+
+    def dxdt(self, area, ind=None, threshold=0.95):
+        if ind is None:
+            ind = range(len(self.time))
+        dt = np.diff(self.time[ind])
+        t = self.time[ind][1:] - (self.time[1] - self.time[0]) / 2.0
+        C = self.capacitance()[ind]
+        dCdt = np.diff(C) / dt
+
+        if self.calibration.C_drop:
+            C_drop = self.calibration.C_drop * area
+        else:
+            C_drop = C[-1]
+        if self.calibration.C_filler:
+            C_filler = self.calibration.C_filler * area
+        else:
+            C_filler = 0
+
+        # find the time when the capacitance exceeds the specified threshold
+        # (e.g., the drop has stopped moving once it has passed 95% of it's
+        # final value)
+        ind_stop = mlab.find((C[1:] - C_filler) / (C[-1] - C_filler) >
+                             threshold)
+        if len(ind_stop):
+            # set all remaining velocities to 0
+            dCdt[ind_stop[0]:] = 0
+
+        return t, dCdt / (C_drop - C_filler) * np.sqrt(area)
+
+
+class FeedbackResultsSeries():
+    """
+    This class stores the impedance results for a series of measurements versus
+    another independent variable.
+    """
+    class_version = str(Version(0, 0))
+
+    def __init__(self, xlabel):
+        self.data = []
+        self.version = self.class_version
+        self.xlabel = xlabel
+        self.x = np.zeros(0)
+        
+    def add_data(self, x, feedback_results):
+        self.x = np.concatenate((self.x, [x]))
+        self.data.append(feedback_results)
+    
+    @property
+    def frequency(self):
+        return self._concatenate_data_from_member('frequency')
+
+    @property
+    def voltage(self):
+        return self._concatenate_data_from_member('voltage')
+
+    def V_total(self, *args, **kwargs):
+        return self._concatenate_data_from_function('V_total', *args, **kwargs)
+
+    def V_actuation(self, *args, **kwargs):
+        return self._concatenate_data_from_function('V_actuation', *args, **kwargs)
+
+    def Z_device(self, *args, **kwargs):
+        return self._concatenate_data_from_function('Z_device', *args, **kwargs)
+
+    def capacitance(self, *args, **kwargs):
+        return self._concatenate_data_from_function('capacitance', *args, **kwargs)
+
+    def x_position(self, *args, **kwargs):
+        return self._concatenate_data_from_function('x_position', *args, **kwargs)
+
+    def mean_velocity(self, *args, **kwargs):
+        return self._concatenate_data_from_function('mean_velocity', *args, **kwargs)
+
+    def dxdt(self, *args, **kwargs):
+        return self._concatenate_data_from_function('dxdt', *args, **kwargs)
+
+    def _concatenate_data_from_function(self, fn, *args, **kwargs):
+        data = getattr(self.data[0], fn)(*args, **kwargs)
+        result = np.array(data.reshape((1, len(data))))
+        for row in self.data[1:]:
+            data = getattr(row, fn)(*args, **kwargs)
+            result = np.concatenate((result, data.reshape((1, len(data)))))
+        return result
+
+    def _concatenate_data_from_member(self, name):
+        data = getattr(self.data[0], name)
+        result = np.array([data])
+        for row in self.data[1:]:
+            data = getattr(row, name)
+            result = np.concatenate((result, np.array([data])))
+        return result
 
 
 class FeedbackCalibration():
@@ -265,6 +519,7 @@ class DMFControlBoard(Base, SerialDevice):
         Base.__init__(self)
         SerialDevice.__init__(self)
         self.calibration = None
+        self.__aref__ = None
 
     @safe_series_resistor_index_read
     def series_capacitance(self, channel, resistor_index=None):
@@ -371,6 +626,7 @@ class DMFControlBoard(Base, SerialDevice):
                                                 .hardware_version()))
         self.set_series_resistor_index(0, 0)
         self.set_series_resistor_index(1, 0)
+        self.__aref__ = self._aref()
         return self.RETURN_OK
 
     @property
@@ -490,36 +746,60 @@ class DMFControlBoard(Base, SerialDevice):
             pins_.append(pins)
         return np.array(Base.analog_reads(self, pins_, n_samples))
 
-    def measure_impedance_non_blocking(self, settling_time_ms, delta_t_ms,
-                                       n_samples, state):
+    def measure_impedance_non_blocking(self,
+                                       sampling_window_ms,
+                                       n_sampling_windows,
+                                       delay_between_windows_ms,
+                                       interleave_samples,
+                                       rms,
+                                       state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        Base.measure_impedance_non_blocking(self, settling_time_ms,
-                                            delt_t_ms, n_samples, state_)
+        Base.measure_impedance_non_blocking(self,
+                                            sampling_window_ms,
+                                            n_sampling_windows,
+                                            delay_between_windows_ms,
+                                            interleave_samples,
+                                            rms,
+                                            state_)
+
+    def impedance_buffer_to_feedback_result(self, buffer):
+        dt_ms = buffer[-1]
+        buffer = buffer[:-1]
+        V_hv = buffer[0::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
+        hv_resistor = buffer[1::4].astype(int)
+        V_fb = buffer[2::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
+        fb_resistor = buffer[3::4].astype(int)
+        voltage = self.waveform_voltage()
+        frequency = self.waveform_frequency()
+        return FeedbackResults(voltage, frequency, dt_ms, V_hv, hv_resistor,
+                               V_fb, fb_resistor, self.calibration)
 
     def get_impedance_data(self):
-        impedance = np.array(Base.get_impedance_data(self))
-        V_hv = impedance[0::4]
-        hv_resistor = impedance[1::4].astype(int)
-        V_fb = impedance[2::4]
-        fb_resistor = impedance[3::4].astype(int)
-        return (V_hv, hv_resistor, V_fb, fb_resistor)
+        buffer = np.array(Base.get_impedance_data(self))
+        return self.impedance_buffer_to_feedback_result(buffer)
 
-    def measure_impedance(self, settling_time_ms, delta_t_ms, n_samples,
+    def measure_impedance(self,
+                          sampling_window_ms,
+                          n_sampling_windows,
+                          delay_between_windows_ms,
+                          interleave_samples,
+                          rms,
                           state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
-        impedance = np.array(Base.measure_impedance(self, settling_time_ms,
-                                                    delta_t_ms, n_samples,
-                                                    state_))
-        V_hv = impedance[0::4]
-        hv_resistor = impedance[1::4].astype(int)
-        V_fb = impedance[2::4]
-        fb_resistor = impedance[3::4].astype(int)
-        return (V_hv, hv_resistor, V_fb, fb_resistor)
 
+        buffer = np.array(Base.measure_impedance(self,
+                                                 sampling_window_ms,
+                                                 n_sampling_windows,
+                                                 delay_between_windows_ms,
+                                                 interleave_samples,
+                                                 rms,
+                                                 state_))
+        return self.impedance_buffer_to_feedback_result(buffer)   
+        
     def i2c_write(self, address, data):
         data_ = uint8_tVector()
         for i in range(0, len(data)):

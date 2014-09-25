@@ -128,7 +128,7 @@ public:
   static const uint8_t CMD_SET_SAMPLING_RATE =          0x9A;
   static const uint8_t CMD_GET_ADC_PRESCALER =          0x9B;
   static const uint8_t CMD_SET_ADC_PRESCALER =          0x9C;
-
+  static const uint8_t CMD_GET_AREF =                   0x9D;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                      0x00;
@@ -161,6 +161,11 @@ public:
       return waiting_for_reply_to_>0;
   }
 
+  template<typename T>
+    void serialize(T data,uint16_t size) {
+      serialize((const uint8_t*)data,size); }
+  void serialize(const uint8_t* u, const uint16_t size);
+
 #if defined(AVR) || defined(__SAM3X8E__)
   virtual void begin();
   void i2c_scan();
@@ -189,6 +194,9 @@ public:
    * support the `EEPROM` library used by the AVR chips. */
   virtual uint8_t persistent_read(uint16_t address);
   virtual void persistent_write(uint16_t address, uint8_t value);
+  float aref() { return aref_; }
+  char* debug_buffer() { return debug_buffer_; }
+  void set_debug_buffer_length(uint16_t len) { debug_buffer_length_ = len; }
 #else
   virtual std::string host_name() = 0;
   virtual std::string host_software_version() = 0;
@@ -254,6 +262,8 @@ public:
           return std::string("CMD_GET_ADC_PRESCALER");
         } else if (command == CMD_SET_ADC_PRESCALER) {
           return std::string("CMD_SET_ADC_PRESCALER");
+        } else if (command == CMD_GET_AREF) {
+          return std::string("CMD_GET_AREF");
         } else {
             throw std::runtime_error("Invalid command.");
         }
@@ -347,6 +357,7 @@ public:
   uint16_t adc_prescaler();
   uint8_t set_sampling_rate(const float sampling_rate);
   uint8_t set_adc_prescaler(const uint16_t prescaler);
+  float aref();
 
   void set_debug(const bool debug);
   bool connected() { return Serial.isOpen(); }
@@ -406,10 +417,6 @@ protected:
   uint8_t* payload() { return payload_; } // pointer to the payload buffer
   void bytes_written(uint16_t bytes) { bytes_written_+=bytes; }
 
-  template<typename T>
-    void serialize(T data,uint16_t size) {
-      serialize((const uint8_t*)data,size); }
-  void serialize(const uint8_t* u, const uint16_t size);
   void send_reply(const uint8_t return_code);
 
   template<typename T> void read_array(T* array, const uint16_t size) {
@@ -451,7 +458,11 @@ protected:
   void send_non_blocking_command(const uint8_t cmd);
   uint8_t validate_reply(const uint8_t cmd);
 
-#if !( defined(AVR) || defined(__SAM3X8E__) ) 
+#if ( defined(AVR) || defined(__SAM3X8E__) )
+  char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
+  uint16_t debug_buffer_length_;
+  float aref_;
+#else
   inline void log_message(const char* msg,
                           const char* function_name,
                           uint8_t level=5) {
@@ -466,8 +477,6 @@ protected:
   }
   inline void log_separator() { if(debug_) { Logging::log_separator(); }}
 #endif
-  char debug_buffer_[MAX_DEBUG_BUFFER_LENGTH];
-  uint16_t debug_buffer_length_;
   uint8_t return_code_; // return code
   uint8_t packet_cmd_; // command
 

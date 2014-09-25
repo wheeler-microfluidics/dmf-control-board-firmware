@@ -63,80 +63,6 @@ const char DMFControlBoard::SOFTWARE_VERSION_[] = ___SOFTWARE_VERSION___;
 const char DMFControlBoard::URL_[] =
     "http://microfluidics.utoronto.ca/dmf_control_board";
 
-/*
-#ifdef AVR // only on Arduino Mega 2560
-
-void ADCBuffer::start_reading () {
-  current_index_ = 0;
-  finished_ = false;
-
-  // Save current resistor indexes to return them to their original state when
-  // we're done.
-  original_resistor_index_ = \
-      parent_->series_resistor_indices_[analog_pin_index_];
-
-  // Set the resistors to their highest values
-  parent_->set_series_resistor(analog_pin_index_,
-      parent_->config_settings_.n_series_resistors(analog_pin_index_) - 1);
-
-  cli(); // disable interrupts
-
-  // set reference voltage to use AVcc
-  ADMUX |= (1 << REFS0);
-  ADMUX &= ~(1 << REFS1);
-  // left align the ADC value- so we can read highest 8 bits from ADCH register only
-  ADMUX |= (1 << ADLAR);
-
-  // set input channel
-
-  // set MUX5 bit (0 for A0-A7, 1 for A8-A15)
-  if (analog_pin_index_ > 7) {
-    ADCSRB |= (1 << MUX5);
-  } else {
-    ADCSRB &= ~(1 << MUX5);
-  }
-
-  // clear MUX4:0
-  ADMUX &= ~( (1 << MUX4) | (1 << MUX3) | (1 << MUX2) | \
-    (1 << MUX1) | (1 << MUX0) );
-  // set MUX3:0 with mod(channel number, 8)
-  ADMUX |= (0x07 & (analog_pin_index_ % 8));
-
-  ADCSRA |= (1 << ADATE); // enabble auto trigger
-  ADCSRA |= (1 << ADIE); // enable interrupts when measurement complete
-  ADCSRA |= (1 << ADEN); // enable ADC
-  ADCSRA |= (1 << ADSC); // start ADC measurements
-
-  // set the global ActiveBuffer pointer to point to this object
-  pActiveBuffer = this;
-
-  sei(); // enable interrupts
-}
-
-void ADCBuffer::read(uint8_t reading) {
-  buffer_[current_index_++] = reading;
-  if (current_index_ == n_readings_) {
-    ADCSRA &= ~(1 << ADATE); // disable auto trigger
-    ADCSRA &= ~(1 << ADIE); // disable interrupts when measurement complete
-    finished_ = true; // set flag that ADC buffer is filled
-  }
-  if (reading > SATURATION_THRESHOLD_READING) {
-    // The ADC is saturated, so use a smaller resistor.
-    if (resistor_index_ > 0) {
-      resistor_index_--;
-      parent_->set_series_resistor(analog_pin_index_,
-                                   resistor_index_);
-    } else {
-      // The ADC is still saturated using the lowest available resistor
-      // value.  Mark measurement as saturated.
-      resistor_index_ = -1;
-    }
-  }
-}
-
-#endif // AVR
-*/
-
 DMFControlBoard::DMFControlBoard()
   : RemoteObject(true
 #if !( defined(AVR) || defined(__SAM3X8E__) )
@@ -382,9 +308,9 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       if (payload_length() == sizeof(uint8_t)) {
         uint8_t channel = read_uint8();
         if (channel <= 1) {
+          uint8_t index = feedback_controller_.series_resistor_index(channel);
           return_code_ = RETURN_OK;
-          serialize(&series_resistor_indices_[channel],
-                    sizeof(uint8_t));
+          serialize(&index, sizeof(uint8_t));
         } else {
           return_code_ = RETURN_BAD_INDEX;
         }
@@ -395,7 +321,8 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
     case CMD_SET_SERIES_RESISTOR_INDEX:
       if (payload_length() == 2*sizeof(uint8_t)) {
         uint8_t channel = read_uint8();
-        return_code_ = set_series_resistor(channel, read_uint8());
+        return_code_ = feedback_controller_.set_series_resistor_index(channel,
+            read_uint8());
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -406,7 +333,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         if (channel < 2) {
           return_code_ = RETURN_OK;
           float resistance = config_settings_.series_resistance(channel,
-              series_resistor_indices_[channel]);
+              feedback_controller_.series_resistor_index(channel));
           serialize(&resistance, sizeof(resistance));
         } else {
             return_code_ = RETURN_BAD_INDEX;
@@ -422,12 +349,14 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         switch(channel) {
           case 0:
             config_settings_.A0_series_resistance[ \
-                series_resistor_indices_[channel]] = read_float();
+              feedback_controller_.series_resistor_index(channel)] = \
+                read_float();
             save_config();
             break;
           case 1:
             config_settings_.A1_series_resistance[ \
-                series_resistor_indices_[channel]] = read_float();
+              feedback_controller_.series_resistor_index(channel)] = \
+                read_float();
             save_config();
             break;
           default:
@@ -444,7 +373,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         if (channel < 2) {
           return_code_ = RETURN_OK;
           float capacitance = config_settings_.series_capacitance(channel,
-              series_resistor_indices_[channel]);
+            feedback_controller_.series_resistor_index(channel));
           serialize(&capacitance, sizeof(capacitance));
         } else {
             return_code_ = RETURN_BAD_INDEX;
@@ -460,12 +389,14 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         switch(channel) {
           case 0:
             config_settings_.A0_series_capacitance[ \
-                series_resistor_indices_[channel]] = read_float();
+              feedback_controller_.series_resistor_index(channel)] = \
+                read_float();
             save_config();
             break;
           case 1:
             config_settings_.A1_series_capacitance[ \
-                series_resistor_indices_[channel]] = read_float();
+              feedback_controller_.series_resistor_index(channel)] = \
+                read_float();
             save_config();
             break;
           default:
@@ -527,27 +458,52 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       }
       break;
     case CMD_MEASURE_IMPEDANCE:
-      if (payload_length() < 3*sizeof(uint16_t)) {
+      if (payload_length() < (sizeof(uint16_t) + 2*sizeof(float))) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       } else {
-        uint16_t settling_time_ms = read_uint16();
-        uint16_t delta_t_ms = read_uint16();
-        uint16_t n_samples = read_uint16();
+        float sampling_window_ms = read_float();
+        uint16_t n_sampling_windows = read_uint16();
+        float delay_between_windows_ms = read_float();
+        uint8_t options = read_uint8();
+
+        // Figure out how many samples we should collect per sampling window
+        // (must be an even number because we need to measure 1 sample for the
+        // high-voltage actuation channel and one for the feedback channel).
+        uint16_t n_samples_per_window = round(float(sampling_window_ms) * \
+            AdvancedADC.samplingRate() / 2000.0) * 2;
 
         // command packet can optionally include state of the channels
-        if (payload_length() == 3 * sizeof(uint16_t) || (payload_length() == 3 *
-                                                        sizeof(uint16_t) +
-                                                        number_of_channels_ *
-                                                        sizeof(uint8_t))) {
-          return_code_ = RETURN_OK;
+        if (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
+            2 * sizeof(float)) || \
+            (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
+                2 * sizeof(float) + number_of_channels_ * sizeof(uint8_t)))) {
+          // make sure that the number of sampling windows and samples per
+          // window don't exceed their respective buffers
+          if ((n_sampling_windows <= (MAX_PAYLOAD_LENGTH - sizeof(float)) /
+                (FeedbackController::NUMBER_OF_ADC_CHANNELS * \
+                 (sizeof(int8_t) + sizeof(int16_t))) && \
+              (n_samples_per_window <= (4096 * 2))))
+          {
+            return_code_ = RETURN_OK;
 
-          // update the channels (if they were included in the packet)
-          if (payload_length() == 3 * sizeof(uint16_t) + number_of_channels_ *
-              sizeof(uint8_t)) {
-            update_all_channels();
+            // update the channels (if they were included in the packet)
+            if (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
+                2 * sizeof(float) + number_of_channels_ * sizeof(uint8_t))) {
+              update_all_channels();
+            }
+
+            long start_time = micros();
+            feedback_controller_.measure_impedance(n_samples_per_window,
+                                                   n_sampling_windows,
+                                                   delay_between_windows_ms,
+                                                   options);
+            // return the time between sampling windows (dt) in ms
+            float dt_ms = (float)(micros() - start_time) / \
+                (1000.0 * n_sampling_windows);
+            serialize(&dt_ms, sizeof(dt_ms));
+          } else {
+            return_code_ = RETURN_GENERAL_ERROR;
           }
-
-          measure_impedance(settling_time_ms, delta_t_ms, n_samples);
         } else {
           return_code_ = RETURN_BAD_PACKET_SIZE;
         }
@@ -659,26 +615,10 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
 void DMFControlBoard::begin() {
   RemoteObject::begin();
 
-  // Versions > 1.2 use the built in 5V AREF (default)
-  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
-    analogReference(EXTERNAL);
-  #endif
-
-  #if ___HARDWARE_MAJOR_VERSION___ == 1
-    pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
-    pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
-    pinMode(WAVEFORM_SELECT_, OUTPUT);
-  #else
-    pinMode(A0_SERIES_RESISTOR_0_, OUTPUT);
-    pinMode(A0_SERIES_RESISTOR_1_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_0_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_1_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_2_, OUTPUT);
-    pinMode(A1_SERIES_RESISTOR_3_, OUTPUT);
-  #endif
+#if ___HARDWARE_MAJOR_VERSION___ == 1
+  pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
+  pinMode(WAVEFORM_SELECT_, OUTPUT);
+#endif
 
   // versions > 1.1 need to pull a pin low to turn on the power supply
   #if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) \
@@ -737,7 +677,8 @@ void DMFControlBoard::begin() {
       Serial.println(config_settings_.series_resistance(i, j));
       Serial.print("A" + String(i) + "_series_capacitance[" + String(j) \
           + "]=");
-      Serial.println(config_settings_.series_capacitance(i, j));
+      Serial.print(1e12*config_settings_.series_capacitance(i, j));
+      Serial.println(" pF");
     }
   }
   Serial.print("switching_board_i2c_address=");
@@ -812,227 +753,11 @@ void DMFControlBoard::begin() {
     set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
   #endif
 
-  set_series_resistor(0, 0);
-  set_series_resistor(1, 0);
-#ifdef AVR // only on Arduino Mega 2560
-  AdvancedADC.setPrescaler(4);
-#endif
+  feedback_controller_.begin(this);
 }
 
 const char* DMFControlBoard::hardware_version() {
   return ___HARDWARE_VERSION___;
-}
-
-/*
-void DMFControlBoard::update_amplifier_gain() {
-  // Adjust amplifier gain (only if the hv resistor is the same as on the
-  // previous reading; otherwise it may not have had enough time to get a good
-  // reading).
-  if (auto_adjust_amplifier_gain_ && waveform_voltage_ > 0
-      && adc_buffer_[ADC_CHANNEL_HV].resistor_index_ == \
-      series_resistor_indices_[adc_buffer_[ADC_CHANNEL_HV].analog_pin_index_]) {
-    float R = (config_settings_.A0_series_resistance
-                [adc_buffer_[ADC_CHANNEL_HV].resistor_index_]);
-    float C = (config_settings_.A0_series_capacitance
-                [adc_buffer_[ADC_CHANNEL_HV].resistor_index_]);
-    float measured_voltage, set_voltage;
-    int16_t hv_pk_pk = adc_buffer_[ADC_CHANNEL_HV].peak_to_peak();
-#if ___HARDWARE_MAJOR_VERSION___ == 1
-    float V_fb;
-    int16_t fb_pk_pk = adc_buffer_[ADC_CHANNEL_FB].peak_to_peak();
-
-    if (adc_buffer_[ADC_CHANNEL_FB].saturated() || fb_pk_pk < 0) {
-      V_fb = 0;
-    } else {
-      V_fb = fb_pk_pk * 5.0 / 1023 / sqrt(2) / 2;
-    }
-    measured_voltage = (hv_pk_pk * 5.0 / 1023.0 // measured Vrms /
-                        / sqrt(2) / 2) /
-                        (1 / sqrt(pow(10e6 / R   // transfer
-                                      + 1, 2)    // function
-                                  + pow(10e6 * C * 2 * M_PI *
-                                        waveform_frequency_, 2)));
-    set_voltage = waveform_voltage_ + V_fb;
-#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
-    measured_voltage = (hv_pk_pk * 5.0 / 1023.0  // measured Vrms /
-                        / sqrt(2) / 2) /
-                        (1 / sqrt(pow(10e6 / R,   // transfer
-                                      2) +        // function
-                                  pow(10e6 * C * 2 * M_PI *
-                                      waveform_frequency_, 2)));
-    set_voltage = waveform_voltage_;
-#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
-    // If we're outside of the voltage tolerance, update the gain.
-    if (abs(measured_voltage - set_voltage) >
-        config_settings_.voltage_tolerance) {
-      amplifier_gain_ *= measured_voltage / set_voltage;
-
-      // Enforce minimum gain of 1 because if gain goes to zero, it cannot
-      // be adjusted further.
-      if (amplifier_gain_ < 1) {
-        amplifier_gain_ = 1;
-      }
-      float target;
-      float error = 1e6;
-
-      // Update output voltage (accounting for amplifier gain and for the
-      // voltage drop across the feedback resistor).
-#if ___HARDWARE_MAJOR_VERSION___ == 1
-      target = waveform_voltage_ + V_fb;
-#else   // #if ___HARDWARE_MAJOR_VERSION___ == 1
-      target = waveform_voltage_;
-#endif // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
-      while (error > config_settings_.voltage_tolerance) {
-        error = abs(set_waveform_voltage(target) - target);
-
-        // There is a new request available on the serial port.  Stop what we're
-        // doing so we can service the new request.
-        if (Serial.available() > 0) { break; }
-      }
-    }
-  }
-}
-*/
-
-uint16_t DMFControlBoard::measure_impedance(uint16_t settling_time_ms,
-                                            uint16_t delta_t_ms,
-                                            uint16_t n_samples) {
-  return 0;
-/*
-  // # `measure_impedance` #
-  //
-  // ## Pins ##
-  //
-  //  - Analog pin `0` is connected to _high-voltage (HV)_ signal.
-  //  - Analog pin `1` is connected to _feedback (FB)_ signal.
-  //
-  // ## Analog input measurement circuit ##
-  //
-  //
-  //                     $R_fixed$
-  //     $V_in$   |-------/\/\/\------------\--------\--------\--------\
-  //                                        |        |        |        |
-  //                                        /        /        /        /
-  //                              $R_min$   \  $R_1$ \  $R_2$ \  $R_3$ \
-  //                                        /        /        /        /
-  //                                        \        \        \        \
-  //                                        |        |        |        |
-  //                                        o        o        o        o
-  //                                       /        /        /        /
-  //                                      /        /        /        /
-  //                                        o        o        o        o
-  //                                        |        |        |        |
-  //                                        |        |        |        |
-  //                                       ---      ---      ---      ---
-  //                                        -        -        -        -
-  //
-  // Based on the amplitude of $V_in$, we need to select an appropriate
-  // resistor to activate, such that we divide the input voltage to within
-  // 0-5V, since this is the range that Arduino ADC can handle.
-
-  // Only collect enough samples to fill the maximum payload length.
-  //
-  // Each sample contains:
-  //
-  //  - High-voltage (`A0`) amplitude.
-  //  - High-voltage (`A0`) resistor index.
-  //  - Feedback (`A1`) amplitude.
-  //  - Feedback (`A1`) resistor index.
-
-  uint16_t max_samples = MAX_PAYLOAD_LENGTH /
-                         (2 * sizeof(int8_t) + 2 * sizeof(int16_t));
-  if (n_samples > max_samples) {
-    n_samples = max_samples;
-  }
-
-  uint16_t n_samples = ((float)delta_t_ms*relative_sampling_time_);
-
-  // Save current resistor indexes to return them to their original state when
-  // we're done.
-  uint8_t original_A0_index = A0_series_resistor_index_;
-  uint8_t original_A1_index = A1_series_resistor_index_;
-
-  // Set the resistors to their highest values
-  set_series_resistor(0,
-      sizeof(config_settings_.A0_series_resistance)/sizeof(float) - 1);
-  set_series_resistor(1,
-      sizeof(config_settings_.A1_series_resistance)/sizeof(float) - 1);
-
-  // Sample the following voltage signals:
-  //
-  //  - Incoming high-voltage signal from the amplifier.
-  //  - Incoming feedback signal from the DMF device.
-  //
-  // For each signal, take `n` samples to find the corresponding peak-to-peak
-  // voltage.  While sampling, automatically select the largest feedback
-  // resistor that _does not saturate_ the input _analog-to-digital converter
-  // (ADC)_.  This provides the highest resolution measurements.
-  //
-  // __NB__ In the case where the signal saturates the lowest resistor, mark
-  // the measurement as saturated/invalid.
-  uint16_t i = 0;
-
-  for (; i < n_samples; i++) {
-    adc_buffer_[ADC_CHANNEL_HV].reset(A0_series_resistor_index_);
-    adc_buffer_[ADC_CHANNEL_FB].reset(A1_series_resistor_index_);
-    uint32_t t_sample = millis();
-
-    // Sample for `sampling_time_ms` milliseconds and use the minimum and
-    // maximum values to determine peak-to-peak voltage.
-    while (millis() - t_sample < sampling_time_ms) {
-      adc_buffer_[ADC_CHANNEL_HV].measure();
-      adc_buffer_[ADC_CHANNEL_FB].measure();
-    }
-
-    // How many samples should we ignore after filtering
-    // to allow the signal to settle (i.e., convert setting
-    // time in ms to a number of samples).
-    uint16_t n_ignore = settling_time_ms * \
-                        adc_buffer_[ADC_CHANNEL_HV].n_readings_ / sampling_time_ms;
-
-    int16_t hv_pk_pk = adc_buffer_[ADC_CHANNEL_HV].peak_to_peak();
-    int16_t fb_pk_pk = adc_buffer_[ADC_CHANNEL_FB].peak_to_peak();
-
-    if (!adc_buffer_[ADC_CHANNEL_HV].saturated()) {
-      // Based on the most-recent peak-to-peak measurement of the incoming
-      // high-voltage signal, adjust the gain correction factor we apply to
-      // waveform amplitude changes to compensate for deviations from our model
-      // of the gain of the amplifier.
-      update_amplifier_gain();
-    }
-
-    // filter the signals
-    hv_rms = process_adc_buffer(A0_buffer_, j, n_ignore);
-    fb_rms = process_adc_buffer(A1_buffer_, j, n_ignore);
-
-    // Serialize measurements to the return buffer.
-    serialize(&hv_rms, sizeof(hv_rms));
-    serialize(&hv_resistor, sizeof(hv_resistor));
-    serialize(&fb_rms, sizeof(fb_rms));
-    serialize(&fb_resistor, sizeof(fb_resistor));
-
-    // There is a new request available on the serial port.  Stop what we're
-    // doing so we can service the new request.
-    if (Serial.available() > 0) { break; }
-
-    // If t_delay is negative, it means that the filtering operation
-    // took too long. Return an error.
-    if(t_delay < 0) {
-      return_code_ = RETURN_GENERAL_ERROR;
-      break;
-    }
-    while(millis() - t_delay) {}
-
-  }
-
-  // Set the resistors back to their original states.
-  set_series_resistor(0, original_A0_index);
-  set_series_resistor(1, original_A1_index);
-
-  // Return the number of samples that we measured _(i.e, the number of values
-  // available in the result buffers)_.
-  return i;
-  */
 }
 
 void DMFControlBoard::send_spi(uint8_t pin, uint8_t address, uint8_t data) {
@@ -1048,93 +773,6 @@ uint8_t DMFControlBoard::set_pot(uint8_t index, uint8_t value) {
     return RETURN_OK;
   }
   return RETURN_BAD_INDEX;
-}
-
-uint8_t DMFControlBoard::set_series_resistor(const uint8_t channel,
-                                             const uint8_t index) {
-  uint8_t return_code = RETURN_OK;
-  if (channel==0) {
-    switch(index) {
-      case 0:
-        digitalWrite(A0_SERIES_RESISTOR_0_, HIGH);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A0_SERIES_RESISTOR_1_, LOW);
-        #endif
-        break;
-      case 1:
-        digitalWrite(A0_SERIES_RESISTOR_0_, LOW);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A0_SERIES_RESISTOR_1_, HIGH);
-        #endif
-        break;
-#if ___HARDWARE_MAJOR_VERSION___ == 2
-      case 2:
-        digitalWrite(A0_SERIES_RESISTOR_0_, LOW);
-        digitalWrite(A0_SERIES_RESISTOR_1_, LOW);
-        break;
-#endif
-      default:
-        return_code = RETURN_BAD_INDEX;
-        break;
-    }
-    if (return_code==RETURN_OK) {
-      series_resistor_indices_[channel] = index;
-    }
-  } else if (channel==1) {
-    switch(index) {
-      case 0:
-        digitalWrite(A1_SERIES_RESISTOR_0_, HIGH);
-        digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
-        #endif
-        break;
-      case 1:
-        digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_1_, HIGH);
-        digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
-        #endif
-        break;
-      case 2:
-        digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_2_, HIGH);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
-        #endif
-        break;
-      case 3:
-        digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
-        #if ___HARDWARE_MAJOR_VERSION___ == 2
-          digitalWrite(A1_SERIES_RESISTOR_3_, HIGH);
-        #endif
-        break;
-      #if ___HARDWARE_MAJOR_VERSION___ == 2
-      case 4:
-        digitalWrite(A1_SERIES_RESISTOR_0_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_1_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_2_, LOW);
-        digitalWrite(A1_SERIES_RESISTOR_3_, LOW);
-        break;
-      #endif
-      default:
-        return_code = RETURN_BAD_INDEX;
-        break;
-    }
-    if (return_code==RETURN_OK) {
-      series_resistor_indices_[channel] = index;
-    }
-  } else { // bad channel
-    return_code = RETURN_BAD_INDEX;
-  }
-  // wait for signal to settle
-  delayMicroseconds(200);
-  return return_code;
 }
 
 // update the state of all channels
@@ -1296,6 +934,13 @@ void DMFControlBoard::save_config() {
   /* Call `load_config` to refresh the `ConfigSettings` struct with the new
    * value written to persistent storage _(e.g., EEPROM)_. */
   load_config();
+}
+
+void DMFControlBoard::set_amplifier_gain(const float gain) {
+  amplifier_gain_ = gain;
+  // Update output voltage (accounting for new amplifier gain)
+  // Don't wait for a response to keep things fast.
+  set_waveform_voltage(waveform_voltage_, false);
 }
 
 uint8_t DMFControlBoard::set_waveform_voltage(const float output_vrms,
@@ -1546,50 +1191,65 @@ uint8_t DMFControlBoard::set_waveform_frequency(const float freq_hz) {
 }
 
 std::vector <float> DMFControlBoard::measure_impedance(
-                                          uint16_t settling_time_ms,
-                                          uint16_t delta_t_ms,
-                                          uint16_t n_samples,
-                                          const std::vector <uint8_t> state) {
-  measure_impedance_non_blocking(settling_time_ms, delta_t_ms, n_samples,
+                                           float sampling_window_ms,
+                                           uint16_t n_sampling_windows,
+                                           float delay_between_windows_ms,
+                                           bool interleave_samples,
+                                           bool rms,
+                                           const std::vector<uint8_t> state) {
+  float _sampling_rate = sampling_rate();
+  measure_impedance_non_blocking(sampling_window_ms,
+                                 n_sampling_windows,
+                                 delay_between_windows_ms,
+                                 interleave_samples,
+                                 rms,
                                  state);
 
   boost::this_thread::sleep(boost::posix_time::milliseconds(
-    n_samples * (delta_t_ms)));
+      (sampling_window_ms + delay_between_windows_ms) * n_sampling_windows));
   return get_impedance_data();
 }
 
 void DMFControlBoard::measure_impedance_non_blocking(
-                                          uint16_t settling_time_ms,
-                                          uint16_t delta_t_ms,
-                                          uint16_t n_samples,
-                                          const std::vector <uint8_t> state) {
+                                            float sampling_window_ms,
+                                            uint16_t n_sampling_windows,
+                                            float delay_between_windows_ms,
+                                            bool interleave_samples,
+                                            bool rms,
+                                            const std::vector<uint8_t> state) {
   const char* function_name = "measure_impedance_non_blocking()";
   log_separator();
   log_message("send command", function_name);
   // if we get this far, everything is ok
-  serialize(&settling_time_ms, sizeof(settling_time_ms));
-  serialize(&delta_t_ms, sizeof(delta_t_ms));
-  serialize(&n_samples, sizeof(n_samples));
-  serialize(&state[0],state.size() * sizeof(uint8_t));
+  serialize(&sampling_window_ms, sizeof(sampling_window_ms));
+  serialize(&n_sampling_windows, sizeof(n_sampling_windows));
+  serialize(&delay_between_windows_ms, sizeof(delay_between_windows_ms));
+
+  // set impedance options
+  // IMPOPT: - - - - - - RMS INTLV
+  uint8_t options = (interleave_samples << INTLV) + \
+    (rms << RMS);
+
+  serialize(&options, sizeof(options));
+  serialize(&state[0], state.size() * sizeof(uint8_t));
   send_non_blocking_command(CMD_MEASURE_IMPEDANCE);
 }
 
 std::vector<float> DMFControlBoard::get_impedance_data() {
   const char* function_name = "get_impedance_data()";
   if (validate_reply(CMD_MEASURE_IMPEDANCE) == RETURN_OK) {
-    uint16_t n_samples = payload_length() / (2 * sizeof(int16_t) + 2 *
-                                             sizeof(int8_t));
+    uint16_t n_samples = (payload_length() - sizeof(float)) / \
+        (2 * sizeof(int16_t) + 2 * sizeof(int8_t));
     log_message(str(format("Read %d impedance samples") % n_samples).c_str(),
                 function_name);
-    std::vector < float> impedance_buffer(4 * n_samples);
+    std::vector <float> impedance_buffer(4 * n_samples + 1);
     for (uint16_t i = 0; i < n_samples; i++) {
-      impedance_buffer[4 * i] = (float)read_int16() * 5.0 / 1023 /  // V_hv
-                                sqrt(2) / 2;
-      impedance_buffer[4 * i + 1] = read_int8(); // hv_resistor
-      impedance_buffer[4 * i + 2] = (float)read_int16() * 5.0 / 1023 /  // V_fb
-                                    sqrt(2) / 2;
-      impedance_buffer[4 * i + 3] = read_int8(); // fb_resistor
+      impedance_buffer[4 * i] = read_uint16();     // V_hv
+      impedance_buffer[4 * i + 1] = read_int8();  // hv_resistor
+      impedance_buffer[4 * i + 2] = read_uint16(); // V_fb
+      impedance_buffer[4 * i + 3] = read_int8();  // fb_resistor
     }
+    impedance_buffer[4*n_samples] = read_float();
     log_message(str(format("payload_length()=%d") % payload_length()).c_str(),
                 function_name);
     log_message(str(format("bytes_read() - payload_length()=%d")

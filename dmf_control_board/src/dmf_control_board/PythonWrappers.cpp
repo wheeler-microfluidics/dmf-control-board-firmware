@@ -112,6 +112,7 @@ object DMFControlBoard_class
     .def("state_of_channel",&DMFControlBoard::state_of_channel)
     .def("sampling_rate",&DMFControlBoard::sampling_rate)
     .def("adc_prescaler",&DMFControlBoard::adc_prescaler)
+    .def("_aref",&DMFControlBoard::aref)
     .def("series_resistor_index",&DMFControlBoard::series_resistor_index)
     .def("_series_resistance",&DMFControlBoard::series_resistance)
     .def("_series_capacitance",&DMFControlBoard::series_capacitance)
