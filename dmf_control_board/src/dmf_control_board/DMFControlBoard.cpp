@@ -466,11 +466,32 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         float delay_between_windows_ms = read_float();
         uint8_t options = read_uint8();
 
+        // decode impedance option bits
+        // IMPOPT: - - - - - - RMS INTLV
+        bool interleave_samples = (options & (1 << INTLV)) > 0;
+        bool rms =  (options & (1 << RMS)) > 0;
+
         // Figure out how many samples we should collect per sampling window
-        // (must be an even number because we need to measure 1 sample for the
-        // high-voltage actuation channel and one for the feedback channel).
-        uint16_t n_samples_per_window = round(float(sampling_window_ms) * \
-            AdvancedADC.samplingRate() / 2000.0) * 2;
+        // with the condition that the sampling window must be a multilple of
+        // 0.5 waveform periods. First calculate the number of waveform
+        // periods:
+        float n_periods = round(float(sampling_window_ms) * \
+          waveform_frequency_ / 1000.0 / 0.5) * 0.5;
+
+        // The number of periods should be a minimum of 0.5 (interleaved
+        // samples) or 1 (non-interleaved samples).
+        if (interleave_samples) {
+          n_periods = max(0.5, n_periods);
+        } else {
+          n_periods = max(1.0, n_periods);
+        }
+
+        // Now convert this to the number of samples based on the sampling rate.
+        // Note that the number of samples must also be an even number because
+        // we need to measure 1 sample for the high-voltage actuation channel
+        // and one for the feedback channel):
+        uint16_t n_samples_per_window = lround(n_periods / \
+            waveform_frequency_ * AdvancedADC.samplingRate() / 2.0) * 2;
 
         // command packet can optionally include state of the channels
         if (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
@@ -496,7 +517,8 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
             feedback_controller_.measure_impedance(n_samples_per_window,
                                                    n_sampling_windows,
                                                    delay_between_windows_ms,
-                                                   options);
+                                                   interleave_samples,
+                                                   rms);
             // return the time between sampling windows (dt) in ms
             float dt_ms = (float)(micros() - start_time) / \
                 (1000.0 * n_sampling_windows);

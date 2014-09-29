@@ -183,7 +183,8 @@ void FeedbackController::fb_channel_callback(uint8_t channel_index,
 uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
                                           uint16_t n_sampling_windows,
                                           float delay_between_windows_ms,
-                                          uint8_t options) {
+                                          bool interleave_samples,
+                                          bool rms) {
   // # `measure_impedance` #
   //
   // ## Pins ##
@@ -227,13 +228,9 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   //  - Feedback amplitude.
   //  - Feedback resistor index.
 
-  // save the number of samples per window
+  // save the number of samples per window and rms flag
   n_samples_per_window_  = n_samples_per_window;
-
-  // decode impedance option bits
-  // IMPOPT: - - - - - - RMS INTLV
-  bool interleave_samples = (options & (1 << DMFControlBoard::INTLV)) > 0;
-  rms_ =  (options & (1 << DMFControlBoard::RMS)) > 0;
+  rms_ =  rms;
 
   // record the current series resistors (so we can restore the current state
   // after this measurement)

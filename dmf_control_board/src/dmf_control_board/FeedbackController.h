@@ -55,7 +55,8 @@ public:
   static uint16_t measure_impedance(uint16_t n_samples_per_window,
                              uint16_t n_sampling_windows,
                              float delay_between_windows_ms,
-                             uint8_t options);
+                             bool interleave_samples,
+                             bool rms);
   static void interleaved_callback(uint8_t channel, uint16_t value);
   static void hv_channel_callback(uint8_t channel, uint16_t value);
   static void fb_channel_callback(uint8_t channel, uint16_t value);
