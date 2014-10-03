@@ -5,23 +5,16 @@
 #include "DMFControlBoard.h"
 
 
-uint8_t FeedbackController::series_resistor_indices_[NUMBER_OF_ADC_CHANNELS];
-uint8_t FeedbackController::saturated_[NUMBER_OF_ADC_CHANNELS];
-uint8_t FeedbackController::post_saturation_ignore_[NUMBER_OF_ADC_CHANNELS];
-uint16_t FeedbackController::max_value_[NUMBER_OF_ADC_CHANNELS];
-uint16_t FeedbackController::min_value_[NUMBER_OF_ADC_CHANNELS];
-uint32_t FeedbackController::sum_[NUMBER_OF_ADC_CHANNELS];
-uint32_t FeedbackController::prev_sum_[NUMBER_OF_ADC_CHANNELS];
-uint32_t FeedbackController::sum2_[NUMBER_OF_ADC_CHANNELS];
-uint16_t FeedbackController::vgnd_[NUMBER_OF_ADC_CHANNELS];
-float FeedbackController::vgnd_exp_filtered_[NUMBER_OF_ADC_CHANNELS];
 uint16_t FeedbackController::n_samples_per_window_;
 DMFControlBoard* FeedbackController::parent_;
 bool FeedbackController::rms_;
-
 const uint8_t FeedbackController::CHANNELS[] = {
-    FeedbackController::HV_CHANNEL,
-    FeedbackController::FB_CHANNEL
+  FeedbackController::HV_CHANNEL,
+  FeedbackController::FB_CHANNEL
+};
+FeedbackController::ADCChannel FeedbackController::channels_[] = {
+  FeedbackController::ADCChannel(FeedbackController::HV_CHANNEL),
+  FeedbackController::ADCChannel(FeedbackController::FB_CHANNEL)
 };
 
 void FeedbackController::begin(DMFControlBoard* parent) {
@@ -58,10 +51,14 @@ void FeedbackController::begin(DMFControlBoard* parent) {
   // initialize virtual ground levels
   for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
        channel_index++) {
+    // get a reference to the channel
+    ADCChannel& channel = channels_[channel_index];
+
     // integer
-    vgnd_[channel_index] = analogRead(CHANNELS[channel_index]);
-    // float
-    vgnd_exp_filtered_[channel_index] = vgnd_[channel_index];
+    channel.vgnd = analogRead(channel.channel);
+
+    // convert to a float
+    channel.vgnd_exp_filtered = channel.vgnd;
   }
 }
 
@@ -92,9 +89,6 @@ uint8_t FeedbackController::set_series_resistor_index(
       default:
         return_code = DMFControlBoard::RETURN_BAD_INDEX;
         break;
-    }
-    if (return_code==DMFControlBoard::RETURN_OK) {
-      series_resistor_indices_[channel_index] = index;
     }
   } else if (channel_index==1) {
     switch(index) {
@@ -142,11 +136,11 @@ uint8_t FeedbackController::set_series_resistor_index(
         return_code = DMFControlBoard::RETURN_BAD_INDEX;
         break;
     }
-    if (return_code==DMFControlBoard::RETURN_OK) {
-      series_resistor_indices_[channel_index] = index;
-    }
   } else { // bad channel_index
     return_code = DMFControlBoard::RETURN_BAD_INDEX;
+  }
+  if (return_code==DMFControlBoard::RETURN_OK) {
+    channels_[channel_index].series_resistor_index = index;
   }
   return return_code;
 }
@@ -154,31 +148,34 @@ uint8_t FeedbackController::set_series_resistor_index(
 // update buffer with new reading and increment to next channel_index
 void FeedbackController::interleaved_callback(uint8_t channel_index,
                                               uint16_t value) {
+  // get a reference to the channel
+  ADCChannel& channel = channels_[channel_index];
+
   // check if we've exceeded the saturation threshold
   if (value > SATURATION_THRESHOLD_HIGH || value < SATURATION_THRESHOLD_LOW) {
-    if (post_saturation_ignore_[channel_index] == 0) {
-      saturated_[channel_index] = saturated_[channel_index] + 1;
+    if (channel.post_saturation_ignore == 0) {
+      channel.saturated = channel.saturated + 1;
       // The ADC is saturated, so use a smaller resistor
-      if (series_resistor_indices_[channel_index] > 0) {
+      if (channel.series_resistor_index > 0) {
         set_series_resistor_index(channel_index,
-            series_resistor_indices_[channel_index] - 1);
+            channel.series_resistor_index - 1);
       }
-      post_saturation_ignore_[channel_index] = N_IGNORE_POST_SATURATION;
+      channel.post_saturation_ignore = N_IGNORE_POST_SATURATION;
     } else {
-      post_saturation_ignore_[channel_index] -= 1;
+      channel.post_saturation_ignore -= 1;
     }
   } else {
     if (rms_) {
       // update rms
-      int32_t v = (int32_t)(value-vgnd_[channel_index]);
-      sum2_[channel_index] += v*v;
-      sum_[channel_index] += value;
+      int32_t v = (int32_t)((int16_t)value - (int16_t)channel.vgnd);
+      channel.sum2 += v * v;
+      channel.sum += value;
     } else {
       // update peak-to-peak
-      if (value > max_value_[channel_index]) {
-        max_value_[channel_index] = value;
-      } else if (value < min_value_[channel_index]) {
-        min_value_[channel_index] = value;
+      if (value > channel.max_value) {
+        channel.max_value = value;
+      } else if (value < channel.min_value) {
+        channel.min_value = value;
       }
     }
   }
@@ -254,11 +251,11 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
     // record the current series resistors (so we can restore the current state
     // after this measurement)
     original_resistor_index[channel_index] = \
-      series_resistor_indices_[channel_index];
+      channels_[channel_index].series_resistor_index;
 
     // enable the largest series resistors
     resistor_index[channel_index] = \
-        parent_->config_settings().n_series_resistors(channel_index) - 1;
+      parent_->config_settings().n_series_resistors(channel_index) - 1;
     set_series_resistor_index(channel_index, resistor_index[channel_index]);
   }
 
@@ -274,7 +271,6 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   //
   // __NB__ In the case where the signal saturates the lowest resistor, mark
   // the measurement as saturated/invalid.
-
   if (interleave_samples) {
     AdvancedADC.setBufferLen(n_samples_per_window_);
     AdvancedADC.setChannels((uint8_t*)CHANNELS, NUMBER_OF_ADC_CHANNELS);
@@ -306,19 +302,21 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   for (uint16_t i = 0; i < n_sampling_windows; i++) {
     for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
          channel_index++) {
+      // get a reference to the channel
+      ADCChannel& channel = channels_[channel_index];
 
-      // set channels to the unsaturated state
-      saturated_[channel_index] = 0;
-      post_saturation_ignore_[channel_index] = 0;
+      // set channel to the unsaturated state
+      channel.saturated = 0;
+      channel.post_saturation_ignore = 0;
 
       if (rms_) {
         // initialize sum and sum2 buffers
-        sum_[channel_index] = 0;
-        sum2_[channel_index] = 0;
+        channel.sum = 0;
+        channel.sum2 = 0;
       } else {
         // initialize max/min buffers
-        min_value_[channel_index] = 1023;
-        max_value_[channel_index] = 0;
+        channel.min_value = 1023;
+        channel.max_value = 0;
       }
     }
 
@@ -346,9 +344,12 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
     for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
          channel_index++) {
 
+      // get a reference to the channel
+      ADCChannel& channel = channels_[channel_index];
+
       // calculate the rms voltage
       if (rms_) {
-        measured_rms[channel_index] = sqrt((float)sum2_[channel_index] * \
+        measured_rms[channel_index] = sqrt((float)channel.sum2 * \
             NUMBER_OF_ADC_CHANNELS / (float)(n_samples_per_window_));
         measured_pk_pk[channel_index] = (measured_rms[channel_index] * 64.0 * \
           2.0 * sqrt(2));
@@ -364,30 +365,30 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
                               // quickly, but since we don't expect it to
                               // change rapidly, we can keep alpha small to
                               // effectively average over more samples.
-          vgnd_exp_filtered_[channel_index] = \
-            alpha*(float)(sum_[channel_index] + prev_sum_[channel_index]) / \
+          channel.vgnd_exp_filtered = \
+            alpha*(float)(channel.sum + channel.prev_sum) / \
             (float)(n_samples_per_window_) + \
-            (1-alpha)*vgnd_exp_filtered_[channel_index];
+            (1 - alpha)*channel.vgnd_exp_filtered;
 
           // store the actual vgnd value used in the callback function as an
           // integer for performance
-          vgnd_[channel_index] = round(vgnd_exp_filtered_[channel_index]);
+          channel.vgnd = round(channel.vgnd_exp_filtered);
         }
 
         // update prev_sum
-        prev_sum_[channel_index] = sum_[channel_index];
+        channel.prev_sum = channel.sum;
 
       } else { // use peak-to-peak measurements
-        measured_pk_pk[channel_index] = 64 * (max_value_[channel_index] - \
-          min_value_[channel_index]);
+        measured_pk_pk[channel_index] = 64 * (channel.max_value - \
+          channel.min_value);
         measured_rms[channel_index] = \
           measured_pk_pk[channel_index] / sqrt(2) / (2 * 64);
       }
       // update the resistor indices
-      if (saturated_[channel_index] > 0) {
-        resistor_index[channel_index] = -saturated_[channel_index];
+      if (channel.saturated > 0) {
+        resistor_index[channel_index] = -channel.saturated;
       } else {
-        resistor_index[channel_index] = series_resistor_indices_[channel_index];
+        resistor_index[channel_index] = channel.series_resistor_index;
       }
     }
 
@@ -397,7 +398,7 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
     // gain of the amplifier. Only adjust gain if the last reading did not
     // saturate the ADC.
     if (parent_->auto_adjust_amplifier_gain() &&
-        saturated_[HV_CHANNEL_INDEX] == 0 &&
+        channels_[HV_CHANNEL_INDEX].saturated == 0 &&
         parent_->waveform_voltage() > 0) {
 
       // calculate the actuation voltage
@@ -407,7 +408,7 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
       float target_voltage;
       #if ___HARDWARE_MAJOR_VERSION___ == 1
         float V_fb;
-        if (saturated_[FB_CHANNEL_INDEX] > 0) {
+        if (channels_[FB_CHANNEL_INDEX].saturated > 0) {
           V_fb = 0;
         } else {
           V_fb = measured_rms[FB_CHANNEL_INDEX] * a_conv;
@@ -441,7 +442,7 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
       // range), increase the series resistor index one step
       if (measured_pk_pk[channel_index] < (64*1023L)/20) {
         set_series_resistor_index(channel_index,
-            series_resistor_indices_[channel_index] + 1);
+            channels_[channel_index].series_resistor_index + 1);
       }
 
       // Serialize measurements to the return buffer.

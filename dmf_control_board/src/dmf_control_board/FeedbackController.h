@@ -35,21 +35,34 @@ public:
   static const uint16_t SATURATION_THRESHOLD_LOW = 51; // ~5% max
   static const uint8_t N_IGNORE_POST_SATURATION = 3;
 
-  // TODO:
-  //  Eventually, all of these variables should defined only on the arduino.
-  //  The PC can interogate device using CMD_GET_NUMBER_OF_ADC_CHANNELS
+  struct ADCChannel {
+    ADCChannel(uint8_t channel_) : channel(channel_) {}
+    uint8_t channel;
+    uint8_t series_resistor_index;
+    uint8_t saturated;
+    uint8_t post_saturation_ignore;
+    uint16_t max_value;
+    uint16_t min_value;
+    uint32_t sum;
+    uint32_t prev_sum;
+    uint32_t sum2;
+    uint16_t vgnd;
+    float vgnd_exp_filtered;
+  };
+
   static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
+  static const uint8_t CHANNELS[];
   static const uint8_t HV_CHANNEL = 0;
   static const uint8_t FB_CHANNEL = 2;
   static const uint8_t HV_CHANNEL_INDEX = 0;
   static const uint8_t FB_CHANNEL_INDEX = 1;
-  static const uint8_t CHANNELS[];
 
   static void begin(DMFControlBoard* parent);
   static uint8_t set_series_resistor_index(const uint8_t channel_index,
-                                    const uint8_t index);
+                                           const uint8_t index);
+
   static uint8_t series_resistor_index(uint8_t channel_index) {
-    return series_resistor_indices_[channel_index];
+    return channels_[channel_index].series_resistor_index;
   }
 
   static uint16_t measure_impedance(uint16_t n_samples_per_window,
@@ -57,20 +70,11 @@ public:
                              float delay_between_windows_ms,
                              bool interleave_samples,
                              bool rms);
-  static void interleaved_callback(uint8_t channel, uint16_t value);
-  static void hv_channel_callback(uint8_t channel, uint16_t value);
-  static void fb_channel_callback(uint8_t channel, uint16_t value);
+  static void interleaved_callback(uint8_t channel_index, uint16_t value);
+  static void hv_channel_callback(uint8_t channel_index, uint16_t value);
+  static void fb_channel_callback(uint8_t channel_index, uint16_t value);
 private:
-  static uint8_t series_resistor_indices_[NUMBER_OF_ADC_CHANNELS];
-  static uint8_t saturated_[NUMBER_OF_ADC_CHANNELS];
-  static uint8_t post_saturation_ignore_[NUMBER_OF_ADC_CHANNELS];
-  static uint16_t max_value_[NUMBER_OF_ADC_CHANNELS];
-  static uint16_t min_value_[NUMBER_OF_ADC_CHANNELS];
-  static uint32_t sum_[NUMBER_OF_ADC_CHANNELS];
-  static uint32_t prev_sum_[NUMBER_OF_ADC_CHANNELS];
-  static uint32_t sum2_[NUMBER_OF_ADC_CHANNELS];
-  static uint16_t vgnd_[NUMBER_OF_ADC_CHANNELS];
-  static float vgnd_exp_filtered_[NUMBER_OF_ADC_CHANNELS];
+  static ADCChannel channels_[];
   static uint16_t n_samples_per_window_;
   static DMFControlBoard* parent_;
   static bool rms_;
