@@ -472,7 +472,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         bool rms =  (options & (1 << RMS)) > 0;
 
         // Figure out how many samples we should collect per sampling window
-        // with the condition that the sampling window must be a multilple of
+        // with the condition that the sampling window must be a multiple of
         // 0.5 waveform periods. First calculate the number of waveform
         // periods:
         float n_periods = round(float(sampling_window_ms) * \

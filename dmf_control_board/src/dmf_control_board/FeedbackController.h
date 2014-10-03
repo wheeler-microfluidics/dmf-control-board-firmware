@@ -66,7 +66,11 @@ private:
   static uint8_t post_saturation_ignore_[NUMBER_OF_ADC_CHANNELS];
   static uint16_t max_value_[NUMBER_OF_ADC_CHANNELS];
   static uint16_t min_value_[NUMBER_OF_ADC_CHANNELS];
+  static uint32_t sum_[NUMBER_OF_ADC_CHANNELS];
+  static uint32_t prev_sum_[NUMBER_OF_ADC_CHANNELS];
   static uint32_t sum2_[NUMBER_OF_ADC_CHANNELS];
+  static uint16_t vgnd_[NUMBER_OF_ADC_CHANNELS];
+  static float vgnd_exp_filtered_[NUMBER_OF_ADC_CHANNELS];
   static uint16_t n_samples_per_window_;
   static DMFControlBoard* parent_;
   static bool rms_;
