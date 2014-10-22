@@ -293,7 +293,7 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
   // __NB__ In the case where the signal saturates the lowest resistor, mark
   // the measurement as saturated/invalid.
   uint8_t channels[] = { channels_[HV_CHANNEL_INDEX].channel,
-                       channels_[FB_CHANNEL_INDEX].channel
+                         channels_[FB_CHANNEL_INDEX].channel
   };
   if (interleave_samples) {
     AdvancedADC.setBufferLen(n_samples_per_window_);
@@ -506,10 +506,10 @@ void FeedbackController::find_sampling_rate(float sampling_window_ms,
   // Conditions:
   //   1. sampling rate < max sampling rate
   //   2. sampling rate is not a sub-harmonic of the fundamental frequency
-  //   3. sampling rate / fundamental frequency is not an integer
+  //   3. sampling rate / fundamental frequency is not an integer less than 10
   //   4. sampling rate / fundamental frequency * number of waveform periods
   //      is a multiple of 0.5
-  // The following conditions also apply if hte sampling rate is less than
+  // The following conditions also apply if the sampling rate is less than
   // the Nyquist rate:
   //   5. sampling rate is not a sub-harmonic of the aliased frequency
   //   6. sampling rate / aliased frequency is not an integer
@@ -520,7 +520,6 @@ void FeedbackController::find_sampling_rate(float sampling_window_ms,
                           0.5) * 0.5;
 
   while (true) {
-
     // iterate over the possible number of samples per window (need at least 2)
     for (*n_samples_per_window_out = ceil(n_periods / frequency * \
                                           max_sampling_rate);
@@ -566,7 +565,8 @@ void FeedbackController::find_sampling_rate(float sampling_window_ms,
       }
 
       // check condition 3
-      if (abs(*sampling_rate_out / frequency - \
+      if (*sampling_rate_out / frequency < 10 && \
+          abs(*sampling_rate_out / frequency - \
           round(*sampling_rate_out / frequency)) < 0.0001) {
         continue;
       }
