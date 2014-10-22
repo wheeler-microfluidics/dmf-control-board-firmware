@@ -471,40 +471,19 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         bool interleave_samples = (options & (1 << INTLV)) > 0;
         bool rms =  (options & (1 << RMS)) > 0;
 
-        // Figure out how many samples we should collect per sampling window
-        // with the condition that the sampling window must be a multiple of
-        // 0.5 waveform periods. First calculate the number of waveform
-        // periods:
-        float n_periods = round(float(sampling_window_ms) * \
-          waveform_frequency_ / 1000.0 / 0.5) * 0.5;
-
-        // The number of periods should be a minimum of 0.5 (interleaved
-        // samples) or 1 (non-interleaved samples).
-        if (interleave_samples) {
-          n_periods = max(0.5, n_periods);
-        } else {
-          n_periods = max(1.0, n_periods);
-        }
-
-        // Now convert this to the number of samples based on the sampling rate.
-        // Note that the number of samples must also be an even number because
-        // we need to measure 1 sample for the high-voltage actuation channel
-        // and one for the feedback channel):
-        uint16_t n_samples_per_window = lround(n_periods / \
-            waveform_frequency_ * AdvancedADC.samplingRate() / 2.0) * 2;
-
         // command packet can optionally include state of the channels
         if (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
             2 * sizeof(float)) || \
             (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
                 2 * sizeof(float) + number_of_channels_ * sizeof(uint8_t)))) {
-          // make sure that the number of sampling windows and samples per
-          // window don't exceed their respective buffers
+          // make sure that the number of sampling windows doesn't exceed the
+          // limits of the output buffer and that the sampling window length
+          // will not overflow the sum^2 variables
           if ((n_sampling_windows <= (MAX_PAYLOAD_LENGTH - sizeof(float)) /
                 (FeedbackController::NUMBER_OF_ADC_CHANNELS * \
-                 (sizeof(int8_t) + sizeof(int16_t))) && \
-              (n_samples_per_window <= (4096 * 2))))
-          {
+                 (sizeof(int8_t) + sizeof(int16_t)))) && \
+                 (sampling_window_ms / 1000 * \
+                   feedback_controller_.MAX_SAMPLING_RATE < 4096)) {
             return_code_ = RETURN_OK;
 
             // update the channels (if they were included in the packet)
@@ -514,9 +493,10 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
             }
 
             long start_time = micros();
-            feedback_controller_.measure_impedance(n_samples_per_window,
+            feedback_controller_.measure_impedance(sampling_window_ms,
                                                    n_sampling_windows,
                                                    delay_between_windows_ms,
+                                                   waveform_frequency_,
                                                    interleave_samples,
                                                    rms);
             // return the time between sampling windows (dt) in ms
@@ -709,6 +689,10 @@ void DMFControlBoard::begin() {
   Serial.println(config_settings_.amplifier_gain);
   Serial.print("voltage_tolerance=");
   Serial.println(config_settings_.voltage_tolerance);
+  Serial.print("use_antialiasing_filter=");
+  Serial.println(config_settings_.use_antialiasing_filter);
+  Serial.print("auto_adjust_amplifier_gain=");
+  Serial.println(auto_adjust_amplifier_gain_);
 
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
@@ -775,7 +759,12 @@ void DMFControlBoard::begin() {
     set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
   #endif
 
-  feedback_controller_.begin(this);
+  // if we're using the anti-aliasing filter, the feedback channel is A2
+  if (config_settings_.use_antialiasing_filter) {
+    feedback_controller_.begin(this, 0, 2);
+  } else {
+    feedback_controller_.begin(this, 0, 1);
+  }
 }
 
 const char* DMFControlBoard::hardware_version() {
@@ -889,15 +878,23 @@ void DMFControlBoard::load_config(bool use_defaults) {
     save_config();
   }
 
+  if (config_settings_.version.major == 0 &&
+     config_settings_.version.minor == 0 &&
+     config_settings_.version.micro == 2) {
+    config_settings_.use_antialiasing_filter = false;
+    config_settings_.version.micro = 4;
+    save_config();
+  }
+
   // If we're not at the expected version by the end of the upgrade path,
   // set everything to default values.
   if (!(config_settings_.version.major == 0 &&
      config_settings_.version.minor == 0 &&
-     config_settings_.version.micro == 3) || use_defaults) {
+     config_settings_.version.micro == 4) || use_defaults) {
 
     config_settings_.version.major = 0;
     config_settings_.version.minor = 0;
-    config_settings_.version.micro = 3;
+    config_settings_.version.micro = 4;
 
     // Versions > 1.2 use the built in 5V AREF
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -935,6 +932,7 @@ void DMFControlBoard::load_config(bool use_defaults) {
     config_settings_.amplifier_gain = amplifier_gain_;
     config_settings_.switching_board_i2c_address = 0x20;
     config_settings_.voltage_tolerance = default_voltage_tolerance;
+    config_settings_.use_antialiasing_filter = false;
     save_config();
   }
 

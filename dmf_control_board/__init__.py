@@ -677,6 +677,17 @@ class DMFControlBoard(Base, SerialDevice):
                                   data[i])
         self.__voltage_tolerance = tolerance
 
+        return self.persistent_read(self.PERSISTENT_VGND_ADDRESS)
+
+    @property
+    def use_antialiasing_filter(self):
+        return self.persistent_read(self.PERSISTENT_USE_ANTIALIASING_FILTER)
+
+    @use_antialiasing_filter.setter
+    def use_antialiasing_filter(self, value):
+        return self.persistent_write(self.PERSISTENT_USE_ANTIALIASING_FILTER,
+                                     value)
+
     @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
@@ -919,6 +930,17 @@ class DMFControlBoard(Base, SerialDevice):
             return self.PERSISTENT_CONFIG_SETTINGS + 61
         else:  # hardware_version >= 2.0
             return self.PERSISTENT_CONFIG_SETTINGS + 76
+
+    @property
+    def PERSISTENT_USE_ANTIALIASING_FILTER(self):
+        hardware_version = self.hardware_version()
+        if (hardware_version == '1.0' or hardware_version == '1.1' or
+                hardware_version == '1.2'):
+            return self.PERSISTENT_CONFIG_SETTINGS + 66
+        elif hardware_version == '1.3':
+            return self.PERSISTENT_CONFIG_SETTINGS + 65
+        else:  # hardware_version >= 2.0
+            return self.PERSISTENT_CONFIG_SETTINGS + 80
 
     @property
     def auto_adjust_amplifier_gain(self):

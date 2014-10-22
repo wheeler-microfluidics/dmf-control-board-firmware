@@ -4,21 +4,20 @@
 #include "AdvancedADC.h"
 #include "DMFControlBoard.h"
 
-
 uint16_t FeedbackController::n_samples_per_window_;
 DMFControlBoard* FeedbackController::parent_;
 bool FeedbackController::rms_;
-const uint8_t FeedbackController::CHANNELS[] = {
-  FeedbackController::HV_CHANNEL,
-  FeedbackController::FB_CHANNEL
-};
 FeedbackController::ADCChannel FeedbackController::channels_[] = {
-  FeedbackController::ADCChannel(FeedbackController::HV_CHANNEL),
-  FeedbackController::ADCChannel(FeedbackController::FB_CHANNEL)
+    FeedbackController::ADCChannel(),
+    FeedbackController::ADCChannel()
 };
 
-void FeedbackController::begin(DMFControlBoard* parent) {
+void FeedbackController::begin(DMFControlBoard* parent,
+                               uint8_t hv_channel,
+                               uint8_t fb_channel) {
   parent_ = parent;
+  channels_[HV_CHANNEL_INDEX].channel = hv_channel;
+  channels_[FB_CHANNEL_INDEX].channel = fb_channel;
 
   // set the default sampling rate
   AdvancedADC.setSamplingRate(35e3);
@@ -55,10 +54,13 @@ void FeedbackController::begin(DMFControlBoard* parent) {
     ADCChannel& channel = channels_[channel_index];
 
     // integer
-    channel.vgnd = analogRead(channel.channel);
+    channel.vgnd = 512;
 
     // convert to a float
     channel.vgnd_exp_filtered = channel.vgnd;
+
+    // mark prev_saturated as true for initial sampling window
+    channel.prev_saturated = true;
   }
 }
 
@@ -191,9 +193,10 @@ void FeedbackController::fb_channel_callback(uint8_t channel_index,
   interleaved_callback(FB_CHANNEL_INDEX, value);
 }
 
-uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
+uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
                                           uint16_t n_sampling_windows,
                                           float delay_between_windows_ms,
+                                          float frequency,
                                           bool interleave_samples,
                                           bool rms) {
   // # `measure_impedance` #
@@ -239,9 +242,27 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   //  - Feedback amplitude.
   //  - Feedback resistor index.
 
-  // save the number of samples per window and rms flag
-  n_samples_per_window_  = n_samples_per_window;
+  // save the rms flag
   rms_ =  rms;
+
+  // find a sampling rate and n_samples_per_window combination that minimizes
+  // the rms bias
+  float sampling_rate;
+  if (interleave_samples) {
+    find_sampling_rate(sampling_window_ms, frequency,
+                       MAX_SAMPLING_RATE/2, &sampling_rate,
+                       &n_samples_per_window_);
+    sampling_rate *= 2;
+  } else {
+    find_sampling_rate(sampling_window_ms/2, frequency,
+                       MAX_SAMPLING_RATE, &sampling_rate,
+                       &n_samples_per_window_);
+  }
+
+  // n_samples_per_window includes both channels
+  n_samples_per_window_ *= 2;
+
+  AdvancedADC.setSamplingRate(sampling_rate);
 
   int8_t resistor_index[NUMBER_OF_ADC_CHANNELS];
   uint8_t original_resistor_index[NUMBER_OF_ADC_CHANNELS];
@@ -271,9 +292,12 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   //
   // __NB__ In the case where the signal saturates the lowest resistor, mark
   // the measurement as saturated/invalid.
+  uint8_t channels[] = { channels_[HV_CHANNEL_INDEX].channel,
+                       channels_[FB_CHANNEL_INDEX].channel
+  };
   if (interleave_samples) {
     AdvancedADC.setBufferLen(n_samples_per_window_);
-    AdvancedADC.setChannels((uint8_t*)CHANNELS, NUMBER_OF_ADC_CHANNELS);
+    AdvancedADC.setChannels((uint8_t*)channels, NUMBER_OF_ADC_CHANNELS);
     AdvancedADC.registerCallback(&interleaved_callback);
   } else {
     AdvancedADC.setBufferLen(n_samples_per_window_/2);
@@ -287,9 +311,9 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
     sizeof(parent_->config_settings().A0_series_resistance)/sizeof(float)];
   for (uint8_t i=0; i < sizeof(transfer_function)/sizeof(float); i++) {
     float R = parent_->config_settings(). \
-        series_resistance(HV_CHANNEL, i);
+        series_resistance(channels_[HV_CHANNEL_INDEX].channel, i);
     float C = parent_->config_settings(). \
-        series_capacitance(HV_CHANNEL, i);
+        series_capacitance(channels_[HV_CHANNEL_INDEX].channel, i);
     #if ___HARDWARE_MAJOR_VERSION___ == 1
       transfer_function[i] = a_conv * sqrt(pow(10e6 / R + 1, 2) +
           pow(10e6 * C * 2 * M_PI * parent_->waveform_frequency(), 2));
@@ -325,11 +349,11 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
       AdvancedADC.begin();
       while(!AdvancedADC.finished());
     } else {
-      AdvancedADC.setChannel(HV_CHANNEL);
+      AdvancedADC.setChannel(channels_[HV_CHANNEL_INDEX].channel);
       AdvancedADC.registerCallback(&hv_channel_callback);
       AdvancedADC.begin();
       while(!AdvancedADC.finished());
-      AdvancedADC.setChannel(FB_CHANNEL);
+      AdvancedADC.setChannel(channels_[FB_CHANNEL_INDEX].channel);
       AdvancedADC.registerCallback(&fb_channel_callback);
       AdvancedADC.begin();
       while(!AdvancedADC.finished());
@@ -354,11 +378,11 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
         measured_pk_pk[channel_index] = (measured_rms[channel_index] * 64.0 * \
           2.0 * sqrt(2));
 
-        // Update the virtual ground for each channel. Note that we are
-        // are calculating the average over the past 2 sampling windows (to
-        // account for the possibility of having only half a waveform period),
-        // then we are applying exponential smoothing.
-        if (i > 0) {
+        if (channel.saturated == 0 && channel.prev_saturated == 0) {
+          // Update the virtual ground for each channel. Note that we are
+          // are calculating the average over the past 2 sampling windows (to
+          // account for the possibility of having only half a waveform period),
+          // then we are applying exponential smoothing.
           float alpha = 0.01; // Choosing a value for alpha is a trade-off
                               // between response time and precision.
                               // Increasing alpha allows vgnd to respond
@@ -373,11 +397,10 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
           // store the actual vgnd value used in the callback function as an
           // integer for performance
           channel.vgnd = round(channel.vgnd_exp_filtered);
+
+          // update prev_sum
+          channel.prev_sum = channel.sum;
         }
-
-        // update prev_sum
-        channel.prev_sum = channel.sum;
-
       } else { // use peak-to-peak measurements
         measured_pk_pk[channel_index] = 64 * (channel.max_value - \
           channel.min_value);
@@ -387,8 +410,10 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
       // update the resistor indices
       if (channel.saturated > 0) {
         resistor_index[channel_index] = -channel.saturated;
+        channel.prev_saturated = true;
       } else {
         resistor_index[channel_index] = channel.series_resistor_index;
+        channel.prev_saturated = false;
       }
     }
 
@@ -468,6 +493,93 @@ uint16_t FeedbackController::measure_impedance(uint16_t n_samples_per_window,
   // Return the number of samples that we measured _(i.e, the number of values
   // available in the result buffers)_.
   return n_sampling_windows;
+}
+
+void FeedbackController::find_sampling_rate(float sampling_window_ms,
+                                          float frequency,
+                                          float max_sampling_rate,
+                                          float* sampling_rate_out,
+                                          uint16_t* n_samples_per_window_out) {
+  // Find the max sampling rate that will give an unbiased estimate of the rms
+  // for a given sampling window length.
+  //
+  // Conditions:
+  //   1. sampling rate < max sampling rate
+  //   2. sampling rate is not a sub-harmonic of the fundamental frequency
+  //   3. sampling rate / fundamental frequency is not an integer
+  //   4. sampling rate / fundamental frequency * number of waveform periods
+  //      is a multiple of 0.5
+  // The following conditions also apply if hte sampling rate is less than
+  // the Nyquist rate:
+  //   5. sampling rate is not a sub-harmonic of the aliased frequency
+  //   6. sampling rate / aliased frequency is not an integer
+
+  // calculate the minimum number of waveform periods (must be a multiple of
+  // 0.5)
+  float n_periods = round(float(sampling_window_ms) * frequency / 1000.0 / \
+                          0.5) * 0.5;
+
+  while (true) {
+
+    // iterate over the possible number of samples per window (need at least 2)
+    for (*n_samples_per_window_out = ceil(n_periods / frequency * \
+                                          max_sampling_rate);
+         *n_samples_per_window_out > 1;
+         (*n_samples_per_window_out)--) {
+
+      // calculate the sampling rate
+      *sampling_rate_out = *n_samples_per_window_out/n_periods*frequency;
+
+      // check conditions 1 and 2 (exclude sampling rates that are within 10%
+      // of a sub-harmonic)
+      if (*sampling_rate_out > max_sampling_rate || \
+          abs(2.0 - round(2.0 / (*sampling_rate_out / frequency)) * \
+              (*sampling_rate_out / frequency)) < 0.1) {
+        continue;
+      }
+
+      // if we are sampling below the Nyquist rate, find the aliased frequency
+      float f_aliased = frequency;
+      if (*sampling_rate_out < 2 * frequency) {
+        uint16_t k = 0;
+        while (true) {
+          if (frequency / (*sampling_rate_out) - k <= 0.5) {
+            break;
+          } else {
+            k += 1;
+          }
+        }
+        f_aliased = abs(frequency - k * (*sampling_rate_out));
+
+        // check condition 5 (exclude sampling rates that are within 10%
+        // of a sub-harmonic)
+        if (abs(2.0 - round(2.0 / (*sampling_rate_out / f_aliased)) * \
+            (*sampling_rate_out / f_aliased)) < 0.1) {
+          continue;
+        }
+
+        // check condition 6
+        if (abs(*sampling_rate_out / frequency - \
+            round(*sampling_rate_out / frequency)) < 0.0001) {
+          continue;
+        }
+      }
+
+      // check condition 3
+      if (abs(*sampling_rate_out / frequency - \
+          round(*sampling_rate_out / frequency)) < 0.0001) {
+        continue;
+      }
+
+      // check condition 4
+      if (abs(*sampling_rate_out / frequency * n_periods - \
+          round(*sampling_rate_out / frequency * n_periods)) < 0.0001) {
+        // if we get here, all conditions have been satisfied
+        return;
+      }
+    }
+    n_periods += 0.5;
+  }
 }
 
 #endif // defined(AVR) || defined(__SAM3X8E__)

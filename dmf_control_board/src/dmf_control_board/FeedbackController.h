@@ -34,9 +34,9 @@ public:
   static const uint16_t SATURATION_THRESHOLD_HIGH = 972; // ~95% max
   static const uint16_t SATURATION_THRESHOLD_LOW = 51; // ~5% max
   static const uint8_t N_IGNORE_POST_SATURATION = 3;
+  static const float MAX_SAMPLING_RATE = 40e3;
 
   struct ADCChannel {
-    ADCChannel(uint8_t channel_) : channel(channel_) {}
     uint8_t channel;
     uint8_t series_resistor_index;
     uint8_t saturated;
@@ -45,19 +45,19 @@ public:
     uint16_t min_value;
     uint32_t sum;
     uint32_t prev_sum;
+    bool prev_saturated;
     uint32_t sum2;
     uint16_t vgnd;
     float vgnd_exp_filtered;
   };
 
   static const uint8_t NUMBER_OF_ADC_CHANNELS = 2;
-  static const uint8_t CHANNELS[];
-  static const uint8_t HV_CHANNEL = 0;
-  static const uint8_t FB_CHANNEL = 2;
   static const uint8_t HV_CHANNEL_INDEX = 0;
   static const uint8_t FB_CHANNEL_INDEX = 1;
 
-  static void begin(DMFControlBoard* parent);
+  static void begin(DMFControlBoard* parent,
+                    uint8_t hv_channel,
+                    uint8_t fb_channel);
   static uint8_t set_series_resistor_index(const uint8_t channel_index,
                                            const uint8_t index);
 
@@ -65,15 +65,21 @@ public:
     return channels_[channel_index].series_resistor_index;
   }
 
-  static uint16_t measure_impedance(uint16_t n_samples_per_window,
+  static uint16_t measure_impedance(float sampling_window_ms,
                              uint16_t n_sampling_windows,
                              float delay_between_windows_ms,
+                             float frequency,
                              bool interleave_samples,
                              bool rms);
   static void interleaved_callback(uint8_t channel_index, uint16_t value);
   static void hv_channel_callback(uint8_t channel_index, uint16_t value);
   static void fb_channel_callback(uint8_t channel_index, uint16_t value);
 private:
+  static void find_sampling_rate(float sampling_window_ms,
+                                 float frequency,
+                                 float max_sampling_rate,
+                                 float* sampling_rate_out,
+                                 uint16_t* n_samples_per_window_out);
   static ADCChannel channels_[];
   static uint16_t n_samples_per_window_;
   static DMFControlBoard* parent_;

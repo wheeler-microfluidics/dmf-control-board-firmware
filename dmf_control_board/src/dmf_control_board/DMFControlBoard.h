@@ -184,6 +184,9 @@ public:
 
     /**\brief voltage tolerance for amplifier gain adjustment.*/
     float voltage_tolerance;
+
+    /**\brief use anti-aliasing filter.*/
+    bool use_antialiasing_filter;
   };
 #endif  // #if defined(AVR) || defined(__SAM3X8E__)
 
