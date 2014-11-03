@@ -182,11 +182,17 @@ public:
     adjusted based on the measured voltage from the amplifier.*/
     float amplifier_gain;
 
-    /**\brief voltage tolerance for amplifier gain adjustment.*/
+    /**\brief Voltage tolerance for amplifier gain adjustment.*/
     float voltage_tolerance;
 
-    /**\brief use anti-aliasing filter.*/
+    /**\brief Use anti-aliasing filter.*/
     bool use_antialiasing_filter;
+
+    /**\brief Valid waveform frequency range.*/
+    float waveform_frequency_range[2];
+
+    /**\brief Maximum valid waveform voltage.*/
+    float max_waveform_voltage;
   };
 #endif  // #if defined(AVR) || defined(__SAM3X8E__)
 

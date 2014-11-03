@@ -629,55 +629,63 @@ class DMFControlBoard(Base, SerialDevice):
         self.__aref__ = self._aref()
         return self.RETURN_OK
 
+    def persistent_read_multibyte(self, type, address):
+        if type == 'L' or 'f':
+            nbytes = 4
+        else:
+            raise TypeError()
+        data = np.zeros(nbytes)
+        for i in range(0, nbytes):
+            data[i] = self.persistent_read(address + i)
+        return unpack(type, pack('B'*nbytes, *data))[0]
+
+    def persistent_write_multibyte(self, type, address, value):
+        if type == 'L' or 'f':
+            nbytes = 4
+        else:
+            raise TypeError()
+        data = unpack('B'*nbytes, pack(type, value))
+        for i in range(0, nbytes):
+            self.persistent_write(address + i,
+                                  data[i])
+
     @property
     def baud_rate(self):
-        data = np.zeros(4)
-        for i in range(0, 4):
-            data[i] = self.persistent_read(self.PERSISTENT_BAUD_RATE_ADDRESS +
-                                           i)
-        return unpack('L', pack('BBBB', *data))[0]
+        return self.persistent_read_multibyte(
+            'L', self.PERSISTENT_BAUD_RATE_ADDRESS)
 
     @baud_rate.setter
-    def baud_rate(self, rate):
-        data = unpack('BBBB', pack('L', rate))
-        for i in range(0, 4):
-            self.persistent_write(self.PERSISTENT_BAUD_RATE_ADDRESS + i,
-                                  data[i])
-        self.__baud_rate = rate
+    def baud_rate(self, value):
+        self.persistent_write_multibyte('L',
+                                        PERSISTENT_BAUD_RATE_ADDRESS,
+                                        value)
+        self.__baud_rate = value
 
     @property
     def serial_number(self):
-        data = np.zeros(4)
-        for i in range(0, 4):
-            data[i] = self.persistent_read(
-                self.PERSISTENT_SERIAL_NUMBER_ADDRESS + i)
-        return unpack('L', pack('BBBB', *data))[0]
+        return self.persistent_read_multibyte(
+            'L', self.PERSISTENT_SERIAL_NUMBER_ADDRESS)
 
     @serial_number.setter
-    def serial_number(self, number):
-        data = unpack('BBBB', pack('L', number))
-        for i in range(0, 4):
-            self.persistent_write(self.PERSISTENT_SERIAL_NUMBER_ADDRESS + i,
-                                  data[i])
-        self.__serial_number = number
+    def serial_number(self, value):
+        self.persistent_write_multibyte('L',
+                                        PERSISTENT_SERIAL_NUMBER_ADDRESS,
+                                        value)
+        self.__serial_number = value
 
     @property
     def voltage_tolerance(self):
-        data = np.zeros(4)
-        for i in range(0, 4):
-            data[i] = self.persistent_read(self.PERSISTENT_VOLTAGE_TOLERANCE +
-                                           i)
-        return unpack('f', pack('BBBB', *data))[0]
+        if not hasattr(self, '__voltage_tolerance'):
+            self.__voltage_tolerance = self.persistent_read_multibyte(
+                'f', self.PERSISTENT_VOLTAGE_TOLERANCE)
+        return self.__voltage_tolerance
 
     @voltage_tolerance.setter
-    def voltage_tolerance(self, tolerance):
-        data = unpack('BBBB', pack('f', tolerance))
-        for i in range(0, 4):
-            self.persistent_write(self.PERSISTENT_VOLTAGE_TOLERANCE + i,
-                                  data[i])
-        self.__voltage_tolerance = tolerance
-
-        return self.persistent_read(self.PERSISTENT_VGND_ADDRESS)
+    def voltage_tolerance(self, value):
+        self.persistent_write_multibyte('f',
+                                        PERSISTENT_VOLTAGE_TOLERANCE,
+                                        value)
+        self.__voltage_tolerance = value
 
     @property
     def use_antialiasing_filter(self):
@@ -688,6 +696,48 @@ class DMFControlBoard(Base, SerialDevice):
         return self.persistent_write(self.PERSISTENT_USE_ANTIALIASING_FILTER,
                                      value)
 
+    @property
+    def min_waveform_frequency(self):
+        if not hasattr(self, '__min_waveform_frequency'):
+            self.__min_waveform_frequency = self.persistent_read_multibyte(
+                'f', self.PERSISTENT_MIN_WAVEFORM_FREQUENCY)
+        return self.__min_waveform_frequency
+
+    @min_waveform_frequency.setter
+    def min_waveform_frequency(self, value):
+        self.persistent_write_multibyte('f',
+                                        PERSISTENT_MIN_WAVEFORM_FREQUENCY,
+                                        value)
+        self.__min_waveform_frequency = value
+
+    @property
+    def max_waveform_frequency(self):
+        if not hasattr(self, '__max_waveform_frequency'):
+            self.__max_waveform_frequency = self.persistent_read_multibyte(
+                'f', self.PERSISTENT_MAX_WAVEFORM_FREQUENCY)
+        return self.__max_waveform_frequency
+
+    @max_waveform_frequency.setter
+    def max_waveform_frequency(self, value):
+        self.persistent_write_multibyte('f',
+                                        PERSISTENT_MAX_WAVEFORM_FREQUENCY,
+                                        value)
+        self.__max_waveform_frequency = value
+
+    @property
+    def max_waveform_voltage(self):
+        if not hasattr(self, '__max_waveform_voltage'):
+            self.__max_waveform_voltage = self.persistent_read_multibyte(
+                'f', self.PERSISTENT_MAX_WAVEFORM_VOLTAGE)
+        return self.__max_waveform_voltage
+
+    @max_waveform_voltage.setter
+    def max_waveform_voltage(self, value):
+        self.persistent_write_multibyte('f',
+                                        PERSISTENT_MAX_WAVEFORM_VOLTAGE,
+                                        value)
+        self.__max_waveform_voltage = value
+    
     @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
@@ -941,6 +991,39 @@ class DMFControlBoard(Base, SerialDevice):
             return self.PERSISTENT_CONFIG_SETTINGS + 65
         else:  # hardware_version >= 2.0
             return self.PERSISTENT_CONFIG_SETTINGS + 80
+
+    @property
+    def PERSISTENT_MIN_WAVEFORM_FREQUENCY(self):
+        hardware_version = self.hardware_version()
+        if (hardware_version == '1.0' or hardware_version == '1.1' or
+                hardware_version == '1.2'):
+            return self.PERSISTENT_CONFIG_SETTINGS + 67
+        elif hardware_version == '1.3':
+            return self.PERSISTENT_CONFIG_SETTINGS + 66
+        else:  # hardware_version >= 2.0
+            return self.PERSISTENT_CONFIG_SETTINGS + 81
+
+    @property
+    def PERSISTENT_MAX_WAVEFORM_FREQUENCY(self):
+        hardware_version = self.hardware_version()
+        if (hardware_version == '1.0' or hardware_version == '1.1' or
+                hardware_version == '1.2'):
+            return self.PERSISTENT_CONFIG_SETTINGS + 71
+        elif hardware_version == '1.3':
+            return self.PERSISTENT_CONFIG_SETTINGS + 70
+        else:  # hardware_version >= 2.0
+            return self.PERSISTENT_CONFIG_SETTINGS + 85
+
+    @property
+    def PERSISTENT_MAX_WAVEFORM_VOLTAGE(self):
+        hardware_version = self.hardware_version()
+        if (hardware_version == '1.0' or hardware_version == '1.1' or
+                hardware_version == '1.2'):
+            return self.PERSISTENT_CONFIG_SETTINGS + 75
+        elif hardware_version == '1.3':
+            return self.PERSISTENT_CONFIG_SETTINGS + 74
+        else:  # hardware_version >= 2.0
+            return self.PERSISTENT_CONFIG_SETTINGS + 89
 
     @property
     def auto_adjust_amplifier_gain(self):
