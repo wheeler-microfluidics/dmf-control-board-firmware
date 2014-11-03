@@ -26,6 +26,8 @@ from struct import pack, unpack
 import math
 
 import numpy as np
+import pandas
+from scipy.signal import savgol_filter
 import matplotlib.mlab as mlab
 from path_helpers import path
 from microdrop_utility import Version, FutureVersionError
@@ -196,8 +198,6 @@ class FeedbackResults():
                 logging.info('[FeedbackResults] upgrade to version %s' %
                              self.version)
             if version < Version(0, 4):
-                self.dt_ms = self.sampling_time_ms + \
-                    self.delay_between_samples_ms
                 del self.sampling_time_ms
                 del self.delay_between_samples_ms
                 self.voltage = self.options.voltage
@@ -276,26 +276,28 @@ class FeedbackResults():
         return ((self.capacitance() / area - C_filler) /
                 (C_drop - C_filler) * np.sqrt(area))
 
-    def mean_velocity(self, area, ind=None, threshold=0.95):
-        if ind is None:
-            ind = range(len(self.time))
-        t, dxdt = self.dxdt(area, ind, threshold)
+    def mean_velocity(self, area, window_size=None, order=None):
+        t, dxdt = self.dxdt(area, window_size, order)
         x = self.x_position(area)
-        ind_stop = ind[mlab.find(dxdt == 0)[0]]
-        dx = x[ind_stop] - x[ind[0]]
+        ind_stop = mlab.find(dxdt == 0)[0]
+        dx = x[ind_stop] - x[0]
         if max(dxdt > 0) and ind_stop < len(t):
-            dt = t[ind_stop] - t[ind[0]]
+            dt = t[ind_stop] - t[0]
             return dx / dt
         else:
             return 0
 
-    def dxdt(self, area, ind=None, threshold=0.95):
-        if ind is None:
-            ind = range(len(self.time))
-        dt = np.diff(self.time[ind])
-        t = self.time[ind][1:] - (self.time[1] - self.time[0]) / 2.0
-        C = self.capacitance()[ind]
-        dCdt = np.diff(C) / dt
+    def dxdt(self, area, window_size=None, order=None):
+        C = np.ma.masked_invalid(pandas.TimeSeries(self.capacitance(),
+                                 pandas.to_datetime(self.time, unit='s')). \
+                                 interpolate(method='time').values)
+        dt = self.time[1]-self.time[0]
+        if window_size is None or order is None:
+            dCdt = np.diff(C) / dt
+            t = self.time[1:] - dt/2.0
+        else:
+            dCdt = savgol_filter(C, window_size, order, 1) / dt
+            t = self.time
 
         if self.calibration.C_drop:
             C_drop = self.calibration.C_drop * area
@@ -305,15 +307,6 @@ class FeedbackResults():
             C_filler = self.calibration.C_filler * area
         else:
             C_filler = 0
-
-        # find the time when the capacitance exceeds the specified threshold
-        # (e.g., the drop has stopped moving once it has passed 95% of it's
-        # final value)
-        ind_stop = mlab.find((C[1:] - C_filler) / (C[-1] - C_filler) >
-                             threshold)
-        if len(ind_stop):
-            # set all remaining velocities to 0
-            dCdt[ind_stop[0]:] = 0
 
         return t, dCdt / (C_drop - C_filler) * np.sqrt(area)
 
