@@ -257,49 +257,60 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       break;
     case CMD_SET_WAVEFORM_FREQUENCY:
       if (payload_length() == sizeof(float)) {
+        float target_frequency = read_float();
+
+        // check that the waveform frequency is within the valid range
+        if (target_frequency >= \
+          config_settings_.waveform_frequency_range[0] && \
+          target_frequency <= config_settings_.waveform_frequency_range[1]) {
 #if ___HARDWARE_MAJOR_VERSION___ == 1
-        // the frequency of the LTC6904 oscillator needs to be set to 50x
-        // the fundamental frequency
-        waveform_frequency_ = read_float();
-        float freq = waveform_frequency_ * 50;
-        // valid frequencies are 1kHz to 68MHz
-        if (freq < 1e3 || freq > 68e6) {
-          return_code_ = RETURN_BAD_VALUE;
-        } else {
-          uint8_t oct = 3.322 * log(freq / 1039) / log(10);
-          uint16_t dac = round(2048 - (2078 * pow(2, 10 + oct)) / freq);
-          uint8_t cnf = 2; // CLK on, /CLK off
-          // msb = OCT3 OCT2 OCT1 OCT0 DAC9 DAC8 DAC7 DAC6
-          uint8_t msb = (oct << 4) | (dac >> 6);
-          // lsb =  DAC5 DAC4 DAC3 DAC2 DAC1 DAC0 CNF1 CNF0
-          uint8_t lsb = (dac << 2) | cnf;
-          Wire.beginTransmission(LTC6904_);
-          Wire.write(msb);
-          Wire.write(lsb);
-          Wire.endTransmission();     // stop transmitting
-          return_code_ = RETURN_OK;
-        }
-#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
-        waveform_frequency_ = read_float();
-        uint8_t data[5];
-        data[0] = cmd;
-        memcpy(&data[1], &waveform_frequency_, sizeof(float));
-        i2c_write(config_settings_.signal_generator_board_i2c_address,
-                  data, 5);
-        delay(I2C_DELAY);
-        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
-                         (uint8_t)1);
-        if (Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.read();
-          if (n_bytes_to_read == 1) {
-            uint8_t n_bytes_read = 0;
-            n_bytes_read += i2c_read(
-              config_settings_.signal_generator_board_i2c_address,
-              (uint8_t * )&return_code_,
-              sizeof(return_code_));
+          // the frequency of the LTC6904 oscillator needs to be set to 50x
+          // the fundamental frequency
+          float freq = target_frequency * 50;
+          // valid frequencies are 1kHz to 68MHz
+          if (freq < 1e3 || freq > 68e6) {
+            return_code_ = RETURN_BAD_VALUE;
+          } else {
+            uint8_t oct = 3.322 * log(freq / 1039) / log(10);
+            uint16_t dac = round(2048 - (2078 * pow(2, 10 + oct)) / freq);
+            uint8_t cnf = 2; // CLK on, /CLK off
+            // msb = OCT3 OCT2 OCT1 OCT0 DAC9 DAC8 DAC7 DAC6
+            uint8_t msb = (oct << 4) | (dac >> 6);
+            // lsb =  DAC5 DAC4 DAC3 DAC2 DAC1 DAC0 CNF1 CNF0
+            uint8_t lsb = (dac << 2) | cnf;
+            Wire.beginTransmission(LTC6904_);
+            Wire.write(msb);
+            Wire.write(lsb);
+            Wire.endTransmission();     // stop transmitting
+            return_code_ = RETURN_OK;
           }
-        }
+#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
+          uint8_t data[5];
+          data[0] = cmd;
+          memcpy(&data[1], &target_frequency, sizeof(float));
+          i2c_write(config_settings_.signal_generator_board_i2c_address,
+                    data, 5);
+          delay(I2C_DELAY);
+          Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                           (uint8_t)1);
+          if (Wire.available()) {
+            uint8_t n_bytes_to_read = Wire.read();
+            if (n_bytes_to_read == 1) {
+              uint8_t n_bytes_read = 0;
+              n_bytes_read += i2c_read(
+                config_settings_.signal_generator_board_i2c_address,
+                (uint8_t * )&return_code_,
+                sizeof(return_code_));
+            }
+          }
 #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
+        } else {
+          return_code_ = RETURN_BAD_VALUE;
+        }
+        if (return_code_ == RETURN_OK) {
+          // if we get here, the frequency was successfully updated
+          waveform_frequency_ = target_frequency;
+        }
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -693,6 +704,12 @@ void DMFControlBoard::begin() {
   Serial.println(config_settings_.use_antialiasing_filter);
   Serial.print("auto_adjust_amplifier_gain=");
   Serial.println(auto_adjust_amplifier_gain_);
+  Serial.print("min_waveform_frequency=");
+  Serial.println(config_settings_.waveform_frequency_range[0]);
+  Serial.print("max_waveform_frequency=");
+  Serial.println(config_settings_.waveform_frequency_range[1]);
+  Serial.print("max_waveform_voltage=");
+  Serial.println(config_settings_.max_waveform_voltage);
 
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
@@ -852,6 +869,9 @@ void DMFControlBoard::load_config(bool use_defaults) {
   }
 
   float default_voltage_tolerance = 5.0;
+  float default_min_waveform_frequency = 100;
+  float default_max_waveform_frequency = 20e3;
+  float default_max_waveform_voltage = 200;
 
   // Upgrade config settings if necessary
   if (config_settings_.version.major == 0 &&
@@ -880,9 +900,21 @@ void DMFControlBoard::load_config(bool use_defaults) {
 
   if (config_settings_.version.major == 0 &&
      config_settings_.version.minor == 0 &&
-     config_settings_.version.micro == 2) {
+     config_settings_.version.micro == 3) {
     config_settings_.use_antialiasing_filter = false;
     config_settings_.version.micro = 4;
+    save_config();
+  }
+
+  if (config_settings_.version.major == 0 &&
+     config_settings_.version.minor == 0 &&
+     config_settings_.version.micro == 4) {
+    config_settings_.waveform_frequency_range[0] = \
+        default_min_waveform_frequency;
+    config_settings_.waveform_frequency_range[1] = \
+        default_max_waveform_frequency;
+    config_settings_.max_waveform_voltage = default_max_waveform_voltage;
+    config_settings_.version.micro = 5;
     save_config();
   }
 
@@ -890,11 +922,11 @@ void DMFControlBoard::load_config(bool use_defaults) {
   // set everything to default values.
   if (!(config_settings_.version.major == 0 &&
      config_settings_.version.minor == 0 &&
-     config_settings_.version.micro == 4) || use_defaults) {
+     config_settings_.version.micro == 5) || use_defaults) {
 
     config_settings_.version.major = 0;
     config_settings_.version.minor = 0;
-    config_settings_.version.micro = 4;
+    config_settings_.version.micro = 5;
 
     // Versions > 1.2 use the built in 5V AREF
     #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
@@ -933,6 +965,11 @@ void DMFControlBoard::load_config(bool use_defaults) {
     config_settings_.switching_board_i2c_address = 0x20;
     config_settings_.voltage_tolerance = default_voltage_tolerance;
     config_settings_.use_antialiasing_filter = false;
+    config_settings_.waveform_frequency_range[0] = \
+        default_min_waveform_frequency;
+    config_settings_.waveform_frequency_range[1] = \
+        default_max_waveform_frequency;
+    config_settings_.max_waveform_voltage = default_max_waveform_voltage;
     save_config();
   }
 
@@ -965,43 +1002,44 @@ void DMFControlBoard::set_amplifier_gain(const float gain) {
 
 uint8_t DMFControlBoard::set_waveform_voltage(const float output_vrms,
                                               const bool wait_for_reply) {
-  uint8_t return_code;
+  uint8_t return_code = RETURN_OK;
 #if ___HARDWARE_MAJOR_VERSION___==1
   float step = output_vrms / amplifier_gain_ * 2 * sqrt(2) / 4 * 255;
-  if (output_vrms < 0 || step > 255) {
+  if (output_vrms < 0 || \
+      output_vrms > config_settings_.max_waveform_voltage || step > 255) {
     return_code = RETURN_BAD_VALUE;
   } else {
     waveform_voltage_ = output_vrms;
     set_pot(POT_INDEX_WAVEOUT_GAIN_2_, step);
-    return_code = RETURN_OK;
   }
 #else  // #if ___HARDWARE_MAJOR_VERSION___==1
-  float vrms = output_vrms / amplifier_gain_;
-  uint8_t data[5];
-  data[0] = CMD_SET_WAVEFORM_VOLTAGE;
-  memcpy(&data[1], &vrms, sizeof(float));
-  i2c_write(config_settings_.signal_generator_board_i2c_address,
-            data, 5);
-  if (wait_for_reply) {
-    delay(I2C_DELAY);
-    Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
-                     (uint8_t)1);
-    if (Wire.available()) {
-      uint8_t n_bytes_to_read = Wire.read();
-      if (n_bytes_to_read==1) {
-        uint8_t n_bytes_read = 0;
-        n_bytes_read += i2c_read(
-          config_settings_.signal_generator_board_i2c_address,
-          (uint8_t*)&return_code,
-          sizeof(return_code));
-        if (return_code==RETURN_OK) {
-          waveform_voltage_ = output_vrms;
+  if (output_vrms <= config_settings_.max_waveform_voltage) {
+    float vrms = output_vrms / amplifier_gain_;
+    uint8_t data[5];
+    data[0] = CMD_SET_WAVEFORM_VOLTAGE;
+    memcpy(&data[1], &vrms, sizeof(float));
+    i2c_write(config_settings_.signal_generator_board_i2c_address,
+              data, 5);
+    if (wait_for_reply) {
+      delay(I2C_DELAY);
+      Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                       (uint8_t)1);
+      if (Wire.available()) {
+        uint8_t n_bytes_to_read = Wire.read();
+        if (n_bytes_to_read==1) {
+          uint8_t n_bytes_read = 0;
+          n_bytes_read += i2c_read(
+            config_settings_.signal_generator_board_i2c_address,
+            (uint8_t*)&return_code,
+            sizeof(return_code));
         }
       }
     }
   } else {
+    return_code = RETURN_BAD_VALUE;
+  }
+  if (return_code==RETURN_OK) {
     waveform_voltage_ = output_vrms;
-    return_code = RETURN_OK;
   }
 #endif  // #if ___HARDWARE_MAJOR_VERSION___==1 / #else
   return return_code;
