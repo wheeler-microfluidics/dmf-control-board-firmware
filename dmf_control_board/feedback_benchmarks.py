@@ -108,9 +108,11 @@ def get_test_data(frequencies, test_loads, n_repeats, n_sampling_windows):
     return df
 
 
-def run_experiment(exp_name, test_loads=None, frequencies=None, use_antialiasing_filter=None, rms=None):
-    # if cached data exists, load it
-    if (cachedir / path(exp_name + '.pickle')).exists():
+def run_experiment(exp_name, test_loads=None, frequencies=None,
+                   use_antialiasing_filter=None, rms=None, cachedir=None):
+    # If cached data exists, load it.
+    if cachedir is not None and (cachedir / path(exp_name +
+                                                 '.pickle')).exists():
         with open(cachedir / path(exp_name + '.pickle'), 'rb') as f:
             data = pickle.load(f)
         data['exp_name'] = exp_name
@@ -204,14 +206,27 @@ def run_experiment(exp_name, test_loads=None, frequencies=None, use_antialiasing
         return data
 
 
-def fit_fb_calibration2(data):
+def fit_fb_calibration2(df, calibration):
     '''
-    Fit feedback calibration data to solve for values of `C_fb[:]` and `R_fb[:]`.
+    Fit feedback calibration data to solve for values of `C_fb[:]` and
+    `R_fb[:]`.
+
+    Returns a `pandas.DataFrame` indexed by the feedback resistor/capacitance
+    index, and with the following columns:
+     - Model: Either with parasitic capacitance term or not.
+     - N: Number of samples used for fit.
+     - F: F-value
+     - p-value: p-value from Chi squared test.
+     - R_fb: Feedback resistor value based on fit.
+     - R-CI: Confidence interval for feedback resistor value.
+     - C_fb: Feedback capacitor value based on fit (0 if no-capacitance model
+       is used).
+     - C-CI: Confidence interval for feedback capacitance value.
+
+    __N.B.__ This function does not actually _update_ the calibration, it only
+    performs the fit.
+    See `apply_calibration`.
     '''
-    calibration = data['calibration']
-
-    df = from_dictionary(data)
-
     # set initial guesses for the feedback parameters
     R_fb = pd.Series([2e2, 2e3, 2e4, 2e5, 2e6])
     C_fb = pd.Series(len(calibration.C_fb) * [50e-12])
@@ -240,12 +255,12 @@ def fit_fb_calibration2(data):
                     np.sqrt(1 + np.square(2 * np.pi * R_fb *
                                           (C_fb + df.C) * df.frequency)))
         else:
-            V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + Z * 2 * np.pi * C_hv *
-                                             complex(0, 1) * df.frequency))
+            V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + Z * 2 * np.pi * C_hv
+                                                * complex(0, 1) *
+                                                df.frequency))
             return (df.V_fb - df.V_actuation * R_fb * df.C * 2 * np.pi *
                     df.frequency / np.sqrt(1 + np.square(2 * np.pi * R_fb *
-                                                         C_fb *
-                                                         df.frequency)))
+                                                         C_fb * df.frequency)))
 
     # Perform a nonlinear least-squares fit of the data.
     def fit_model(p0, df, calibration):
@@ -257,6 +272,7 @@ def fit_fb_calibration2(data):
 
     CI = []
 
+    feedback_records = []
     # Fit feedback parameters for each feedback resistor.
     for i in range(len(calibration.R_fb)):
         # Only include data points for the given feedback resistor (and where
@@ -265,8 +281,6 @@ def fit_fb_calibration2(data):
 
         if df_i.shape[0] < 2:
             continue
-
-        print "feedback_resistor=%d: n_data_points=%d" % (i, df_i.shape[0])
 
         # Fit the data assuming no parasitic capacitance (model 1).
         p0_1 = [R_fb[i]]
@@ -285,33 +299,40 @@ def fit_fb_calibration2(data):
         # do an F-test to compare the models
         F = (chi2_1 - chi2_2) / chi2r_2
         p_value = scipy.stats.f.cdf(F, 1, df_2-1)
-        print "F = %.3e, p_value=%.3f" % (F, p_value)
 
         # if the p_value is > 0.95, we assume that the capacitive term is
         # necessary
         if p_value > .95 and cov_x_2 is not None:
-            calibration.R_fb[i] = p1_2[0]
-            calibration.C_fb[i] = p1_2[1]
+            model = 'w/Parasitic C'
+            chi2r = chi2r_2
+            R_fb_i = p1_2[0]
+            C_fb_i = p1_2[1]
             CI.append((100 * np.sqrt(chi2r_2 * np.diag(cov_x_2)) / p1_2))
-            print "R_fb[%d] = %.3e +/- %.3f %%" % (i, p1_2[0], CI[i][0])
-            print "C_fb[%d] = %.3e +/- %.3f %%" % (i, p1_2[1], CI[i][1])
-            print "sqrt(chi2r*sigma^2) = %.1f mV" % (1e3 * np.sqrt(chi2r_2))
-        else: # otherwise, set the capacitance to zero
-            calibration.R_fb[i] = p1_1[0]
-            calibration.C_fb[i] = 0
+        else:  # otherwise, set the capacitance to zero
+            model = 'w/o Parasitic C'
+            chi2r = chi2r_2
+            R_fb_i = p1_1[0]
+            C_fb_i = 0
             CI.append((100 * np.sqrt(chi2r_1 * np.diag(cov_x_1)) /
                        p1_1).tolist() + [0])
-            print "R_fb[%d] = %.3e +/- %.3f %%" % (i, p1_1[0], CI[i][0])
-            print "sqrt(chi2r*sigma^2) = %.1f mV" % (1e3 * np.sqrt(chi2r_1))
+        feedback_records.append([model, df_i.shape[0], F, chi2r, p_value, R_fb_i,
+                                 CI[i][0], C_fb_i, CI[i][1]])
 
-        print
+    calibration_df = pd.DataFrame(feedback_records,
+                                  columns=['Model', 'N', 'F', 'Chi2r*sigma^2',
+                                           'p-value', 'R_fb', 'R-CI', 'C_fb',
+                                           'C-CI'])
+    return calibration_df
 
-    # print the feedback parameter estimates
-    print "Feedback calibration values:"
-    for i in range(len(calibration.R_fb)):
-        print "R_fb[%d] = %.3e Ohms +/- %.3f %%" % (i, calibration.R_fb[i], CI[i][0])
-    for i in range(len(calibration.R_fb)):
-        print "C_fb[%d] = %.3e F +/- %.3f %%" % (i, calibration.C_fb[i], CI[i][1])
+
+def apply_calibration(df, calibration_df, calibration):
+    '''
+    Apply calibration values from `fit_fb_calibration2` result to `calibration`
+    object.
+    '''
+    for i, (R_fb, C_fb) in calibration_df[['R_fb', 'C_fb']].iterrows():
+        calibration.R_fb[i] = R_fb
+        calibration.C_fb[i] = C_fb
 
     cleaned_df = df.dropna()
     grouped = cleaned_df.groupby(['frequency', 'test_channel', 'repeat_index'])
@@ -321,13 +342,15 @@ def fit_fb_calibration2(data):
                             group.V_hv.values, group.hv_resistor.values,
                             group.V_fb.values, group.fb_resistor.values,
                             calibration)
+        # Update the measured capacitance values based on the updated
+        # calibration model.
         df.loc[group.index, 'C'] = r.capacitance()
-    return df
 
 
 def fit_fb_calibration(data):
     '''
-    Fit feedback calibration data to solve for values of `C_fb[:]` and `R_fb[:]`.
+    Fit feedback calibration data to solve for values of `C_fb[:]` and
+    `R_fb[:]`.
     '''
     test_loads = data['test_loads']
     frequencies = data['frequencies']
@@ -508,6 +531,7 @@ def plot_capacitance_vs_frequency(data):
         legend.append("R$_{fb,%d}$" % i)
         ind = mlab.find(fb_resistor == i)
         plt.loglog(f.flatten()[ind], C.flatten()[ind], 'o')
+
     plt.xlim(0.8*np.min(frequencies), 1.2*np.max(frequencies))
     plt.ylim(0.8*np.min(C), 1.2*np.max(C))
     for C_device in [C_device for channel, C_device in test_loads]:
@@ -519,7 +543,38 @@ def plot_capacitance_vs_frequency(data):
     plt.tight_layout()
 
 
-# In[6]:
+def plot_capacitance_vs_frequency2(df, **kwargs):
+    cleaned_df = df.dropna().copy()
+    fb_resistor_df = cleaned_df.set_index(cleaned_df.fb_resistor)
+
+    axis = kwargs.pop('axis', None)
+    s = kwargs.pop('s', 50)
+    facecolor = kwargs.pop('facecolor', 'none')
+    if axis is None:
+        fig = plt.figure()
+        axis = fig.add_subplot(111)
+    stats = fb_resistor_df[['frequency', 'C']].describe()
+    axis.set_xlim(0.8 * stats.frequency['min'], 1.2 * stats.frequency['max'])
+    axis.set_ylim(0.8 * stats.C['min'], 1.2 * stats.C['max'])
+
+    frequencies = fb_resistor_df.frequency.unique()
+    # Plot nominal test capacitance lines.
+    for C in fb_resistor_df.test_capacitor.unique():
+        axis.plot(frequencies, [C] * len(frequencies), '--', alpha=0.7,
+                  color='0.5', linewidth=1)
+    colors = axis._get_lines.color_cycle
+    # Plot scatter of _measured_ capacitance vs. frequency.
+    for k, v in fb_resistor_df[['frequency', 'C']].groupby(level=0):
+        v.plot(kind='scatter', x='frequency', y='C', loglog=True,
+               label='R$_{fb,%d}$' % k, ax=axis, color=colors.next(),
+               s=s, facecolor=facecolor, **kwargs)
+    axis.legend(loc='upper right')
+    axis.set_xlabel('Frequency (Hz)')
+    axis.set_ylabel('C$_{device}$ (F)')
+    axis.set_title('C$_{device}$')
+    plt.tight_layout()
+    return axis
+
 
 def estimate_relative_error_in_nominal_capacitance(data):
     test_loads = data['test_loads']
@@ -529,12 +584,34 @@ def estimate_relative_error_in_nominal_capacitance(data):
     # Calculate the relative difference in the mean capacitance values measured
     # relative to the nominal values.
     C_device = np.array([x for channel, x in test_loads])
+    # 0: Frequency
+    # 1: Test capacitor
+    # 2: Repeats
+    # 3: Samples
     C_est = np.mean(np.mean(np.mean(C, 3), 2), 0)
     print ('Estimated relative error in nominal capacitance values = %.1f%% '
            ' +/-%.1f%%' % (np.mean(100 * (C_est - C_device) / C_device),
                            np.std(100 * (C_est - C_device) / C_device)))
     print 100 * (C_est - C_device) / C_device
     print
+
+
+def estimate_relative_error_in_nominal_capacitance2(df):
+    # Calculate the relative percentage difference in the mean capacitance
+    # values measured relative to the nominal values.
+    cleaned_df = df.dropna().copy()
+    C_relative_error = (cleaned_df.groupby('test_capacitor')
+                        .apply(lambda x: ((x['C'] - x['test_capacitor']) /
+                               x['test_capacitor']).describe()))
+    pd.set_eng_float_format(accuracy=1, use_eng_prefix=True)
+    print ('Estimated relative error in nominal capacitance values = %.1f%% '
+           ' +/-%.1f%%' % (C_relative_error['mean'].mean() * 100,
+                           C_relative_error['mean'].std() * 100))
+    print C_relative_error[['mean', 'std']] * 100
+    print
+
+
+    return C_relative_error
 
 
 def plot_impedance_vs_frequency(data):
@@ -582,10 +659,12 @@ def calculate_stats(data):
 
     # create C_nominal matrix to match shape of C
     C_nominal = np.array([x for channel, x in test_loads])
-    C_nominal = np.tile(np.reshape(C_nominal, [1, len(C_nominal)] + [1]*(len(C.shape) - 2)),
-                       [C.shape[0]] + [1] + list(C.shape[2:]))
+    C_nominal = np.tile(np.reshape(C_nominal, [1, len(C_nominal)] +
+                                   [1]*(len(C.shape) - 2)), [C.shape[0]] + [1]
+                        + list(C.shape[2:]))
 
-    # figure out the mean, median, std, CV, RMSE and bias of the measured capacitance values
+    # Figure out the mean, median, std, CV, RMSE and bias of the measured
+    # capacitance values.
     mean_C = np.zeros((len(frequencies), len(test_loads)))
     median_C = np.zeros((len(frequencies), len(test_loads)))
     std_C = np.zeros((len(frequencies), len(test_loads)))
@@ -596,7 +675,8 @@ def calculate_stats(data):
             mean_C[i,j] = np.ma.masked_invalid(C[i,j,:]).mean()
             median_C[i,j] = np.median(np.ma.masked_invalid(C[i,j,:]))
             std_C[i,j] = np.ma.masked_invalid(C[i,j,:]).std()
-            RMSE_C[i,j] = 100*np.sqrt(np.ma.masked_invalid((C[i,j,:] - C_nominal[i,j,:])**2).mean())/mean_C[i,j]
+            RMSE_C[i,j] = 100*np.sqrt(np.ma.masked_invalid((C[i,j,:] -
+                                                            C_nominal[i,j,:])**2).mean())/mean_C[i,j]
             bias_C[i,j] = 100*np.ma.masked_invalid(C[i,j,:] - C_nominal[i,j,:]).mean()/mean_C[i,j]
     cv_C = 100*np.ma.masked_invalid(std_C/mean_C)
     RMSE_C = np.ma.masked_invalid(RMSE_C)
@@ -614,7 +694,35 @@ def calculate_stats(data):
     return stats
 
 
-# In[9]:
+def calculate_stats2(df, groupby='test_capacitor'):
+    cleaned_df = df.dropna().copy()
+    stats = cleaned_df.groupby(groupby)['C'].agg(['mean', 'std',
+                                                           'median'])
+    stats['bias %'] = (cleaned_df.groupby(groupby)
+                     .apply(lambda x: ((x['C'] - x['test_capacitor'])).mean() /
+                            x['C'].mean())) * 100
+    stats['RMSE %'] = 100 * (cleaned_df.groupby(groupby)
+                           .apply(lambda x: np.sqrt(((x['C'] -
+                                                      x['test_capacitor']) **
+                                                     2).mean()) /
+                                                    x['C'].mean()))
+    stats['cv %'] = stats['std'] / stats['mean'] * 100
+
+    # Compute summary stats across all capacitance measurements.
+    #RMSE = np.sqrt((cleaned_df['C'] - cleaned_df['test_capacitor']) **
+                   #2).mean() / cleaned_df['C'].mean() * 100
+    #cv = cleaned_df['C'].std() / cleaned_df['C'].mean() * 100
+    #bias = (((cleaned_df['C'] - cleaned_df['test_capacitor'])).mean() /
+            #cleaned_df['C'].mean()) * 100
+    ## Append summary stats as final row of table.
+    #return stats.append(pd.DataFrame(dict([('bias', bias), ('cv', cv), ('RMSE',
+                                                                        #RMSE)]
+                                          #+ [(f, getattr(cleaned_df['C'], f)())
+                                             #for f in ['mean', 'std',
+                                                       #'median']]),
+                                     #index=['all']))
+    return stats
+
 
 def plot_histogram(title, param, vmin=None, vmax=None):
     # plot histograms of the CV, RMSE and bias of C
@@ -689,6 +797,35 @@ def plot_colormap(title, C_nominal, frequencies, param, vmin=None, vmax=None):
     plt.ylim(0, len(C_nominal))
 
 
+def plot_colormap2(df, column, axis=None):
+    stats = calculate_stats2(df, ['test_capacitor', 'frequency'])
+    freq_vs_C_rmse = stats.reindex_axis(
+        pd.Index([(i, j) for i in stats.index.levels[0]
+                  for j in stats.index.levels[1]],
+                 name=['test_capacitor',
+                       'frequency'])).reset_index().pivot(index='frequency',
+                                                          columns=
+                                                          'test_capacitor',
+                                                          values=column)
+    if axis is None:
+        fig = plt.figure()
+        axis = fig.add_subplot(111)
+    axis.set_xlabel('Capacitance')
+    axis.set_ylabel('Frequency')
+    plt.pcolormesh(freq_vs_C_rmse.fillna(1e20).values, vmax=50)
+    plt.set_cmap('hot')
+    plt.colorbar()
+    plt.xticks(np.arange(freq_vs_C_rmse.shape[1])[::2] + 0.5,
+               ["%.2fpF" % (c*1e12) for c in freq_vs_C_rmse.columns][::2])
+    plt.yticks(np.arange(len(frequencies))[::2] + 0.5,
+               ["%.2fkHz" % (f/1e3) for f in frequencies][::2])
+    plt.xlim(0, freq_vs_C_rmse.shape[1])
+    plt.ylim(0, freq_vs_C_rmse.shape[0])
+    plt.setp(plt.xticks()[1], rotation=90)
+    plt.tight_layout()
+    return axis
+
+
 if __name__ == '__main__':
     cachedir = path('.cache/2014.10.22/002')
 
@@ -698,9 +835,9 @@ if __name__ == '__main__':
 
     # Write new calibrated feedback resistor and capacitor values to control
     # board configuration.
+    import pudb; pudb.set_trace()
     #update_fb_calibration(data['calibration'])
-    #import pudb; pudb.set_trace()
-    estimate_relative_error_in_nominal_capacitance(data)
+    #estimate_relative_error_in_nominal_capacitance(data)
     #plot_capacitance_vs_frequency(data)
     #plot_impedance_vs_frequency(data)
 
