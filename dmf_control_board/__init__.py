@@ -24,6 +24,7 @@ import copy
 import logging
 from struct import pack, unpack
 import math
+import warnings
 
 import numpy as np
 import pandas
@@ -148,7 +149,7 @@ class FeedbackResults():
     class_version = str(Version(0, 4))
 
     def __init__(self, voltage, frequency, dt_ms, V_hv, hv_resistor, V_fb,
-                 fb_resistor, calibration):
+                 fb_resistor, calibration, area=0):
 
         self.voltage = voltage
         self.frequency = frequency
@@ -159,6 +160,7 @@ class FeedbackResults():
         self.time = np.arange(0, len(V_hv)) * dt_ms
         self.calibration = calibration
         self.version = self.class_version
+        self.area = area
         self._sanitize_data()
 
     def _sanitize_data(self):
@@ -194,16 +196,15 @@ class FeedbackResults():
                 self.hv_resistor[self.V_hv > 5] = -1
             if version < Version(0, 3):
                 self.attempt = 0
-                self.version = str(Version(0,    3))
-                logging.info('[FeedbackResults] upgrade to version %s' %
-                             self.version)
             if version < Version(0, 4):
                 del self.sampling_time_ms
                 del self.delay_between_samples_ms
                 self.voltage = self.options.voltage
                 del self.options
                 del self.attempt
-                self.version = str(Version(0,    4))
+            if version < Version(0, 5):
+                self.area = 0
+                self.version = str(Version(0, 5))
                 logging.info('[FeedbackResults] upgrade to version %s' %
                              self.version)
         else:
@@ -243,72 +244,195 @@ class FeedbackResults():
         else:
             return self.V_total()
 
-    def Z_device(self):
+    def Z_device(self, filter_order=None, window_size=None, tol=0.05):
         ind = mlab.find(self.fb_resistor >= 0)
         R_fb = np.zeros(self.fb_resistor.shape)
         C_fb = np.zeros(self.fb_resistor.shape)
         R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
         C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
         if self.calibration.hw_version.major == 1:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
+            Z = (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
                                                  2 * math.pi)) *
                     (self.V_total() / self.V_fb - 1))
         else:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
+            Z = (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
                                                  2 * math.pi)) *
                     (self.V_total() / self.V_fb))
+
+        # convert to masked array
+        Z = np.ma.masked_invalid(pandas.TimeSeries(Z,
+            pandas.to_datetime(self.time, unit='s')
+        ).interpolate(method='time').values)
+
+        # if we're filtering and we don't have a window size specified,
+        # automatically determine one 
+        if filter_order and window_size is None:
+            window_size = self._get_window_size(tol)
+
+        # if the filter_order is None or if the window size is smaller than
+        # filter_order + 2, don't filter
+        if filter_order is None or \
+            (window_size and window_size < filter_order + 2):
+            pass
+        else:
+            # if the window size is less than half the sample length
+            if window_size and window_size < len(Z) / 2:
+                # suppress polyfit warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    Z = savgol_filter(Z, window_size, filter_order)
+            else: # fit a line
+                result = self.mean_velocity(tol=tol)
+                if result['dt'] and \
+                    result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
+                    if self.calibration.C_drop:
+                        C_drop = self.calibration.C_drop
+                    else:
+                        C_drop = self.capacitance()[-1] / self.area
+                    if self.calibration.C_filler:
+                        C_filler = self.calibration.C_filler
+                    else:
+                        C_filler = 0
+                    x = result['p'][0]*self.time + result['p'][1] 
+                    C = self.area * (x * (C_drop - C_filler) / \
+                                     np.sqrt(self.area) + C_filler)
+                    Z = 1.0 / (2.0 * math.pi * self.frequency * C)
+                    Z[mlab.find(self.time==result['t_end'])[0]+1:] = \
+                        Z[mlab.find(self.time==result['t_end'])[0]]                     
+                else:
+                    Z = np.mean(Z)*np.ones(Z.shape)
+        return Z
 
     def min_impedance(self):
         return min(self.Z_device())
 
-    def capacitance(self):
-        return 1.0 / (2 * math.pi * self.frequency * self.Z_device())
+    def capacitance(self, filter_order=None, window_size=None, tol=0.05):
+        C = 1.0 / (2.0 * math.pi * self.frequency * self.Z_device(
+            filter_order=filter_order, window_size=window_size, tol=tol))
+        return np.ma.masked_invalid(
+            pandas.TimeSeries(
+                C, pandas.to_datetime(self.time, unit='s')
+            ).interpolate(method='time', downcast=None).values
+        )
 
-    def x_position(self, area):
+    def x_position(self, filter_order=None, window_size=None, tol=0.05):
         if self.calibration.C_drop:
             C_drop = self.calibration.C_drop
         else:
-            C_drop = self.capacitance()[-1] / area
+            C_drop = self.capacitance()[-1] / self.area
         if self.calibration.C_filler:
             C_filler = self.calibration.C_filler
         else:
             C_filler = 0
-        return ((self.capacitance() / area - C_filler) /
-                (C_drop - C_filler) * np.sqrt(area))
+        
+        return (self.capacitance(filter_order=filter_order,
+                              window_size=window_size,
+                              tol=tol) / self.area - C_filler
+        ) / (C_drop - C_filler) * np.sqrt(self.area)
+        
 
-    def mean_velocity(self, area, window_size=None, order=None):
-        t, dxdt = self.dxdt(area, window_size, order)
-        x = self.x_position(area)
-        ind_stop = mlab.find(dxdt == 0)[0]
-        dx = x[ind_stop] - x[0]
-        if max(dxdt > 0) and ind_stop < len(t):
-            dt = t[ind_stop] - t[0]
-            return dx / dt
-        else:
-            return 0
+    def mean_velocity(self, tol=0.05):
+        """
+        Calculate the mean velocity for a step (mm/ms which is equivalent to
+        m/s). Fit a line to the capacitance data and get the slope.
+        """
+        dx = None
+        dt = None
+        p = None
+        ind = None
+        t_end = None
+        
+        if self.area == 0:
+            return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
+        
+        x = self.x_position()
+        
+        # find the first and last valid indices
+        ind_start = mlab.find(x.mask==False)[0]
+        ind_last = mlab.find(x.mask==False)[-1]
+        
+        # if the original x value is within tol % of the final x value, include
+        # all samples
+        if x[ind_start] > (1 - tol) * x[ind_last]:
+            ind_stop = ind_last
+        else: # otherwise, stop when x reaches (1 - tol) % of it's final value
+            ind_stop = mlab.find(x > (1 - tol) * x[ind_last])[0]
+        
+        ind = [ind_start, ind_stop]
 
-    def dxdt(self, area, window_size=None, order=None):
-        C = np.ma.masked_invalid(pandas.TimeSeries(self.capacitance(),
-                                 pandas.to_datetime(self.time, unit='s')). \
-                                 interpolate(method='time').values)
+        # if we have at least 2 valid samples
+        if len(ind) >=2:
+            dx = np.diff(x[ind])[0]        
+            dt = np.diff(self.time[ind])[0] # ms
+
+            # suppress polyfit warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                # fit a line to the data
+                p = np.polyfit(self.time[ind[0]:ind[1]], x[ind[0]:ind[1]], 1)
+        
+            # find time when the the line intercepts x[ind_last]
+            ind_stop = mlab.find(self.time > \
+                                 (x[ind_last] - p[1]) / p[0])
+            if len(ind_stop):
+                t_end = self.time[ind_stop[0]]
+            else:
+                t_end = self.time[-1]
+        return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
+
+    def _get_window_size(self, tol):
         dt = self.time[1]-self.time[0]
-        if window_size is None or order is None:
-            dCdt = np.diff(C) / dt
+        # calculate the mean velocity
+        result = self.mean_velocity(tol=tol)
+        window_size = None
+
+        # calculate a default filtering window size
+        if result['dt'] and \
+            result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
+
+            # get the velocity from the slope of the fit to the capacitance data
+            mean_dxdt = result['p'][0]
+
+            # pick a window size that corresponds to the time it takes to cover
+            # half the electrode (must be an odd number)
+            window_size = np.round(0.5 / (mean_dxdt / np.sqrt(self.area)) / \
+                                   dt / 2.0) * 2.0 + 1
+        return window_size
+
+    def dxdt(self, filter_order=None, window_size=None, tol=0.05):
+        x = self.x_position()
+
+        if filter_order and window_size is None:
+            window_size = self._get_window_size(tol)
+
+        dt = self.time[1]-self.time[0]
+
+        # if the filter_order is None or if the window size is smaller than
+        # filter_order + 2, don't filter
+        if filter_order is None or \
+            (window_size and window_size < filter_order + 2):
+            dx = np.diff(x)
             t = self.time[1:] - dt/2.0
-        else:
-            dCdt = savgol_filter(C, window_size, order, 1) / dt
+        else: # filter
             t = self.time
-
-        if self.calibration.C_drop:
-            C_drop = self.calibration.C_drop * area
-        else:
-            C_drop = C[-1]
-        if self.calibration.C_filler:
-            C_filler = self.calibration.C_filler * area
-        else:
-            C_filler = 0
-
-        return t, dCdt / (C_drop - C_filler) * np.sqrt(area)
+            dx = np.zeros(t.shape)
+            if window_size:
+                # if the window size is less than half the sample length
+                if window_size < len(x) / 2:
+                    # suppress polyfit warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        dx = savgol_filter(x, window_size, filter_order, 1)
+                else: # use the average velocity
+                    result = self.mean_velocity(tol=tol)
+                    mean_dxdt = 0
+                    if result['p'] is not None:
+                        mean_dxdt = result['p'][0]
+                    dx[:mlab.find(t==result['t_end'])[0]+1] = mean_dxdt * dt
+            else:
+                # otherwise, leave dx = 0
+                pass
+        return t, dx / dt
 
 
 class FeedbackResultsSeries():
