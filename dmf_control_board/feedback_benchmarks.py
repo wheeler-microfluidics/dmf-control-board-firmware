@@ -4,6 +4,7 @@ from collections import OrderedDict
 import time
 import cPickle as pickle
 
+from IPython.display import display
 import pandas as pd
 from path import path
 import matplotlib.mlab as mlab
@@ -89,11 +90,11 @@ def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows):
     df['V_actuation'] = voltage
     df['rms'] = True
     df['antialiasing_filter'] = True
-    df['V_hv'] = 0.
-    df['hv_resistor'] = 0
-    df['V_fb'] = 0.
-    df['fb_resistor'] = 0
-    df['C'] = 0.
+    #df['V_hv'] = 0.
+    #df['hv_resistor'] = 0
+    #df['V_fb'] = 0.
+    #df['fb_resistor'] = 0
+    #df['C'] = 0.
 
     return df
 
@@ -147,19 +148,37 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     proxy.set_waveform_voltage(voltage)
 
     previous_frequency = None
-    for (f, C_device, channel, i), group in grouped:
+    grouped = test_frame.groupby(['frequency', 'test_capacitor',
+                                  'test_channel', 'repeat_index'])
+
+    def measure_feedback_samples(group):
+        frequency = group['frequency'].iloc[0]
+        C_device = group['test_capacitor'].iloc[0]
+        channel = group['test_channel'].iloc[0]
+        i = group['repeat_index'].iloc[0]
+
         if frequency != previous_frequency:
             proxy.set_waveform_frequency(frequency)
-        print "%.2fkHz, C=%.2fpF, rep=%d" % (f / 1e3, 1e12 * C_device, i)
+        print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C_device,
+                                             i)
         state = np.zeros(proxy.number_of_channels())
         state[channel] = 1
-        results = proxy.measure_impedance(10.0, n_sampling_windows, 0,
-                                            True, rms, state)
-        group.loc[:, 'C'] = results.capacitance()
-        group.loc[:, 'V_hv'] = results.V_hv
-        group.loc[:, 'V_fb'] = results.V_fb
-        group.loc[:, 'hv_resistor'] = results.hv_resistor
-        group.loc[:, 'hv_resistor'] = results.fb_resistor
+        results = proxy.measure_impedance(10.0, n_sampling_windows, 0, True,
+                                          rms, state)
+        data = pd.DataFrame(OrderedDict([('C', results.capacitance()),
+                                         ('V_hv', results.V_hv),
+                                         ('V_fb', results.V_fb),
+                                         ('hv_resistor', results.hv_resistor),
+                                         ('fb_resistor', results.fb_resistor),
+                                         ('sample_index',
+                                          range(len(results.hv_resistor)))]))
+        data.set_index('sample_index', inplace=True)
+        return data
+
+    results = grouped.apply(measure_feedback_samples)
+    test_frame = test_frame.join(results, on=['frequency', 'test_capacitor',
+                                              'test_channel', 'repeat_index',
+                                              'sample_index'])
 
     calibration = proxy.calibration
 
@@ -479,7 +498,7 @@ def plot_colormap(stats, column, axis=None):
         axis = fig.add_subplot(111)
     axis.set_xlabel('Capacitance')
     axis.set_ylabel('Frequency')
-    plt.pcolormesh(freq_vs_C_rmse.fillna(1e20).values, vmax=50)
+    plt.pcolormesh(freq_vs_C_rmse.fillna(0).values)
     plt.set_cmap('hot')
     plt.colorbar()
     plt.xticks(np.arange(freq_vs_C_rmse.shape[1])[::2] + 0.5,
