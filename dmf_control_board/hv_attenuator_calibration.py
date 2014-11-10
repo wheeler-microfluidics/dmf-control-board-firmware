@@ -10,6 +10,7 @@ import matplotlib
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
+from matplotlib.markers import MarkerStyle
 import scipy.optimize as optimize
 
 from microdrop_utility.gui import text_entry_dialog
@@ -178,7 +179,7 @@ def fit_hv_feedback_params(control_board, max_resistor_readings):
     return data
 
 
-def plot_hv_feedback_params(control_board, max_resistor_readings,
+def plot_hv_feedback_params(hv_transfer_func, max_resistor_readings,
                             feedback_params, axis=None):
     '''
     Plot the effective attenuation _(i.e., gain less than 1)_ of the control
@@ -196,6 +197,52 @@ def plot_hv_feedback_params(control_board, max_resistor_readings,
      - Previous model of attenuation.
      - Newly fitted model of attenuation, based on oscilloscope readings.
     '''
+    R1 = 10e6
+
+    # Since the feed-back circuit changed in version 2 of the control board, we
+    # use the transfer function that corresponds to the current control board
+    # version that the fitted attenuation model is based on.
+    if axis is None:
+        fig = plt.figure()
+        axis = fig.add_subplot(111)
+    colors = axis._get_lines.color_cycle
+    markers = MarkerStyle.filled_markers
+
+    def plot_resistor_params(args):
+        resistor_index, x = args
+        color = colors.next()
+        axis.loglog(x['frequency'],
+                    hv_transfer_func(feedback_params.loc[resistor_index,
+                                                         ['original C',
+                                                          'original R']]
+                                     .values, x['frequency'], R1),
+                    linestyle='--', label='R$_{%d}$ (previous fit)' %
+                    resistor_index, color=color)
+
+        axis.loglog(x['frequency'],
+                    hv_transfer_func(feedback_params.loc[resistor_index,
+                                                         ['fitted C',
+                                                          'fitted R']].values,
+                                     x['frequency'], R1), color=color,
+                    linestyle='-', label='R$_{%d}$ (new fit)' % resistor_index,
+                    alpha=0.6)
+        attenuation = x['board measured V'] / x['oscope measured V']
+        axis.plot(x['frequency'], attenuation, color='none',
+                  marker=markers[resistor_index % len(markers)],
+                  label='R$_{%d}$ (scope measurements)' % resistor_index,
+                  linestyle='none', markeredgecolor=color, markeredgewidth=2,
+                  markersize=8)
+        return 0
+
+    map(plot_resistor_params, max_resistor_readings.groupby('resistor index'))
+    legend = axis.legend(ncol=3)
+    legend.draw_frame(False)
+    axis.set_xlabel('Frequency (Hz)')
+    axis.set_ylabel(r'$\frac{V_{BOARD}}'
+                    r'{V_{SCOPE}}$', fontsize=25)
+
+
+def get_hv_transfer_function(control_board):
     hardware_version = Version.fromstring(control_board
                                           .hardware_version())
     R1 = 10e6
@@ -207,40 +254,7 @@ def plot_hv_feedback_params(control_board, max_resistor_readings,
         f = hv_transfer_function_v2
     else:
         f = hv_transfer_function
-
-    if axis is None:
-        fig = plt.figure()
-        axis = fig.add_subplot(111)
-    colors = axis._get_lines.color_cycle
-
-    def plot_resistor_params(args):
-        resistor_index, x = args
-        color = colors.next()
-        axis.loglog(x['frequency'], f(feedback_params.loc[resistor_index,
-                                                          ['original C',
-                                                           'original R']]
-                                      .values, x['frequency'], R1),
-                    linestyle='--', label='R$_{%d}$ (previous fit)' %
-                    resistor_index, color=color)
-
-        axis.loglog(x['frequency'], f(feedback_params.loc[resistor_index,
-                                                          ['fitted C',
-                                                           'fitted R']]
-                                      .values, x['frequency'], R1),
-                    color=color, linestyle='-',
-                    label='R$_{%d}$ (new fit)' % resistor_index, alpha=0.6)
-        attenuation = x['board measured V'] / x['oscope measured V']
-        axis.plot(x['frequency'], attenuation, color=color,
-                  marker='o', label='R$_{%d}$ (scope measurements)' %
-                  resistor_index, linestyle='none')
-        return 0
-
-    map(plot_resistor_params, max_resistor_readings.groupby('resistor index'))
-    legend = axis.legend(ncol=3)
-    legend.draw_frame(False)
-    axis.set_xlabel('Frequency (Hz)')
-    axis.set_ylabel(r'$\frac{V_{BOARD}}'
-                    r'{V_{SCOPE}}$', fontsize=25)
+    return f
 
 
 if __name__ == '__main__':
