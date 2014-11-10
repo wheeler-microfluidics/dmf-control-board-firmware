@@ -16,70 +16,19 @@ from microdrop_utility.gui import text_entry_dialog
 from microdrop_utility import Version, is_float
 
 
-def process_hv_attenuator_calibration(control_board, results):
-    hardware_version = Version.fromstring(control_board
-                                          .hardware_version())
-    input_voltage = np.array(results['input_voltage'])
-    frequencies = np.array(results['frequencies'])
-    hv_measurements = (np.array(results['hv_measurements']) / 1023.0 * 5 -
-                       2.5)
-    hv_rms = np.transpose(np.array([np.max(hv_measurements[:, j, :], 1) -
-                                    np.min(hv_measurements[:, j, :], 1)
-                                    for j in range(0, len(frequencies))]) /
-                          2. / np.sqrt(2))
+def hv_transfer_function(parameter, frequency, R1):
+    return np.abs(1 / (R1 / parameter[1] + 1 + R1 * 2 * np.pi * parameter[0] *
+                       complex(0, 1) * frequency))
 
-    voltages = np.array(results['voltages'])
-    attenuation = hv_rms / voltages
+def hv_transfer_function_v2(parameter, frequency, R1):
+    '''
+    Transfer function
+    '''
+    return np.abs(1 / (R1 / parameter[1] + R1 * 2 * np.pi * parameter[0] *
+                       complex(0, 1) * frequency))
 
-    # p[0]=C, p[1]=R2
-    R1 = 10e6
-    f = lambda p, x, R1: np.abs(1 / (R1 / p[1] + 1 + R1 * 2 * np.pi * p[0]
-                                     * complex(0, 1) * x))
-    if hardware_version.major == 2:
-        f = lambda p, x, R1: np.abs(1 / (R1 / p[1] + R1 * 2 * np.pi * p[0]
-                                         * complex(0, 1) * x))
-    e = lambda p, x, y, R1: f(p, x, R1) - y
-    fit_params = []
 
-    colors = ['b', 'r', 'g']
-    legend = []
-    for i in range(0, np.size(hv_rms, 0)):
-        ind = mlab.find(hv_rms[i, :] > .1)
-        p0 = [control_board.calibration.C_hv[i],
-              control_board.calibration.R_hv[i]]
-        plt.loglog(frequencies[ind], f(p0, frequencies[ind], R1),
-                 colors[i] + '--')
-        legend.append('R$_{%d}$ (previous fit)' % i)
-
-        if 'voltages' in results:
-            voltages = np.array(results['voltages'])
-            T = attenuation[i, ind]
-            p1, success = optimize.leastsq(e, p0, args=(frequencies[ind],
-                                                        T, R1))
-            fit_params.append(p1)
-            plt.loglog(frequencies[ind], f(p1, frequencies[ind], R1),
-                     colors[i] + '-')
-            legend.append('R$_{%d}$ (new fit)' % i)
-
-            plt.plot(frequencies, attenuation[i], colors[i] + 'o')
-            legend.append('R$_{%d}$ (scope measurements)' % i)
-
-            # update control board calibration
-            control_board.set_series_resistor_index(0, i)
-            control_board.set_series_resistance(0, abs(p1[1]))
-            control_board.set_series_capacitance(0, abs(p1[0]))
-            # reconnnect to update calibration data
-            control_board.connect()
-        else:  # Control board measurements
-            fit_params.append(p0)
-            plt.plot(frequencies, attenuation[i], colors[i] + 'o')
-            legend.append('R$_{%d}$ (CB measurements)' % i)
-
-    plt.legend(legend)
-    a = plt.gca()
-    a.set_xlabel('Frequency (Hz)')
-    a.set_ylabel('Attenuation')
-    a.set_title('HV attenuation')
+e = lambda p, x, y, R1: f(p, x, R1) - y
 
 
 def measure_board_hv(control_board, n_samples=10, sampling_ms=10,
@@ -191,6 +140,107 @@ def resistor_max_actuation_readings(control_board, frequencies,
     # for each frequency/feedback resistor pair.
     return (conditions.groupby(['resistor index', 'frequency'])
             .apply(max_actuation_reading).reset_index(drop=True))
+
+
+def fit_hv_feedback_params(control_board, max_resistor_readings):
+    '''
+    Fit model of control board high-voltage feed-back resistor and
+    parasitic capacitance values based on measured voltage readings.
+    '''
+    hardware_version = Version.fromstring(control_board
+                                          .hardware_version())
+    R1 = 10e6
+
+    if hardware_version.major == 2:
+        f = hv_transfer_function_v2
+    else:
+        f = hv_transfer_function
+    e = lambda p, x, y, R1: f(p, x, R1) - y
+
+    def fit_resistor_params(x):
+        resistor_index = x['resistor index'].values[0]
+        x['attenuation'] = x['board measured V'] / x['oscope measured V']
+        p0 = [control_board.calibration.C_hv[resistor_index],
+              control_board.calibration.R_hv[resistor_index]]
+
+        p1, success = optimize.leastsq(e, p0,
+                                       args=(x['frequency'],
+                                             x['attenuation'], R1))
+        return pd.DataFrame([p0 + p1.tolist()],
+                            columns=['original C', 'original R',
+                                     'fitted C', 'fitted R']).T
+
+    results = (max_resistor_readings
+               [max_resistor_results['resistor index'] >= 0]
+               .groupby(['resistor index']).apply(fit_resistor_params))
+    data = results.unstack()
+    data.columns = data.columns.droplevel()
+    return data
+
+
+def plot_hv_feedback_params(control_board, max_resistor_readings,
+                            feedback_params, axis=None):
+    '''
+    Plot the effective attenuation _(i.e., gain less than 1)_ of the control
+    board measurements of high-voltage AC input according to:
+
+     - AC signal frequency.
+     - Feed-back resistor used _(varies based on amplitude of AC signal)_.
+
+    Each high-voltage feed-back resistor (unintentionally) forms a low-pass
+    filter, resulting in attenuation of the voltage measured on the control
+    board.  The plot generated by this function plots each of the following
+    trends for each feed-back resistor:
+
+     - Oscilloscope measurements.
+     - Previous model of attenuation.
+     - Newly fitted model of attenuation, based on oscilloscope readings.
+    '''
+    hardware_version = Version.fromstring(control_board
+                                          .hardware_version())
+    R1 = 10e6
+
+    # Since the feed-back circuit changed in version 2 of the control board, we
+    # use the transfer function that corresponds to the current control board
+    # version that the fitted attenuation model is based on.
+    if hardware_version.major == 2:
+        f = hv_transfer_function_v2
+    else:
+        f = hv_transfer_function
+
+    if axis is None:
+        fig = plt.figure()
+        axis = fig.add_subplot(111)
+    colors = axis._get_lines.color_cycle
+
+    def plot_resistor_params(args):
+        resistor_index, x = args
+        color = colors.next()
+        axis.loglog(x['frequency'], f(feedback_params.loc[resistor_index,
+                                                          ['original C',
+                                                           'original R']]
+                                      .values, x['frequency'], R1),
+                    linestyle='--', label='R$_{%d}$ (previous fit)' %
+                    resistor_index, color=color)
+
+        axis.loglog(x['frequency'], f(feedback_params.loc[resistor_index,
+                                                          ['fitted C',
+                                                           'fitted R']]
+                                      .values, x['frequency'], R1),
+                    color=color, linestyle='-',
+                    label='R$_{%d}$ (new fit)' % resistor_index, alpha=0.6)
+        attenuation = x['board measured V'] / x['oscope measured V']
+        axis.plot(x['frequency'], attenuation, color=color,
+                  marker='o', label='R$_{%d}$ (scope measurements)' %
+                  resistor_index, linestyle='none')
+        return 0
+
+    map(plot_resistor_params, max_resistor_readings.groupby('resistor index'))
+    legend = axis.legend(ncol=3)
+    legend.draw_frame(False)
+    axis.set_xlabel('Frequency (Hz)')
+    axis.set_ylabel(r'$\frac{V_{BOARD}}'
+                    r'{V_{SCOPE}}$', fontsize=25)
 
 
 if __name__ == '__main__':
