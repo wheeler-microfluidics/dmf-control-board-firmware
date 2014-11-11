@@ -1,6 +1,7 @@
 # coding: utf-8
 import pandas as pd
 import numpy as np
+import sympy as sp
 import matplotlib.pyplot as plt
 from matplotlib.markers import MarkerStyle
 import scipy.optimize as optimize
@@ -8,10 +9,12 @@ import scipy.optimize as optimize
 from microdrop_utility import Version, is_float
 
 
-def transfer_function(parameter, frequency, R1):
+def transfer_function():
     r'''
-    Transfer function of RMS voltage measured by control board high-voltage
-    feedback analog input relative to the actual high-voltage RMS value.
+    Return a symbolic equality representation of the transfer function of RMS
+    voltage measured by control board high-voltage feedback analog input
+    relative to the actual high-voltage RMS value.
+
     According to the figure below, the transfer function describes the
     following relationship:
 
@@ -31,34 +34,38 @@ def transfer_function(parameter, frequency, R1):
                                ├──┤ ├──┐   │       │
                          R1    │   R   │   │  │╲   │
                    ┌────/\/\/──┼─/\/\/─┤   └──│-╲  │
-                   │           │       ╧    ┌─│+╱╲╭┘
+                   │           │       ╧    ┌─│+╱∟─┘
                  ╔═══╗         └─────┐      │ │╱
             V_in ║ ~ ║ frequency     │      │
                  ╚═══╝               ┴      ╧
                    │               V_att
                    ╧
 
-    Arguments:
-     - `parameter`:  Array-like with length 2.
-      * `C`: Parasitic capacitance of high-voltage feedback circuit.  This may
-        vary with signal frequency.
-      * `R`: The magnitude of the voltage divider resistor in the feedback
-        circuit.
-      * The `R` and `C` are passed as parameters, since this is the form that
-        is required for model fitting.
-     - `frequency`: Frequency of the AC signal.
+    Notes
+    -----
+
+     - The symbolic equality can be solved for any symbol, _e.g.,_ $V_{in}$ or
+       $V_{att}$.
+     - A symbolically solved representation can be converted to a Python function
+       using [`sympy.utilities.lambdify.lambdify`][1], to compute results for
+       specific values of the remaining parameters.
+
+    [1]: http://docs.sympy.org/dev/modules/utilities/lambdify.html
     '''
-    C, R = parameter
-    return np.abs(1 / (R1 / R + 1 + R1 * 2 * np.pi * C * complex(0, 1) *
-                       frequency))
+    # Define transfer function as a symbolic equality using SymPy.
+    R1, R, C, f, V_att, V_in = sp.symbols('R1 R C f V_att V_in')
+    return sp.Eq(V_in, sp.Abs(1 / (R1 / R + 1 + R1 * 2 * sp.pi * C * sp.I * f))
+                 * V_att)
 
 
-def transfer_function_v2(parameter, frequency, R1):
+def transfer_function_v2():
     r'''
     _(DMF control board hardware version 2)_
 
-    Transfer function of RMS voltage measured by control board high-voltage
-    feedback analog input relative to the actual high-voltage RMS value.
+    Return a symbolic equality representation of the transfer function of RMS
+    voltage measured by control board high-voltage feedback analog input
+    relative to the actual high-voltage RMS value.
+
     According to the figure below, the transfer function describes the
     following relationship:
 
@@ -79,26 +86,28 @@ def transfer_function_v2(parameter, frequency, R1):
                                  │ │       │
                           R1     │ │ │╲    │
                     ┌────/\/\/───┴─┴─│-╲   │
-                    │              ┌─│+╱╲╭─┘
+                    │              ┌─│+╱∟──┘
                   ╔═══╗            │ │╱
              V_in ║ ~ ║ frequency  │
                   ╚═══╝            ╧
                     │
                     ╧
 
-     - `parameter`:  Array-like with length 2.
-      * `C`: Parasitic capacitance of high-voltage feedback circuit.  This may
-        vary with signal frequency.
-      * `R`: The magnitude of the voltage divider resistor in the feedback
-        circuit.
-      * The `R` and `C` are passed as parameters, since this is the form that
-        is required for model fitting.
-     - `frequency`: Frequency of the AC signal.
+    Notes
+    -----
 
+     - The symbolic equality can be solved for any symbol, _e.g.,_ $V_{in}$ or
+       $V_{att}$.
+     - A symbolically solved representation can be converted to a Python function
+       using [`sympy.utilities.lambdify.lambdify`][1], to compute results for
+       specific values of the remaining parameters.
+
+    [1]: http://docs.sympy.org/dev/modules/utilities/lambdify.html
     '''
-    C, R = parameter
-    return np.abs(1 / (R1 / R + R1 * 2 * np.pi * C * complex(0, 1) *
-                       frequency))
+    # Define transfer function as a symbolic equality using SymPy.
+    R1, R, C, f, V_att, V_in = sp.symbols('R1 R C f V_att V_in')
+    return sp.Eq(V_in, sp.Abs(1 / (R1 / R + R1 * 2 * sp.pi * C * sp.I * f)) *
+                 V_att)
 
 
 def measure_board_rms(control_board, n_samples=10, sampling_ms=10,
@@ -221,10 +230,11 @@ def fit_feedback_params(control_board, max_resistor_readings):
                                           .hardware_version())
     R1 = 10e6
 
-    if hardware_version.major == 2:
-        f = transfer_function_v2
-    else:
-        f = transfer_function
+    # Get transfer function to compute the amplitude of the high-voltage input
+    # to the control board _(i.e., the output of the amplifier)_ based on the
+    # attenuated voltage measured by the analog-to-digital converter on the
+    # control board.
+    f = get_transfer_function(hardware_version.major, 'V_in')
     e = lambda p, x, y, R1: f(p, x, R1) - y
 
     def fit_resistor_params(x):
@@ -311,18 +321,42 @@ def plot_feedback_params(transfer_func, max_resistor_readings,
                     r'{V_{SCOPE}}$', fontsize=25)
 
 
-def get_transfer_function(control_board):
-    hardware_version = Version.fromstring(control_board
-                                          .hardware_version())
+def get_transfer_function(hardware_major_version, solve_for, symbolic=False):
+    '''
+    Return a numeric function to solve for one of `('V_in', 'V_att')`, of the
+    form:
+
+        f(V, R1, frequency, R, C)
+
+    where `V` corresponds to the known variable out of `('V_in', 'V_att')`.
+    '''
+    if solve_for == 'V_in':
+        V = 'V_att'
+    elif solve_for == 'V_att':
+        V = 'V_in'
+    else:
+        raise ValueError('''`solve_for` must be one of `('V_in', 'V_att')`.''')
 
     # Since the feedback circuit changed in version 2 of the control board, we
     # use the transfer function that corresponds to the current control board
     # version that the fitted attenuation model is based on.
-    if hardware_version.major == 2:
-        f = transfer_function_v2
+    if hardware_major_version >= 2:
+        # Get the symbolic transfer function equality.
+        H = transfer_function_v2()
     else:
-        f = transfer_function
-    return f
+        H = transfer_function()
+
+    # Solve for the specified variable.
+    F = sp.solve(H.lhs - H.rhs, solve_for)[0]
+
+    if symbolic:
+        # Return symbolic function corresponding to the specified variable.
+        return F
+    else:
+        # Return numeric function instantiation to compute the specified
+        # variable.
+        f = sp.utilities.lambdify(V + ', R, R1, C, f', F, 'numpy')
+        return lambda *args: f(*args)
 
 
 if __name__ == '__main__':
