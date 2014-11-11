@@ -18,18 +18,88 @@ from microdrop_utility import Version, is_float
 
 
 def hv_transfer_function(parameter, frequency, R1):
-    return np.abs(1 / (R1 / parameter[1] + 1 + R1 * 2 * np.pi * parameter[0] *
-                       complex(0, 1) * frequency))
+    r'''
+    Transfer function of RMS voltage measured by control board high-voltage
+    feedback analog input relative to the actual high-voltage RMS value.
+    According to the figure below, the transfer function describes the
+    following relationship:
+
+        \frac{V_{ATT}}{V_{IN}}
+
+    where $V_{IN}$ denotes the high-voltage signal from the amplifier output
+    and $V_{ATT}$ denotes the signal sufficiently attenuated to fall within the
+    measurable input range of the analog-to-digital converter _(approx. 5V)_.
+
+                                           ┌───────┐
+                               ┌───────────┤       │
+                               │   C       │       │
+                               ├──┤ ├──┐   │       │
+                         R1    │   R   │   │  │╲   │
+                   ┌────/\/\/──┼─/\/\/─┤   └──│-╲  │
+                   │           │       ╧    ┌─│+╱╲╭┘
+                 ╔═══╗         └─────┐      │ │╱
+          V_{IN} ║ ~ ║ frequency     │      │
+                 ╚═══╝               ┴      ╧
+                   │               V_{ATT}
+                   ╧
+
+    Arguments:
+     - `parameter`:  Array-like with length 2.
+      * `C`: Parasitic capacitance of high-voltage feedback circuit.  This may
+        vary with signal frequency.
+      * `R`: The magnitude of the voltage divider resistor in the feedback
+        circuit.
+      * The `R` and `C` are passed as parameters, since this is the form that
+        is required for model fitting.
+     - `frequency`: Frequency of the AC signal.
+    '''
+    C, R = parameter
+    return np.abs(1 / (R1 / R + 1 + R1 * 2 * np.pi * C * complex(0, 1) *
+                       frequency))
+
 
 def hv_transfer_function_v2(parameter, frequency, R1):
-    '''
-    Transfer function
-    '''
-    return np.abs(1 / (R1 / parameter[1] + R1 * 2 * np.pi * parameter[0] *
-                       complex(0, 1) * frequency))
+    r'''
+    _(DMF control board hardware version 2)_
 
+    Transfer function of RMS voltage measured by control board high-voltage
+    feedback analog input relative to the actual high-voltage RMS value.
+    According to the figure below, the transfer function describes the
+    following relationship:
 
-e = lambda p, x, y, R1: f(p, x, R1) - y
+        \frac{V_{ATT}}{V_{IN}}
+
+    where $V_{IN}$ denotes the high-voltage signal from the amplifier output
+    and $V_{ATT}$ denotes the signal sufficiently attenuated to fall within the
+    measurable input range of the analog-to-digital converter _(approx. 5V)_.
+
+                                       C
+                                   ┌──┤ ├──┐
+                                   │   R   │
+                      V_{ATT} ├──┐ ├─/\/\/─┤
+                                 │ │       │
+                          R1     │ │ │╲    │
+                    ┌────/\/\/───┴─┴─│-╲   │
+                    │              ┌─│+╱╲╭─┘
+                  ╔═══╗            │ │╱
+           V_{IN} ║ ~ ║ frequency  │
+                  ╚═══╝            ╧
+                    │
+                    ╧
+
+     - `parameter`:  Array-like with length 2.
+      * `C`: Parasitic capacitance of high-voltage feedback circuit.  This may
+        vary with signal frequency.
+      * `R`: The magnitude of the voltage divider resistor in the feedback
+        circuit.
+      * The `R` and `C` are passed as parameters, since this is the form that
+        is required for model fitting.
+     - `frequency`: Frequency of the AC signal.
+
+    '''
+    C, R = parameter
+    return np.abs(1 / (R1 / R + R1 * 2 * np.pi * C * complex(0, 1) *
+                       frequency))
 
 
 def measure_board_hv(control_board, n_samples=10, sampling_ms=10,
@@ -82,9 +152,9 @@ def get_oscope_reading():
 def resistor_max_actuation_readings(control_board, frequencies,
                                     oscope_reading_func):
     '''
-    For each resistor in the high-voltage feed-back resistor bank, read the
+    For each resistor in the high-voltage feedback resistor bank, read the
     board measured voltage and the oscilloscope measured voltage for an
-    actuation voltage that nearly saturates the feed-back resistor.
+    actuation voltage that nearly saturates the feedback resistor.
 
     By searching for an actuation voltage near saturation, the signal-to-noise
     ratio is minimized.
@@ -145,7 +215,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
 
 def fit_hv_feedback_params(control_board, max_resistor_readings):
     '''
-    Fit model of control board high-voltage feed-back resistor and
+    Fit model of control board high-voltage feedback resistor and
     parasitic capacitance values based on measured voltage readings.
     '''
     hardware_version = Version.fromstring(control_board
@@ -186,12 +256,12 @@ def plot_hv_feedback_params(hv_transfer_func, max_resistor_readings,
     board measurements of high-voltage AC input according to:
 
      - AC signal frequency.
-     - Feed-back resistor used _(varies based on amplitude of AC signal)_.
+     - feedback resistor used _(varies based on amplitude of AC signal)_.
 
-    Each high-voltage feed-back resistor (unintentionally) forms a low-pass
+    Each high-voltage feedback resistor (unintentionally) forms a low-pass
     filter, resulting in attenuation of the voltage measured on the control
     board.  The plot generated by this function plots each of the following
-    trends for each feed-back resistor:
+    trends for each feedback resistor:
 
      - Oscilloscope measurements.
      - Previous model of attenuation.
@@ -199,7 +269,7 @@ def plot_hv_feedback_params(hv_transfer_func, max_resistor_readings,
     '''
     R1 = 10e6
 
-    # Since the feed-back circuit changed in version 2 of the control board, we
+    # Since the feedback circuit changed in version 2 of the control board, we
     # use the transfer function that corresponds to the current control board
     # version that the fitted attenuation model is based on.
     if axis is None:
@@ -247,7 +317,7 @@ def get_hv_transfer_function(control_board):
                                           .hardware_version())
     R1 = 10e6
 
-    # Since the feed-back circuit changed in version 2 of the control board, we
+    # Since the feedback circuit changed in version 2 of the control board, we
     # use the transfer function that corresponds to the current control board
     # version that the fitted attenuation model is based on.
     if hardware_version.major == 2:
