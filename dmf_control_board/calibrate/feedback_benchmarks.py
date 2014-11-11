@@ -1,12 +1,7 @@
 # coding: utf-8
-
 from collections import OrderedDict
-import time
-import cPickle as pickle
 
-from IPython.display import display
 import pandas as pd
-from path import path
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -18,31 +13,15 @@ from dmf_control_board import *
 
 pd.set_option('display.width', 300)
 
+# Default frequencies to test
+FREQUENCIES = np.logspace(2, 13. / 3, 15)
 
-frequencies = np.logspace(2, 13./3, 15) # frequencies to test
-test_loads = [(0, 1e-12),
-              (1, 1.5e-12),
-              (2, 2.2e-12),
-              (3, 3.3e-12),
-              (4, 4.7e-12),
-              (5, 6.8e-12),
-              (6, 1e-11),
-              (7, 1.5e-11),
-              (8, 2.2e-11),
-              (9, 3.3e-11),
-              (10, 4.7e-11),
-              (11, 6.8e-11),
-              (12, 1e-10),
-              (13, 1.5e-10),
-              (14, 2.2e-10),
-              (15, 3.3e-10),
-              (16, 4.7e-10),
-              (17, 6.8e-10),
-              (18, 1e-9),]
-
-n_repeats = 1
-n_sampling_windows = 10
-voltage = 100. # actuation voltage
+# Nominal capacitor values _(in F)_ for each channel on the feedback test
+# board.
+TEST_LOADS = pd.Series([1e-12, 1.5e-12, 2.2e-12, 3.3e-12, 4.7e-12, 6.8e-12,
+                        1e-11, 1.5e-11, 2.2e-11, 3.3e-11, 4.7e-11, 6.8e-11,
+                        1e-10, 1.5e-10, 2.2e-10, 3.3e-10, 4.7e-10, 6.8e-10,
+                        1e-9])
 
 
 def from_dictionary(data):
@@ -75,9 +54,9 @@ def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows):
                            len(test_loads) * len(frequencies))
     repeat_index = np.tile(np.repeat(range(n_repeats), n_sampling_windows),
                            len(test_loads) * len(frequencies))
-    channel = np.tile(np.repeat(zip(*test_loads)[0], n_repeats *
+    channel = np.tile(np.repeat(test_loads.index.values, n_repeats *
                                 n_sampling_windows), len(frequencies))
-    capacitor = np.tile(np.repeat(zip(*test_loads)[1], n_repeats *
+    capacitor = np.tile(np.repeat(test_loads.values, n_repeats *
                                   n_sampling_windows), len(frequencies))
     frequency = np.repeat(frequencies, len(test_loads) * n_repeats *
                           n_sampling_windows)
@@ -108,28 +87,10 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     proxy.connect()
 
     if test_loads is None:
-        test_loads = [(0, 1e-12),
-                      (1, 1.5e-12),
-                      (2, 2.2e-12),
-                      (3, 3.3e-12),
-                      (4, 4.7e-12),
-                      (5, 6.8e-12),
-                      (6, 1e-11),
-                      (7, 1.5e-11),
-                      (8, 2.2e-11),
-                      (9, 3.3e-11),
-                      (10, 4.7e-11),
-                      (11, 6.8e-11),
-                      (12, 1e-10),
-                      (13, 1.5e-10),
-                      (14, 2.2e-10),
-                      (15, 3.3e-10),
-                      (16, 4.7e-10),
-                      (17, 6.8e-10),
-                      (18, 1e-9),]
+        test_loads = TEST_LOADS
 
     if frequencies is None:
-        frequencies = np.logspace(2, 13. / 3, 15)  # frequencies to test
+        frequencies = FREQUENCIES
 
     if rms is None:
         rms = True
@@ -233,14 +194,14 @@ def fit_fb_calibration(df, calibration):
             V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + 1 + Z * 2 * np.pi
                                                 * C_hv * complex(0, 1) *
                                                 df.frequency))
-            return (df.V_fb - df.V_actuation * R_fb * df.C * 2 * np.pi * f /
+            return (df.V_fb - V_actuation * R_fb * df.C * 2 * np.pi * f /
                     np.sqrt(1 + np.square(2 * np.pi * R_fb *
                                           (C_fb + df.C) * df.frequency)))
         else:
             V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + Z * 2 * np.pi * C_hv
                                                 * complex(0, 1) *
                                                 df.frequency))
-            return (df.V_fb - df.V_actuation * R_fb * df.C * 2 * np.pi *
+            return (df.V_fb - V_actuation * R_fb * df.C * 2 * np.pi *
                     df.frequency / np.sqrt(1 + np.square(2 * np.pi * R_fb *
                                                          C_fb * df.frequency)))
 
@@ -409,17 +370,26 @@ def plot_impedance_vs_frequency(data):
     f = np.tile(np.reshape(frequencies, [len(frequencies)] + [1]*(len(C.shape) - 1)),
                 [1] + list(C.shape[1:]))
 
-    # plot the impedance of each experiment vs frequency (with the data points
-    # color-coded according to the feedback resistor)
+    # Plot the impedance of each experiment vs frequency (with the data points
+    # color-coded according to the feedback resistor).
+    # Note that impedance, $Z$, can be computed as:
+    #
+    #             1
+    #     Z = ──────────
+    #         2⋅π⋅C⋅freq
+    #
     plt.figure(figsize=figsize)
     legend = []
     for i in range(len(calibration.R_fb)):
         legend.append("R$_{fb,%d}$" % i)
         ind = mlab.find(fb_resistor == i)
-        plt.loglog(f.flatten()[ind], 1.0 / (2 * np.pi * C.flatten()[ind] * f.flatten()[ind]), 'o')
-    plt.xlim(0.8*np.min(frequencies), 1.2*np.max(frequencies))
-    for C_device in [C_device for channel, C_device in test_loads]:
-        plt.plot(frequencies, 1.0 / (2 * np.pi * C_device*np.ones(len(frequencies)) * frequencies),
+        plt.loglog(f.flatten()[ind], 1.0 / (2 * np.pi * C.flatten()[ind] *
+                                            f.flatten()[ind]), 'o')
+    plt.xlim(0.8 * np.min(frequencies), 1.2 * np.max(frequencies))
+    for C_device in test_loads:
+        # TODO: What is the reason for the `np.ones` below?
+        plt.plot(frequencies, 1.0 / (2 * np.pi * C_device *
+                                     np.ones(len(frequencies)) * frequencies),
                  '--', color='0.5')
     plt.legend(legend)
     plt.xlabel('Frequency (Hz)')
@@ -432,13 +402,13 @@ def calculate_stats(df, groupby='test_capacitor'):
     cleaned_df = df.dropna().copy()
     stats = cleaned_df.groupby(groupby)['C'].agg(['mean', 'std', 'median'])
     stats['bias %'] = (cleaned_df.groupby(groupby)
-                     .apply(lambda x: ((x['C'] - x['test_capacitor'])).mean() /
-                            x['C'].mean())) * 100
+                       .apply(lambda x: ((x['C'] - x['test_capacitor'])).mean()
+                              / x['C'].mean())) * 100
     stats['RMSE %'] = 100 * (cleaned_df.groupby(groupby)
-                           .apply(lambda x: np.sqrt(((x['C'] -
-                                                      x['test_capacitor']) **
-                                                     2).mean()) /
-                                                    x['C'].mean()))
+                             .apply(lambda x: np.sqrt(((x['C'] -
+                                                        x['test_capacitor']) **
+                                                       2).mean()) /
+                                    x['C'].mean()))
     stats['cv %'] = stats['std'] / stats['mean'] * 100
     return stats
 
@@ -552,31 +522,3 @@ def plot_stat_summary(df, fig=None):
         # Plot a histogram to show the distribution of statistical
         # values across all frequency/capacitance pairs.
         stats[stat].hist(bins=50, ax=axis)
-
-
-if __name__ == '__main__':
-    cachedir = path('.cache/2014.10.22/002')
-
-    data = run_experiment('7 caps, 100V, 100Hz-22kHz, rms, with filter (switching board v2.1)')
-    #data = fit_fb_calibration(data)
-    df = fit_fb_calibration2(data)
-
-    # Write new calibrated feedback resistor and capacitor values to control
-    # board configuration.
-    import pudb; pudb.set_trace()
-    #update_fb_calibration(data['calibration'])
-    #estimate_relative_error_in_nominal_capacitance(data)
-    #plot_capacitance_vs_frequency(data)
-    #plot_impedance_vs_frequency(data)
-
-    #stats = calculate_stats(data)
-    ##print_detailed_stats_by_condition(data, stats)
-    ##plot_measured_vs_nominal_capacitance_for_each_frequency(data, stats)
-
-    #plot_histogram('RMSE(C) (%)', stats['RMSE'], vmax=vmax)
-    #plot_histogram('bias(C) (%)', stats['bias'], vmin=vmin, vmax=vmax)
-
-    #C_nominal = np.array([x for channel, x in data['test_loads']])
-    #plot_colormap('RMSE(C) (%)', C_nominal, data['frequencies'], stats['RMSE'], vmax=vmax )
-    #plot_colormap('CV(C) (%)', C_nominal, data['frequencies'], stats['CV'], vmax=vmax)
-    #plot_colormap('abs(bias(C)) (%)', C_nominal, data['frequencies'], np.abs(stats['bias']), vmax=vmax)
