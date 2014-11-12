@@ -10,6 +10,7 @@ import scipy.optimize
 import scipy.stats
 
 from dmf_control_board import *
+from .hv_attenuator import get_transfer_function as get_hv_transfer_function
 
 pd.set_option('display.width', 300)
 
@@ -191,16 +192,25 @@ def fit_fb_calibration(df, calibration):
         C_hv = calibration.C_hv[df.hv_resistor.values]
 
         if calibration.hw_version.major == 1:
+            V_actuation_f = get_hv_transfer_function(calibration.hw_version
+                                                     .major, 'V_in')
+            # V_actuation = f(V, R1, frequency, R, C)
+            V_actuation = V_actuation_f(
+            df.V_hv / np.abs(1 / (Z / R_hv + 1 + Z * 2 * np.pi
+                                                * C_hv * complex(0, 1) *
+                                                df.frequency))
+
             V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + 1 + Z * 2 * np.pi
                                                 * C_hv * complex(0, 1) *
                                                 df.frequency))
-            return (df.V_fb - V_actuation * R_fb * df.C * 2 * np.pi * f /
-                    np.sqrt(1 + np.square(2 * np.pi * R_fb *
-                                          (C_fb + df.C) * df.frequency)))
+            return (df.V_fb - V_actuation * R_fb * df.C * 2 * np.pi *
+                    df.frequency / np.sqrt(1 + np.square(2 * np.pi * R_fb *
+                                                         (C_fb + df.C) *
+                                                         df.frequency)))
         else:
-            V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + Z * 2 * np.pi * C_hv
-                                                * complex(0, 1) *
-                                                df.frequency))
+            V_actuation = df.V_hv / np.abs(1 / (Z / R_hv + complex(0, 1) *
+                                                Z * C_hv *
+                                                2 * np.pi * df.frequency))
             return (df.V_fb - V_actuation * R_fb * df.C * 2 * np.pi *
                     df.frequency / np.sqrt(1 + np.square(2 * np.pi * R_fb *
                                                          C_fb * df.frequency)))
