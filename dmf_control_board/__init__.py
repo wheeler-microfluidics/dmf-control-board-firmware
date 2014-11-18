@@ -232,14 +232,12 @@ class FeedbackResults():
         return out
 
     def V_total(self):
+        '''
+        Compute the input voltage _(i.e., `V1`)_ based on the measured
+        high-voltage feedback values for `V2`, using the high-voltage transfer
+        function.
+        '''
         ind = mlab.find(self.hv_resistor >= 0)
-        T = np.zeros(self.hv_resistor.shape)
-        T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
-                                  self.calibration.R_hv
-                                  [self.hv_resistor[ind]]],
-                                 self.frequency, 10e6,
-                                 self.calibration.hw_version)
-
         V1_f = get_high_voltage_transfer_function(self.calibration.hw_version
                                                   .major, 'V1')
         V1 = np.empty(self.hv_resistor.shape)
@@ -248,37 +246,37 @@ class FeedbackResults():
                        self.calibration.R_hv[self.hv_resistor[ind]],
                        self.calibration.C_hv[self.hv_resistor[ind]],
                        self.frequency)
-        result = self.V_hv / T
-        assert(np.allclose(V1[ind], result[ind]))
-        return result
+        return V1
 
     def V_actuation(self):
+        # TODO: Add explanation for difference in handling hardware versions.
         if self.calibration.hw_version.major == 1:
             return self.V_total() - np.array(self.V_fb)
         else:
             return self.V_total()
 
     def Z_device(self):
-        ind = mlab.find(self.fb_resistor >= 0)
-        R_fb = np.zeros(self.fb_resistor.shape)
-        C_fb = np.zeros(self.fb_resistor.shape)
-        R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
-        C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
-
-        if self.calibration.hw_version.major == 1:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
-                                                 2 * math.pi)) *
-                    (self.V_total() / self.V_fb - 1))
-        else:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
-                                                 2 * math.pi)) *
-                    (self.V_total() / self.V_fb))
+        # TODO: Add reference for equation.
+        return 1 / (2 * np.pi * self.frequency * self.capacitance())
 
     def min_impedance(self):
         return min(self.Z_device())
 
     def capacitance(self):
-        return 1.0 / (2 * math.pi * self.frequency * self.Z_device())
+        # Solve impedance transfer function for 'C1'.
+        C1_f = get_impedance_transfer_function(self.calibration.hw_version
+                                               .major, 'C1')
+
+        ind = mlab.find(self.fb_resistor >= 0)
+        C1 = np.empty(self.fb_resistor.shape)
+        C1.fill(np.nan)
+
+        # C1_f(V1, V2, R1, R2, C2, frequency)
+        C1[ind] = C1_f(self.V_total()[ind], self.V_fb[ind], None,
+                       self.calibration.R_fb[self.fb_resistor[ind]],
+                       self.calibration.C_fb[self.fb_resistor[ind]],
+                       self.frequency)
+        return C1
 
     def x_position(self, area):
         if self.calibration.C_drop:
