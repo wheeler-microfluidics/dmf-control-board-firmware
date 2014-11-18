@@ -1,3 +1,4 @@
+# coding: utf-8
 """
 Copyright 2011 Ryan Fobel
 
@@ -36,6 +37,10 @@ from dmf_control_board_base import uint8_tVector
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
 from avr_helpers import AvrDude
+from calibrate.impedance import (get_transfer_function as
+                                 get_impedance_transfer_function)
+from calibrate.hv_attenuator import (get_transfer_function as
+                                     get_high_voltage_transfer_function)
 
 
 logger = logging.getLogger()
@@ -129,16 +134,6 @@ class PersistentSettingDoesNotExist(Exception):
     pass
 
 
-def feedback_signal(p, frequency, Z, hw_version):
-    """p[0]=C, p[1]=R"""
-    if hw_version.major == 1:
-        return np.abs(1 / (Z / p[1] + 1 + Z * 2 * np.pi * p[0] * complex(0, 1)
-                           * frequency))
-    else:
-        return np.abs(1 / (Z / p[1] + Z * 2 * np.pi * p[0] * complex(0, 1) *
-                           frequency))
-
-
 class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
@@ -228,43 +223,71 @@ class FeedbackResults():
         return out
 
     def V_total(self):
+        '''
+        Compute the input voltage _(i.e., `V1`)_ based on the measured
+        high-voltage feedback values for `V2`, using the high-voltage transfer
+        function.
+        '''
         ind = mlab.find(self.hv_resistor >= 0)
-        T = np.zeros(self.hv_resistor.shape)
-        T[ind] = feedback_signal([self.calibration.C_hv[self.hv_resistor[ind]],
-                                  self.calibration.R_hv
-                                  [self.hv_resistor[ind]]],
-                                 self.frequency, 10e6,
-                                 self.calibration.hw_version)
-        return self.V_hv / T
+        V1_f = get_high_voltage_transfer_function(self.calibration.hw_version
+                                                  .major, 'V1')
+        V1 = np.empty(self.hv_resistor.shape)
+        V1.fill(np.nan)
+        V1[ind] = V1_f(self.V_hv[ind], 10e6, None,
+                       self.calibration.R_hv[self.hv_resistor[ind]],
+                       self.calibration.C_hv[self.hv_resistor[ind]],
+                       self.frequency)
+        return V1
 
     def V_actuation(self):
+        # TODO: Add explanation for difference in handling hardware versions.
         if self.calibration.hw_version.major == 1:
             return self.V_total() - np.array(self.V_fb)
         else:
             return self.V_total()
 
     def Z_device(self):
-        ind = mlab.find(self.fb_resistor >= 0)
-        R_fb = np.zeros(self.fb_resistor.shape)
-        C_fb = np.zeros(self.fb_resistor.shape)
-        R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
-        C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
-        if self.calibration.hw_version.major == 1:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
-                                                 2 * math.pi)) *
-                    (self.V_total() / self.V_fb - 1))
-        else:
-            return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
-                                                 2 * math.pi)) *
-                    (self.V_total() / self.V_fb))
+        # TODO: Add reference for equation.
+        return 1 / (2 * np.pi * self.frequency * self.capacitance())
 
     def min_impedance(self):
         return min(self.Z_device())
 
     def capacitance(self):
-        return 1.0 / (2 * math.pi * self.frequency * self.Z_device())
+        # Solve impedance transfer function for 'C1'.
+        C1_f = get_impedance_transfer_function(self.calibration.hw_version
+                                               .major, 'C1')
+
+        ind = mlab.find(self.fb_resistor >= 0)
+        C1 = np.empty(self.fb_resistor.shape)
+        C1.fill(np.nan)
+
+        # C1_f(V1, V2, R1, R2, C2, frequency)
+        C1[ind] = C1_f(self.V_total()[ind], self.V_fb[ind], None,
+                       self.calibration.R_fb[self.fb_resistor[ind]],
+                       self.calibration.C_fb[self.fb_resistor[ind]],
+                       self.frequency)
+        return C1
 
     def x_position(self, area):
+        '''
+        Calculate $x$-position according to:
+
+                  ___ ⎛C     ⎞
+                ╲╱ a ⋅⎜─ - Cf⎟
+                      ⎝a     ⎠
+            x = ──────────────
+                   Cd - Cf
+
+        where:
+
+         - $C$ is the measured capacitance.
+         - $C_f$ is the capacitance of the filler medium _(e.g., air)_.
+         - $C_d$ is the capacitance of a droplet.
+         - $a$ is the area of a droplet.
+
+        Note that $x$ is expressed in terms of the square-root of the units of $a$.
+        '''
         if self.calibration.C_drop:
             C_drop = self.calibration.C_drop
         else:
@@ -273,8 +296,8 @@ class FeedbackResults():
             C_filler = self.calibration.C_filler
         else:
             C_filler = 0
-        return ((self.capacitance() / area - C_filler) /
-                (C_drop - C_filler) * np.sqrt(area))
+        return np.sqrt(area) * ((self.capacitance() / area - C_filler) /
+                                (C_drop - C_filler))
 
     def mean_velocity(self, area, ind=None, threshold=0.95):
         if ind is None:
@@ -306,9 +329,9 @@ class FeedbackResults():
         else:
             C_filler = 0
 
-        # find the time when the capacitance exceeds the specified threshold
+        # Find the time when the capacitance exceeds the specified threshold
         # (e.g., the drop has stopped moving once it has passed 95% of it's
-        # final value)
+        # final value).
         ind_stop = mlab.find((C[1:] - C_filler) / (C[-1] - C_filler) >
                              threshold)
         if len(ind_stop):
@@ -330,11 +353,11 @@ class FeedbackResultsSeries():
         self.version = self.class_version
         self.xlabel = xlabel
         self.x = np.zeros(0)
-        
+
     def add_data(self, x, feedback_results):
         self.x = np.concatenate((self.x, [x]))
         self.data.append(feedback_results)
-    
+
     @property
     def frequency(self):
         return self._concatenate_data_from_member('frequency')
@@ -737,7 +760,7 @@ class DMFControlBoard(Base, SerialDevice):
                                         PERSISTENT_MAX_WAVEFORM_VOLTAGE,
                                         value)
         self.__max_waveform_voltage = value
-    
+
     @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
@@ -859,8 +882,8 @@ class DMFControlBoard(Base, SerialDevice):
                                                  interleave_samples,
                                                  rms,
                                                  state_))
-        return self.impedance_buffer_to_feedback_result(buffer)   
-        
+        return self.impedance_buffer_to_feedback_result(buffer)
+
     def i2c_write(self, address, data):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
