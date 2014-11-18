@@ -1,3 +1,4 @@
+# coding: utf-8
 """
 Copyright 2011 Ryan Fobel
 
@@ -131,16 +132,6 @@ def safe_getattr(obj, attr, except_types):
 
 class PersistentSettingDoesNotExist(Exception):
     pass
-
-
-def feedback_signal(p, frequency, Z, hw_version):
-    """p[0]=C, p[1]=R"""
-    if hw_version.major == 1:
-        return np.abs(1 / (Z / p[1] + 1 + Z * 2 * np.pi * p[0] * complex(0, 1)
-                           * frequency))
-    else:
-        return np.abs(1 / (Z / p[1] + Z * 2 * np.pi * p[0] * complex(0, 1) *
-                           frequency))
 
 
 class FeedbackResults():
@@ -279,6 +270,24 @@ class FeedbackResults():
         return C1
 
     def x_position(self, area):
+        '''
+        Calculate $x$-position according to:
+
+                  ___ ⎛C     ⎞
+                ╲╱ a ⋅⎜─ - Cf⎟
+                      ⎝a     ⎠
+            x = ──────────────
+                   Cd - Cf
+
+        where:
+
+         - $C$ is the measured capacitance.
+         - $C_f$ is the capacitance of the filler medium _(e.g., air)_.
+         - $C_d$ is the capacitance of a droplet.
+         - $a$ is the area of a droplet.
+
+        Note that $x$ is expressed in terms of the square-root of the units of $a$.
+        '''
         if self.calibration.C_drop:
             C_drop = self.calibration.C_drop
         else:
@@ -287,8 +296,8 @@ class FeedbackResults():
             C_filler = self.calibration.C_filler
         else:
             C_filler = 0
-        return ((self.capacitance() / area - C_filler) /
-                (C_drop - C_filler) * np.sqrt(area))
+        return np.sqrt(area) * ((self.capacitance() / area - C_filler) /
+                                (C_drop - C_filler))
 
     def mean_velocity(self, area, ind=None, threshold=0.95):
         if ind is None:
