@@ -36,6 +36,10 @@ from dmf_control_board_base import uint8_tVector
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
 from avr_helpers import AvrDude
+from calibrate.impedance import (get_transfer_function as
+                                 get_impedance_transfer_function)
+from calibrate.hv_attenuator import (get_transfer_function as
+                                     get_high_voltage_transfer_function)
 
 
 logger = logging.getLogger()
@@ -235,7 +239,18 @@ class FeedbackResults():
                                   [self.hv_resistor[ind]]],
                                  self.frequency, 10e6,
                                  self.calibration.hw_version)
-        return self.V_hv / T
+
+        V1_f = get_high_voltage_transfer_function(self.calibration.hw_version
+                                                  .major, 'V1')
+        V1 = np.empty(self.hv_resistor.shape)
+        V1.fill(np.nan)
+        V1[ind] = V1_f(self.V_hv[ind], 10e6, None,
+                       self.calibration.R_hv[self.hv_resistor[ind]],
+                       self.calibration.C_hv[self.hv_resistor[ind]],
+                       self.frequency)
+        result = self.V_hv / T
+        assert(np.allclose(V1[ind], result[ind]))
+        return result
 
     def V_actuation(self):
         if self.calibration.hw_version.major == 1:
@@ -249,6 +264,7 @@ class FeedbackResults():
         C_fb = np.zeros(self.fb_resistor.shape)
         R_fb[ind] = self.calibration.R_fb[self.fb_resistor[ind]]
         C_fb[ind] = self.calibration.C_fb[self.fb_resistor[ind]]
+
         if self.calibration.hw_version.major == 1:
             return (R_fb / np.sqrt(1 + np.square(R_fb * C_fb * self.frequency *
                                                  2 * math.pi)) *
@@ -306,9 +322,9 @@ class FeedbackResults():
         else:
             C_filler = 0
 
-        # find the time when the capacitance exceeds the specified threshold
+        # Find the time when the capacitance exceeds the specified threshold
         # (e.g., the drop has stopped moving once it has passed 95% of it's
-        # final value)
+        # final value).
         ind_stop = mlab.find((C[1:] - C_filler) / (C[-1] - C_filler) >
                              threshold)
         if len(ind_stop):
@@ -330,11 +346,11 @@ class FeedbackResultsSeries():
         self.version = self.class_version
         self.xlabel = xlabel
         self.x = np.zeros(0)
-        
+
     def add_data(self, x, feedback_results):
         self.x = np.concatenate((self.x, [x]))
         self.data.append(feedback_results)
-    
+
     @property
     def frequency(self):
         return self._concatenate_data_from_member('frequency')
@@ -737,7 +753,7 @@ class DMFControlBoard(Base, SerialDevice):
                                         PERSISTENT_MAX_WAVEFORM_VOLTAGE,
                                         value)
         self.__max_waveform_voltage = value
-    
+
     @property
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
@@ -859,8 +875,8 @@ class DMFControlBoard(Base, SerialDevice):
                                                  interleave_samples,
                                                  rms,
                                                  state_))
-        return self.impedance_buffer_to_feedback_result(buffer)   
-        
+        return self.impedance_buffer_to_feedback_result(buffer)
+
     def i2c_write(self, address, data):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
