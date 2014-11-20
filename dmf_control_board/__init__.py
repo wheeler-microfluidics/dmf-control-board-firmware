@@ -37,10 +37,7 @@ from dmf_control_board_base import uint8_tVector
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
 from avr_helpers import AvrDude
-from calibrate.impedance import (get_transfer_function as
-                                 get_impedance_transfer_function)
-from calibrate.hv_attenuator import (get_transfer_function as
-                                     get_high_voltage_transfer_function)
+from calibrate.feedback import compute_from_transfer_function
 
 
 logger = logging.getLogger()
@@ -229,45 +226,90 @@ class FeedbackResults():
         function.
         '''
         ind = mlab.find(self.hv_resistor >= 0)
-        V1_f = get_high_voltage_transfer_function(self.calibration.hw_version
-                                                  .major, 'V1')
+
         V1 = np.empty(self.hv_resistor.shape)
         V1.fill(np.nan)
-        V1[ind] = V1_f(self.V_hv[ind], 10e6, None,
-                       self.calibration.R_hv[self.hv_resistor[ind]],
-                       self.calibration.C_hv[self.hv_resistor[ind]],
-                       self.frequency)
+        V1[ind] = compute_from_transfer_function(self.calibration.hw_version
+                                                 .major, 'V1',
+                                                 V2=self.V_hv[ind], R1=10e6,
+                                                 R2=self.calibration.R_hv
+                                                 [self.hv_resistor[ind]],
+                                                 C2=self.calibration.C_hv
+                                                 [self.hv_resistor[ind]],
+                                                 f=self.frequency)
         return V1
 
     def V_actuation(self):
-        # TODO: Add explanation for difference in handling hardware versions.
+        '''
+        Return the voltage drop across the device _(i.e., the `Z1` load)_ for
+        each feedback measurement.
+
+        Consider the feedback circuit diagrams below for the feedback
+        measurement circuits of the two the control board hardware versions.
+
+                         # Hardware V1 #          # Hardware V2 #
+
+                         V_1 @ frequency          V_1 @ frequency
+                        ┬    ┯                        ┯
+                        │  ┌─┴─┐                    ┌─┴─┐    ┌───┐
+            V_actuation │  │Z_1│                    │Z_1│  ┌─┤Z_2├─┐
+                        │  └─┬─┘                    └─┬─┘  │ └───┘ │
+                        ┴    ├───⊸ V_2                │    │  │╲   ├───⊸ V_2
+                           ┌─┴─┐                      └────┴──│-╲__│
+                           │Z_2│                           ┌──│+╱
+                           └─┬─┘                           │  │╱
+                            ═╧═                            │
+                             ¯                            ═╧═
+                                                           ¯
+
+        Note that in the case of hardware version 1, the input voltage `V1` is
+        divided across `Z1` and the feedback measurement load `Z2`.  Therefore,
+        the effective _actuation_ voltage across the DMF device is less than
+        `V1`.  Specifically, the effective _actuation_ voltage is `V1 - V2`.
+
+        In hardware version 2, since the positive terminal of
+        the op-amp is attached to _(virtual)_ ground, the negative op-amp
+        terminal is also at ground potential.  It follows that the actuation
+        voltage is equal to `V1` on hardware version 2.
+        '''
         if self.calibration.hw_version.major == 1:
             return self.V_total() - np.array(self.V_fb)
         else:
             return self.V_total()
 
     def Z_device(self):
-        # TODO: Add reference for equation.
-        return 1 / (2 * np.pi * self.frequency * self.capacitance())
+        '''
+        Compute the impedance _(including resistive and capacitive load)_ of
+        the DMF device _(i.e., dielectric and droplet)_.
+
+        See `dmf_control_board.calibrate.compute_from_transfer_function`
+        docstring for details.
+        '''
+        ind = mlab.find(self.fb_resistor >= 0)
+        Z1 = np.empty(self.fb_resistor.shape)
+        Z1.fill(np.nan)
+
+        R2 = self.calibration.R_fb[self.fb_resistor[ind]]
+        C2 = self.calibration.C_fb[self.fb_resistor[ind]]
+        Z1[ind] = compute_from_transfer_function(self.calibration.hw_version
+                                                 .major, 'Z1',
+                                                 V1=self.V_total()[ind],
+                                                 V2=self.V_fb[ind], R2=R2,
+                                                 C2=C2, f=self.frequency)
+        return Z1
 
     def min_impedance(self):
         return min(self.Z_device())
 
     def capacitance(self):
-        # Solve impedance transfer function for 'C1'.
-        C1_f = get_impedance_transfer_function(self.calibration.hw_version
-                                               .major, 'C1')
+        '''
+        Compute the capacitance of the DMF device _(i.e., dielectric and
+        droplet)_ based on the computed impedance value.
 
-        ind = mlab.find(self.fb_resistor >= 0)
-        C1 = np.empty(self.fb_resistor.shape)
-        C1.fill(np.nan)
-
-        # C1_f(V1, V2, R1, R2, C2, frequency)
-        C1[ind] = C1_f(self.V_total()[ind], self.V_fb[ind], None,
-                       self.calibration.R_fb[self.fb_resistor[ind]],
-                       self.calibration.C_fb[self.fb_resistor[ind]],
-                       self.frequency)
-        return C1
+        Note: this assumes impedance is purely capacitive load.
+        TODO: Is this assumption ok?
+        '''
+        return 1 / (2 * np.pi * self.frequency * self.Z_device())
 
     def x_position(self, area):
         '''

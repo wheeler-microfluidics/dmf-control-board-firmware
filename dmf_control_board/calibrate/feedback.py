@@ -7,8 +7,60 @@ circuits on the control board:
  - High-voltage.
  - Impedance.
 '''
+import re
+from collections import OrderedDict, Iterable
+from functools32 import lru_cache
+
 import pandas as pd
 import sympy as sp
+
+
+def subs_default(equation, symbol_names, default, **kwargs):
+    '''
+    Given a `sympy` equation or equality, along with a list of symbol names,
+    substitute the specified default value for each symbol for which a value is
+    not provided through a keyword argument.
+
+    For example, consider the following equality:
+
+    >>> sp.pprint(H)
+    V₂   Z₂
+    ── = ──
+    V₁   Z₁
+
+    Let us substitute a default value of 1 for terms Z1 and Z2:
+
+    >>> sp.pprint(subs_default(H, ['Z1', 'Z2'], 1))
+    V₂
+    ── = 1
+    V₁
+
+    Now, let us specify a default value of 1 for terms Z1 and Z2, but provide
+    an overriding value for Z1:
+
+    >>> sp.pprint(subs_default(H, ['Z1', 'Z2'], 1, Z1=4))
+    V₂
+    ── = 1/4
+    V₁
+
+    Note that keyword arguments for terms not specified in the list of symbol
+    names are ignored:
+
+    >>> sp.pprint(subs_default(H, ['Z1', 'Z2'], 1, Z1=4, Q=7))
+    V₂
+    ── = 1/4
+    V₁
+    '''
+    result = equation
+    for s in symbol_names:
+        if s in kwargs:
+            if isinstance(kwargs[s], Iterable):
+                continue
+            else:
+                result = result.subs(s, kwargs[s])
+        else:
+            result = result.subs(s, default)
+    return result
 
 
 def z_transfer_functions():
@@ -67,11 +119,11 @@ def z_transfer_functions():
     return xfer_funcs
 
 
-def rc_transfer_function(eq):
+def rc_transfer_function(eq, Zs=None):
     '''
-    Substitute resistive and capacitive components for `Z1` and `Z2` in the
-    provided equation, where $Z$ is equivalent to parallel resistive and
-    capacitive impedances, as shown below.
+    Substitute resistive and capacitive components for all `Zs` terms _(all
+    terms starting with `Z` by default)_ in the provided equation, where $Z$ is
+    equivalent to parallel resistive and capacitive impedances, as shown below.
 
                                         Z_C
             ┌───┐                    ┌──┤ ├──┐
@@ -93,36 +145,125 @@ def rc_transfer_function(eq):
     [1]: http://en.wikipedia.org/wiki/Electrical_impedance#Device_examples
     [2]: http://en.wikipedia.org/wiki/Angular_frequency
     '''
-    R1, C1, R2, C2, omega = sp.symbols('R1 C1 R2 C2 omega')
-    return eq.subs([('Z2', 1 / (1 / R2 + sp.I * omega * C2)),
-                    ('Z1', 1 / (1 / R1 + sp.I * omega * C1))])
+    if Zs is None:
+        Zs = [s.name for s in eq.atoms(sp.Symbol) if s.name.startswith('Z')]
+    result = eq
+    cre_Z = re.compile(r'Z(?P<suffix>.*)')
+    sub_params = [(z, sp.symbols('R%s C%s omega' % (s, s)))
+                  for z, s in [(Z, cre_Z.match(Z).group('suffix'))
+                               for Z in Zs]]
+    for Z, (R, C, omega) in sub_params:
+        result = result.subs(Z, 1 / (1 / R + sp.I * omega * C))
+    return result
 
 
-def control_board_transfer_functions(xfer_funcs, solve_for, symbolic=False):
-    r'''
-    Return a numeric function to solve for one of `('V1', 'V2')`, of the
-    form:
-
-        f(V, R1, C1, R2, C2, frequency)
-
-    where `V` corresponds to the known variable out of `('V1', 'V2')`.
+@lru_cache(maxsize=500)
+def get_transfer_function(hardware_major_version, solve_for=None, Zs=None):
     '''
-    args = ['V1', 'V2', 'R1', 'C1', 'R2', 'C2', 'f']
-    if solve_for not in args:
-        raise ValueError('''`solve_for` must be one of `('V1', 'V2')`.''')
-    else:
-        args.remove(solve_for)
+    Return feedback measurement circuit symbolic transfer function for
+    specified control board hardware version as `sympy` equality.
 
-    f = sp.symbols('f')
-    sym_funcs = xfer_funcs.map(lambda x: sp.Abs(sp.solve(x, solve_for)[0]
-                                                .subs('omega', 2 * sp.pi * f)))
+    Keyword arguments:
+     - `solve_for`: Rearrange equality with `solve_for` symbol as LHS.
+     - `Zs`:
+      * List of impedance _(i.e., `Z`)_ to substitute with resistive and
+        capacitive terms.
+      * By default, all `Z` terms are substituted with corresponding `R` and
+        `C` values.
+    '''
+    xfer_func = z_transfer_functions()[hardware_major_version]
+    symbols = OrderedDict([(s.name, s)
+                           for s in xfer_func.atoms(sp.Symbol)])
+    if Zs is None:
+        Zs = [s for s in symbols if s != solve_for and s.startswith('Z')]
+    H = rc_transfer_function(xfer_func, Zs)
+    if solve_for is None:
+        return H
+    symbols = OrderedDict([(s.name, s)
+                           for s in H.atoms(sp.Symbol)])
+    solve_for_symbol = symbols[solve_for]
+    solved = sp.Eq(solve_for_symbol, sp.solve(H, solve_for_symbol)[0])
+    return solved
+
+
+def compute_from_transfer_function(hardware_major_version, solve_for,
+                                   **kwargs):
+    '''
+    Positional arguments:
+
+     - `hardware_major_version`:
+      * Major version of control board hardware _(1 or 2)_.
+     - `solve_for`: Variable in feedback transfer function to solve for.
+      * See
+      * _e.g.,_ `Z1`, `V1`, `V2`, etc.
+
+    Keyword arguments:
+
+     - `symbolic`: Return `sympy` symbolic equality.
+     - Other:
+      * Scalar or array-like value to substitute for term with corresponding
+        name in transfer function.
+      * In the case of the frequency term, `f`, if set to `True`, substitute
+        `2 * pi * f` for angular frequency _(i.e., `omega`)_ in transfer function.
+
+    Conventions:
+
+     - Symbols starting with `Z` are assumed to be impedance terms.
+     - Symbols starting with `R` are assumed to be resistive impedance terms.
+     - Symbols starting with `C` are assumed to be capacitive impedance terms.
+     - `omega` is assumed to be an angular frequency term.
+     - `f` is assumed to be a frequency term _(i.e., `omega = 2 * pi * f`).
+
+    Either `f` or `omega` may be specified, _not_ both.
+    '''
+    symbolic = kwargs.pop('symbolic', False)
+    # Get list of all `Z` terms provided as keyword arguments.
+    Zs = tuple([s for s in kwargs if s != solve_for and s.startswith('Z')])
+    # If no `Z` terms were provided, substitute `R` and `C` terms for all `Z`
+    # terms in transfer function.
+    if not Zs:
+        Zs = None
+    # Get symbolic feedback measurement transfer function solved for specified
+    # term.
+    result = get_transfer_function(hardware_major_version, solve_for=solve_for,
+                                   Zs=Zs)
+    # Get list of resistive terms in transfer function.
+    Rs = set([s.name for s in result.atoms(sp.Symbol)
+              if s.name.startswith('R')])
+    # Get list of capacitive terms in transfer function.
+    Cs = set([s.name for s in result.atoms(sp.Symbol)
+              if s.name.startswith('C')])
+    # Substitute infinite resistance _(i.e., open circuit)_ for any resistive
+    # term in the transfer function where a resistance value was not specified
+    # as a keyword argument.
+    result = subs_default(result, Rs, sp.oo, **kwargs)
+    # Substitute zero capacitance _(i.e., open circuit)_ for any capacitive
+    # term in the transfer function where a resistance value was not specified
+    # as a keyword argument.
+    result = subs_default(result, Cs, 0, **kwargs)
+    # Substitute frequency term for angular frequency as necessary.
+    if 'f' in kwargs:
+        result = result.subs('omega', sp.sympify('2 * pi * f'))
+        if not isinstance(kwargs['f'], Iterable) and kwargs['f'] == True:
+            # Interpret as request to symbolically substitute `2 * pi * f` for
+            # `omega`.  Thus, remove `f` before performing value substitution.
+            del kwargs['f']
+    # Substitute scalar values from keyword arguments into symbolic equation.
+    for k, v in kwargs.iteritems():
+        if isinstance(v, Iterable):
+            continue
+        else:
+            result = result.subs(k, v)
     if symbolic:
-        # Return symbolic functions corresponding to the specified variable.
-        return sym_funcs
+        return result
     else:
-        # Return numeric function instantiations to compute the specified
-        # variable.  We specify that `numpy` functions should be used, when
-        # necessary.
-        return sym_funcs.map(lambda F:
-                             sp.utilities.lambdify(', '.join(args), F,
-                                                   'numpy'))
+        # Create list of unresolved symbols on the right-hand-side of the
+        # equality.
+        H = result.rhs
+        symbols = [s.name for s in H.atoms(sp.Symbol)]
+        # Construct numeric equation with the unresolved RHS terms as
+        # arguments.
+        func = sp.lambdify(', '.join(symbols), sp.Abs(H), 'numpy')
+        # Return resulting numeric function evaluated with provided keyword
+        # value for each term.
+        return func(*[kwargs[s] for s in symbols])

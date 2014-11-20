@@ -8,37 +8,7 @@ import scipy.optimize as optimize
 
 from functools32 import lru_cache
 from microdrop_utility import Version, is_float
-from .feedback import (z_transfer_functions, rc_transfer_function,
-                       control_board_transfer_functions)
-
-
-@lru_cache(maxsize=500)
-def transfer_functions():
-    r'''
-    Return a `pandas.Series`, indexed by control board hardware version,
-    containing the symbolic transfer function corresponding to the respective
-    _high-voltage_ feedback measurement circuit layout.
-
-    In the high-voltage feedback measurement circuit, the $Z_1$ impedance is
-    assumed to be purely resistive _(i.e., a capacitive load of zero)_.
-    '''
-    xfer_funcs = z_transfer_functions()
-    rc_xfer_funcs = xfer_funcs.map(rc_transfer_function)
-    return rc_xfer_funcs.map(lambda x: x.subs('C1', 0))
-
-
-@lru_cache(maxsize=500)
-def get_transfer_function(hardware_major_version, solve_for, symbolic=False):
-    '''
-    Return a numeric function to solve for one of `('V_1', 'V_2')`, of the
-    form:
-
-        f(V, R1, R2, C1, C2, frequency)
-
-    where `V` corresponds to the known variable out of `('V_1', 'V_2')`.
-    '''
-    return control_board_transfer_functions(transfer_functions(), solve_for,
-                                            symbolic)[hardware_major_version]
+from .feedback import compute_from_transfer_function
 
 
 def measure_board_rms(control_board, n_samples=10, sampling_ms=10,
@@ -46,7 +16,9 @@ def measure_board_rms(control_board, n_samples=10, sampling_ms=10,
     '''
     Read RMS voltage samples from control board high-voltage feedback circuit.
     '''
-    results = control_board.measure_impedance(10, 10, 0, True, True, [])
+    results = control_board.measure_impedance(n_samples, sampling_ms,
+                                              delay_between_samples_ms, True,
+                                              True, [])
     data = pd.DataFrame({'board measured V': results.V_hv})
     data['divider resistor index'] = results.hv_resistor
     return data
@@ -105,7 +77,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
 
     # Based on the maximum amplified RMS voltage, define a set of actuation
     # voltages to search when performing calibration.
-    max_post_gain_V = 150.  # TODO: Read this value from device.
+    max_post_gain_V = 150.  # TODO Read this value from device.
     max_actuation_V = max_post_gain_V / estimated_amplifier_gain
     actuation_steps = np.linspace(0.005, max_actuation_V, num=100)
 
@@ -134,8 +106,8 @@ def resistor_max_actuation_readings(control_board, frequencies,
         return pd.DataFrame([[r, f, actuation_index, board_measured_rms,
                             oscope_rms]],
                             columns=['resistor index', 'frequency',
-                                    'actuation index', 'board measured V',
-                                    'oscope measured V'])
+                                     'actuation index', 'board measured V',
+                                     'oscope measured V'])
 
     # Return board-measured RMS voltage and oscilloscope-measured RMS voltage
     # for each frequency/feedback resistor pair.
@@ -143,13 +115,11 @@ def resistor_max_actuation_readings(control_board, frequencies,
             .apply(max_actuation_reading).reset_index(drop=True))
 
 
-def fit_feedback_params(control_board, max_resistor_readings):
+def fit_feedback_params(calibration, max_resistor_readings):
     '''
     Fit model of control board high-voltage feedback resistor and
     parasitic capacitance values based on measured voltage readings.
     '''
-    hardware_version = Version.fromstring(control_board
-                                          .hardware_version())
     R1 = 10e6
 
     # Get transfer function to compute the amplitude of the high-voltage input
@@ -163,14 +133,16 @@ def fit_feedback_params(control_board, max_resistor_readings):
     #
     # See the `z_transfer_functions` function docstring for definitions of the
     # parameters based on the control board major version.
-    f = get_transfer_function(hardware_version.major, 'V2')
-    e = lambda p, freq, y, R1: f(1, R1, 0, p[0], p[1], freq) - y
+    e = lambda p, freq, y, R1: \
+        compute_from_transfer_function(calibration.hw_version.major,
+                                       'V2', V1=1, R1=R1, R2=p[0], C2=p[1],
+                                       f=freq) - y
 
     def fit_resistor_params(x):
         resistor_index = x['resistor index'].values[0]
         x['attenuation'] = x['board measured V'] / x['oscope measured V']
-        p0 = [control_board.calibration.C_hv[resistor_index],
-              control_board.calibration.R_hv[resistor_index]]
+        p0 = [calibration.C_hv[resistor_index],
+              calibration.R_hv[resistor_index]]
 
         p1, success = optimize.leastsq(e, p0,
                                        args=(x['frequency'],

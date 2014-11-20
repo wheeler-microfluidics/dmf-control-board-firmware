@@ -7,11 +7,8 @@ import sympy as sp
 import scipy.stats
 import scipy.optimize
 import pandas as pd
-from functools32 import lru_cache
 
-from .hv_attenuator import get_transfer_function as get_hv_transfer_function
-from .feedback import (z_transfer_functions, rc_transfer_function,
-                       control_board_transfer_functions)
+from .feedback import compute_from_transfer_function
 
 
 # Default frequencies to test
@@ -23,35 +20,6 @@ TEST_LOADS = pd.Series([1e-12, 1.5e-12, 2.2e-12, 3.3e-12, 4.7e-12, 6.8e-12,
                         1e-11, 1.5e-11, 2.2e-11, 3.3e-11, 4.7e-11, 6.8e-11,
                         1e-10, 1.5e-10, 2.2e-10, 3.3e-10, 4.7e-10, 6.8e-10,
                         1e-9])
-
-
-@lru_cache(maxsize=500)
-def transfer_functions():
-    r'''
-    Return a `pandas.Series`, indexed by control board hardware version,
-    containing the symbolic transfer function corresponding to the respective
-    _capacitive load_ feedback measurement circuit layout.
-
-    In the capacitive load feedback measurement circuit, the $Z_1$ impedance is
-    assumed to be purely capacitive _(i.e., infinite resistive load)_.
-    '''
-    xfer_funcs = z_transfer_functions()
-    rc_xfer_funcs = xfer_funcs.map(rc_transfer_function)
-    return rc_xfer_funcs.map(lambda x: x.subs('R1', sp.oo))
-
-
-@lru_cache(maxsize=500)
-def get_transfer_function(hardware_major_version, solve_for, symbolic=False):
-    '''
-    Return a numeric function to solve for one of `('V_1', 'V_2')`, of the
-    form:
-
-        f(V, R1, R2, C1, C2, frequency)
-
-    where `V` corresponds to the known variable out of `('V_1', 'V_2')`.
-    '''
-    return control_board_transfer_functions(transfer_functions(), solve_for,
-                                            symbolic)[hardware_major_version]
 
 
 def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
@@ -178,21 +146,11 @@ def fit_fb_calibration(df, calibration):
     performs the fit.
     See `apply_calibration`.
     '''
-    # set initial guesses for the feedback parameters
+    # Set initial guesses for the feedback parameters.
     R_fb = pd.Series([2e2, 2e3, 2e4, 2e5, 2e6])
     C_fb = pd.Series(len(calibration.C_fb) * [50e-12])
 
-    # Get the high-voltage feedback transfer function, where `V2`
-    # _(i.e., the voltage measured on the control board)_ is known. In other
-    # words, we are solving for the actuation voltage.
-    V_actuation_f = get_hv_transfer_function(calibration.hw_version.major,
-                                             'V1')
-    # Get the impedance feedback transfer function, where `V1`
-    # _(i.e., the actuation voltage)_ is known. In other words, we are solving
-    # for the impedance feedback voltage measured on the control board.
-    V_impedance_f = get_transfer_function(calibration.hw_version.major, 'V2')
-
-    # error function
+    # Error function.
     def error(p0, df, calibration):
         # Impedance of the reference resistor on the HV attenuator circuit.
         Z = 10e6
@@ -208,12 +166,27 @@ def fit_fb_calibration(df, calibration):
         R_hv = calibration.R_hv[df.hv_resistor.values]
         C_hv = calibration.C_hv[df.hv_resistor.values]
 
-        # V_actuation = f(V_hv, R1, C1=0, R2, C2, frequency)
-        V_actuation = V_actuation_f(df.V_hv, Z, 0, R_hv, C_hv, df.frequency)
+        # Solve feedback transfer function for the actuation voltage, _(i.e.,
+        # `V1`)_, based on the high-voltage measurements.
+        # Note that the transfer function definition depends on the hardware
+        # version.
+        V_actuation = compute_from_transfer_function(calibration.hw_version
+                                                     .major, 'V1', V2=df.V_hv,
+                                                     R1=Z, R2=R_hv, C2=C_hv,
+                                                     f=df.frequency)
 
-        # V_impedance = f(V_actuation, R1=0, C1, R2, C2, frequency)
-        return df.V_fb - V_impedance_f(V_actuation, 0, df.C, R_fb, C_fb,
-                                       df.frequency)
+        # Solve feedback transfer function for the expected impedance feedback
+        # voltage, _(i.e., `V2`)_, based on the actuation voltage, the proposed
+        # values for `R2` and `C2`, and the reported `C1` value from the
+        # feedback measurements.
+        # Note that the transfer function definition depends on the hardware
+        # version.
+        V_impedance = compute_from_transfer_function(calibration.hw_version
+                                                     .major, 'V2',
+                                                     V1=V_actuation, C1=df.C,
+                                                     R2=R_fb, C2=C_fb,
+                                                     f=df.frequency)
+        return df.V_fb - V_impedance
 
     # Perform a nonlinear least-squares fit of the data.
     def fit_model(p0, df, calibration):
@@ -267,6 +240,8 @@ def fit_fb_calibration(df, calibration):
             chi2r = chi2r_2
             R_fb_i = p1_1[0]
             C_fb_i = 0
+            if cov_x_1 is None:
+                cov_x_1 = [0]
             CI.append((100 * np.sqrt(chi2r_1 * np.diag(cov_x_1)) /
                        p1_1).tolist() + [0])
         feedback_records.append([model, df_i.shape[0], R_fb_i, CI[i][0],
