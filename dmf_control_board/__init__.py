@@ -236,7 +236,9 @@ class FeedbackResults():
                                   [self.hv_resistor[ind]]],
                                  self.frequency, 10e6,
                                  self.calibration.hw_version)
-        return self.V_hv / T
+        return np.ma.masked_invalid(pandas.TimeSeries(self.V_hv / T,
+            pandas.to_datetime(self.time, unit='s')
+        ).interpolate(method='time').values)
 
     def V_actuation(self):
         if self.calibration.hw_version.major == 1:
@@ -285,12 +287,12 @@ class FeedbackResults():
                 result = self.mean_velocity(tol=tol)
                 if result['dt'] and \
                     result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
-                    if self.calibration.C_drop:
-                        C_drop = self.calibration.C_drop
+                    if self.calibration._C_drop:
+                        C_drop = self.calibration.C_drop(self.frequency)
                     else:
                         C_drop = self.capacitance()[-1] / self.area
-                    if self.calibration.C_filler:
-                        C_filler = self.calibration.C_filler
+                    if self.calibration._C_filler:
+                        C_filler = self.calibration.C_filler(self.frequency)
                     else:
                         C_filler = 0
                     x = result['p'][0]*self.time + result['p'][1] 
@@ -316,12 +318,12 @@ class FeedbackResults():
         )
 
     def x_position(self, filter_order=None, window_size=None, tol=0.05):
-        if self.calibration.C_drop:
-            C_drop = self.calibration.C_drop
+        if self.calibration._C_drop:
+            C_drop = self.calibration.C_drop(self.frequency)
         else:
             C_drop = self.capacitance()[-1] / self.area
-        if self.calibration.C_filler:
-            C_filler = self.calibration.C_filler
+        if self.calibration._C_filler:
+            C_filler = self.calibration.C_filler(self.frequency)
         else:
             C_filler = 0
         
@@ -380,7 +382,7 @@ class FeedbackResults():
                 t_end = self.time[-1]
         return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
 
-    def _get_window_size(self, tol):
+    def _get_window_size(self, tol=0.05):
         dt = self.time[1]-self.time[0]
         # calculate the mean velocity
         result = self.mean_velocity(tol=tol)
@@ -487,7 +489,7 @@ class FeedbackResultsSeries():
         for row in self.data[1:]:
             data = getattr(row, fn)(*args, **kwargs)
             result = np.concatenate((result, data.reshape((1, len(data)))))
-        return result
+        return np.ma.masked_invalid(result)
 
     def _concatenate_data_from_member(self, name):
         data = getattr(self.data[0], name)
@@ -495,7 +497,7 @@ class FeedbackResultsSeries():
         for row in self.data[1:]:
             data = getattr(row, name)
             result = np.concatenate((result, np.array([data])))
-        return result
+        return np.ma.masked_invalid(result)
 
 
 class FeedbackCalibration():
@@ -520,18 +522,38 @@ class FeedbackCalibration():
         else:
             self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
         if C_drop:
-            self.C_drop = C_drop
+            self._C_drop = C_drop
         else:
-            self.C_drop = None
+            self._C_drop = None
         if C_filler:
-            self.C_filler = C_filler
+            self._C_filler = C_filler
         else:
-            self.C_filler = None
+            self._C_filler = None
         if hw_version:
             self.hw_version = hw_version
         else:
             self.hw_version = Version(1)
         self.version = self.class_version
+
+    def C_drop(self, frequency):
+        try:
+            return np.interp(frequency,
+                             self._C_drop['frequency'],
+                             self._C_drop['capacitance']
+            )
+        except:
+            pass
+        return self._C_drop
+
+    def C_filler(self, frequency):
+        try:
+            return np.interp(frequency,
+                             self._C_filler['frequency'],
+                             self._C_filler['capacitance']
+            )
+        except:
+            pass
+        return self._C_filler
 
     def __getstate__(self):
         """Convert numpy arrays to lists for serialization"""
@@ -543,6 +565,11 @@ class FeedbackCalibration():
 
     def __setstate__(self, state):
         """Convert lists to numpy arrays after loading serialized object"""
+        # rename C_drop and C_filler members
+        for k in ['C_drop', 'C_filler']:
+            if k in state:
+                state['_' + k] = state[k]
+                del state[k]
         self.__dict__ = state
         for k, v in self.__dict__.items():
             if k == 'R_hv' or k == 'C_hv' or k == 'R_fb' or k == 'C_fb':
@@ -569,9 +596,14 @@ class FeedbackCalibration():
                                      version)
         elif version < Version.fromstring(self.class_version):
             if version < Version(0, 1):
-                self.C_filler = None
-                self.C_drop = None
+                self._C_filler = None
+                self._C_drop = None
                 self.version = str(Version(0, 1))
+            if version < Version(0, 2):
+                self.hw_version = Version(1)
+                self.version = str(Version(0, 2))
+                logging.info('[FeedbackCalibration] upgrade to version %s',
+                             self.version)
             if version < Version(0, 2):
                 self.hw_version = Version(1)
                 self.version = str(Version(0, 2))
@@ -823,7 +855,7 @@ class DMFControlBoard(Base, SerialDevice):
     @min_waveform_frequency.setter
     def min_waveform_frequency(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MIN_WAVEFORM_FREQUENCY,
+                                        self.PERSISTENT_MIN_WAVEFORM_FREQUENCY,
                                         value)
         self.__min_waveform_frequency = value
 
@@ -837,7 +869,7 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_frequency.setter
     def max_waveform_frequency(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MAX_WAVEFORM_FREQUENCY,
+                                        self.PERSISTENT_MAX_WAVEFORM_FREQUENCY,
                                         value)
         self.__max_waveform_frequency = value
 
@@ -851,7 +883,7 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_voltage.setter
     def max_waveform_voltage(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MAX_WAVEFORM_VOLTAGE,
+                                        self.PERSISTENT_MAX_WAVEFORM_VOLTAGE,
                                         value)
         self.__max_waveform_voltage = value
     
