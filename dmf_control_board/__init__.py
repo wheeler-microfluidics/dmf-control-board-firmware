@@ -25,8 +25,11 @@ import copy
 import logging
 from struct import pack, unpack
 import math
+import warnings
 
 import numpy as np
+import pandas
+from scipy.signal import savgol_filter
 import matplotlib.mlab as mlab
 from path_helpers import path
 from microdrop_utility import Version, FutureVersionError
@@ -138,8 +141,7 @@ class FeedbackResults():
     class_version = str(Version(0, 4))
 
     def __init__(self, voltage, frequency, dt_ms, V_hv, hv_resistor, V_fb,
-                 fb_resistor, calibration):
-
+                 fb_resistor, calibration, area=0):
         self.voltage = voltage
         self.frequency = frequency
         self.V_hv = V_hv
@@ -149,6 +151,7 @@ class FeedbackResults():
         self.time = np.arange(0, len(V_hv)) * dt_ms
         self.calibration = calibration
         self.version = self.class_version
+        self.area = area
         self._sanitize_data()
 
     def _sanitize_data(self):
@@ -184,18 +187,15 @@ class FeedbackResults():
                 self.hv_resistor[self.V_hv > 5] = -1
             if version < Version(0, 3):
                 self.attempt = 0
-                self.version = str(Version(0,    3))
-                logging.info('[FeedbackResults] upgrade to version %s' %
-                             self.version)
             if version < Version(0, 4):
-                self.dt_ms = self.sampling_time_ms + \
-                    self.delay_between_samples_ms
                 del self.sampling_time_ms
                 del self.delay_between_samples_ms
                 self.voltage = self.options.voltage
                 del self.options
                 del self.attempt
-                self.version = str(Version(0,    4))
+            if version < Version(0, 5):
+                self.area = 0
+                self.version = str(Version(0, 5))
                 logging.info('[FeedbackResults] upgrade to version %s' %
                              self.version)
         else:
@@ -226,7 +226,6 @@ class FeedbackResults():
         function.
         '''
         ind = mlab.find(self.hv_resistor >= 0)
-
         V1 = np.empty(self.hv_resistor.shape)
         V1.fill(np.nan)
         V1[ind] = compute_from_transfer_function(self.calibration.hw_version
@@ -237,7 +236,10 @@ class FeedbackResults():
                                                  C2=self.calibration.C_hv
                                                  [self.hv_resistor[ind]],
                                                  f=self.frequency)
-        return V1
+        # convert to masked array
+        return np.ma.masked_invalid(pandas.TimeSeries(V1,
+            pandas.to_datetime(self.time, unit='s')
+        ).interpolate(method='time').values)
 
     def V_actuation(self):
         '''
@@ -277,7 +279,7 @@ class FeedbackResults():
         else:
             return self.V_total()
 
-    def Z_device(self):
+    def Z_device(self, filter_order=None, window_size=None, tol=0.05):
         '''
         Compute the impedance _(including resistive and capacitive load)_ of
         the DMF device _(i.e., dielectric and droplet)_.
@@ -296,22 +298,70 @@ class FeedbackResults():
                                                  V1=self.V_total()[ind],
                                                  V2=self.V_fb[ind], R2=R2,
                                                  C2=C2, f=self.frequency)
+        # convert to masked array
+        Z1 = np.ma.masked_invalid(pandas.TimeSeries(Z1,
+            pandas.to_datetime(self.time, unit='s')
+        ).interpolate(method='time').values)
+
+        # if we're filtering and we don't have a window size specified,
+        # automatically determine one 
+        if filter_order and window_size is None:
+            window_size = self._get_window_size(tol)
+
+        # if the filter_order is None or if the window size is smaller than
+        # filter_order + 2, don't filter
+        if filter_order is None or \
+            (window_size and window_size < filter_order + 2):
+            pass
+        else:
+            # if the window size is less than half the sample length
+            if window_size and window_size < len(Z1) / 2:
+                # suppress polyfit warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    Z1 = savgol_filter(Z1, window_size, filter_order)
+            else: # fit a line
+                result = self.mean_velocity(tol=tol)
+                if result['dt'] and \
+                    result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
+                    if self.calibration._C_drop:
+                        C_drop = self.calibration.C_drop(self.frequency)
+                    else:
+                        C_drop = self.capacitance()[-1] / self.area
+                    if self.calibration._C_filler:
+                        C_filler = self.calibration.C_filler(self.frequency)
+                    else:
+                        C_filler = 0
+                    x = result['p'][0]*self.time + result['p'][1] 
+                    C = self.area * (x * (C_drop - C_filler) / \
+                                     np.sqrt(self.area) + C_filler)
+                    Z1 = 1.0 / (2.0 * math.pi * self.frequency * C)
+                    Z1[mlab.find(self.time==result['t_end'])[0]+1:] = \
+                        Z1[mlab.find(self.time==result['t_end'])[0]]                     
+                else:
+                    Z1 = np.mean(Z1)*np.ones(Z1.shape)
         return Z1
 
     def min_impedance(self):
         return min(self.Z_device())
 
-    def capacitance(self):
+    def capacitance(self, filter_order=None, window_size=None, tol=0.05):
         '''
         Compute the capacitance of the DMF device _(i.e., dielectric and
         droplet)_ based on the computed impedance value.
 
         Note: this assumes impedance is purely capacitive load.
         TODO: Is this assumption ok?
-        '''
-        return 1 / (2 * np.pi * self.frequency * self.Z_device())
+        '''        
+        C = 1.0 / (2.0 * math.pi * self.frequency * self.Z_device(
+            filter_order=filter_order, window_size=window_size, tol=tol))
+        return np.ma.masked_invalid(
+            pandas.TimeSeries(
+                C, pandas.to_datetime(self.time, unit='s')
+            ).interpolate(method='time', downcast=None).values
+        )
 
-    def x_position(self, area):
+    def x_position(self, filter_order=None, window_size=None, tol=0.05):
         '''
         Calculate $x$-position according to:
 
@@ -330,57 +380,122 @@ class FeedbackResults():
 
         Note that $x$ is expressed in terms of the square-root of the units of $a$.
         '''
-        if self.calibration.C_drop:
-            C_drop = self.calibration.C_drop
+        if self.calibration._C_drop:
+            C_drop = self.calibration.C_drop(self.frequency)
         else:
-            C_drop = self.capacitance()[-1] / area
-        if self.calibration.C_filler:
-            C_filler = self.calibration.C_filler
-        else:
-            C_filler = 0
-        return np.sqrt(area) * ((self.capacitance() / area - C_filler) /
-                                (C_drop - C_filler))
-
-    def mean_velocity(self, area, ind=None, threshold=0.95):
-        if ind is None:
-            ind = range(len(self.time))
-        t, dxdt = self.dxdt(area, ind, threshold)
-        x = self.x_position(area)
-        ind_stop = ind[mlab.find(dxdt == 0)[0]]
-        dx = x[ind_stop] - x[ind[0]]
-        if max(dxdt > 0) and ind_stop < len(t):
-            dt = t[ind_stop] - t[ind[0]]
-            return dx / dt
-        else:
-            return 0
-
-    def dxdt(self, area, ind=None, threshold=0.95):
-        if ind is None:
-            ind = range(len(self.time))
-        dt = np.diff(self.time[ind])
-        t = self.time[ind][1:] - (self.time[1] - self.time[0]) / 2.0
-        C = self.capacitance()[ind]
-        dCdt = np.diff(C) / dt
-
-        if self.calibration.C_drop:
-            C_drop = self.calibration.C_drop * area
-        else:
-            C_drop = C[-1]
-        if self.calibration.C_filler:
-            C_filler = self.calibration.C_filler * area
+            C_drop = self.capacitance()[-1] / self.area
+        if self.calibration._C_filler:
+            C_filler = self.calibration.C_filler(self.frequency)
         else:
             C_filler = 0
+        
+        return (self.capacitance(filter_order=filter_order,
+                              window_size=window_size,
+                              tol=tol) / self.area - C_filler
+        ) / (C_drop - C_filler) * np.sqrt(self.area)
+        
+    def mean_velocity(self, tol=0.05):
+        '''
+        Calculate the mean velocity for a step (mm/ms which is equivalent to
+        m/s). Fit a line to the capacitance data and get the slope.
+        '''
+        dx = None
+        dt = None
+        p = None
+        ind = None
+        t_end = None
+        
+        if self.area == 0:
+            return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
+        
+        x = self.x_position()
+        
+        # find the first and last valid indices
+        ind_start = mlab.find(x.mask==False)[0]
+        ind_last = mlab.find(x.mask==False)[-1]
+        
+        # if the original x value is within tol % of the final x value, include
+        # all samples
+        if x[ind_start] > (1 - tol) * x[ind_last]:
+            ind_stop = ind_last
+        else: # otherwise, stop when x reaches (1 - tol) % of it's final value
+            ind_stop = mlab.find(x > (1 - tol) * x[ind_last])[0]
+        
+        ind = [ind_start, ind_stop]
 
-        # Find the time when the capacitance exceeds the specified threshold
-        # (e.g., the drop has stopped moving once it has passed 95% of it's
-        # final value).
-        ind_stop = mlab.find((C[1:] - C_filler) / (C[-1] - C_filler) >
-                             threshold)
-        if len(ind_stop):
-            # set all remaining velocities to 0
-            dCdt[ind_stop[0]:] = 0
+        # if we have at least 2 valid samples
+        if len(ind) >=2:
+            dx = np.diff(x[ind])[0]        
+            dt = np.diff(self.time[ind])[0] # ms
 
-        return t, dCdt / (C_drop - C_filler) * np.sqrt(area)
+            # suppress polyfit warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                # fit a line to the data
+                p = np.polyfit(self.time[ind[0]:ind[1]], x[ind[0]:ind[1]], 1)
+        
+            # find time when the the line intercepts x[ind_last]
+            ind_stop = mlab.find(self.time > \
+                                 (x[ind_last] - p[1]) / p[0])
+            if len(ind_stop):
+                t_end = self.time[ind_stop[0]]
+            else:
+                t_end = self.time[-1]
+        return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
+
+    def _get_window_size(self, tol=0.05):
+        dt = self.time[1]-self.time[0]
+        # calculate the mean velocity
+        result = self.mean_velocity(tol=tol)
+        window_size = None
+
+        # calculate a default filtering window size
+        if result['dt'] and \
+            result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
+
+            # get the velocity from the slope of the fit to the capacitance data
+            mean_dxdt = result['p'][0]
+
+            # pick a window size that corresponds to the time it takes to cover
+            # half the electrode (must be an odd number)
+            window_size = np.round(0.5 / (mean_dxdt / np.sqrt(self.area)) / \
+                                   dt / 2.0) * 2.0 + 1
+        return window_size
+
+    def dxdt(self, filter_order=None, window_size=None, tol=0.05):
+        x = self.x_position()
+
+        if filter_order and window_size is None:
+            window_size = self._get_window_size(tol)
+
+        dt = self.time[1]-self.time[0]
+
+        # if the filter_order is None or if the window size is smaller than
+        # filter_order + 2, don't filter
+        if filter_order is None or \
+            (window_size and window_size < filter_order + 2):
+            dx = np.diff(x)
+            t = self.time[1:] - dt/2.0
+        else: # filter
+            t = self.time
+            dx = np.zeros(t.shape)
+            if window_size:
+                # if the window size is less than half the sample length
+                if window_size < len(x) / 2:
+                    # suppress polyfit warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        dx = savgol_filter(x, window_size, filter_order, 1)
+                else: # use the average velocity
+                    result = self.mean_velocity(tol=tol)
+                    mean_dxdt = 0
+                    if result['p'] is not None:
+                        mean_dxdt = result['p'][0]
+                    dx[:mlab.find(t==result['t_end'])[0]+1] = mean_dxdt * dt
+            else:
+                # otherwise, leave dx = 0
+                pass
+        return t, dx / dt
 
 
 class FeedbackResultsSeries():
@@ -435,7 +550,7 @@ class FeedbackResultsSeries():
         for row in self.data[1:]:
             data = getattr(row, fn)(*args, **kwargs)
             result = np.concatenate((result, data.reshape((1, len(data)))))
-        return result
+        return np.ma.masked_invalid(result)
 
     def _concatenate_data_from_member(self, name):
         data = getattr(self.data[0], name)
@@ -443,7 +558,7 @@ class FeedbackResultsSeries():
         for row in self.data[1:]:
             data = getattr(row, name)
             result = np.concatenate((result, np.array([data])))
-        return result
+        return np.ma.masked_invalid(result)
 
 
 class FeedbackCalibration():
@@ -468,18 +583,38 @@ class FeedbackCalibration():
         else:
             self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
         if C_drop:
-            self.C_drop = C_drop
+            self._C_drop = C_drop
         else:
-            self.C_drop = None
+            self._C_drop = None
         if C_filler:
-            self.C_filler = C_filler
+            self._C_filler = C_filler
         else:
-            self.C_filler = None
+            self._C_filler = None
         if hw_version:
             self.hw_version = hw_version
         else:
             self.hw_version = Version(1)
         self.version = self.class_version
+
+    def C_drop(self, frequency):
+        try:
+            return np.interp(frequency,
+                             self._C_drop['frequency'],
+                             self._C_drop['capacitance']
+            )
+        except:
+            pass
+        return self._C_drop
+
+    def C_filler(self, frequency):
+        try:
+            return np.interp(frequency,
+                             self._C_filler['frequency'],
+                             self._C_filler['capacitance']
+            )
+        except:
+            pass
+        return self._C_filler
 
     def __getstate__(self):
         """Convert numpy arrays to lists for serialization"""
@@ -491,6 +626,11 @@ class FeedbackCalibration():
 
     def __setstate__(self, state):
         """Convert lists to numpy arrays after loading serialized object"""
+        # rename C_drop and C_filler members
+        for k in ['C_drop', 'C_filler']:
+            if k in state:
+                state['_' + k] = state[k]
+                del state[k]
         self.__dict__ = state
         for k, v in self.__dict__.items():
             if k == 'R_hv' or k == 'C_hv' or k == 'R_fb' or k == 'C_fb':
@@ -517,9 +657,14 @@ class FeedbackCalibration():
                                      version)
         elif version < Version.fromstring(self.class_version):
             if version < Version(0, 1):
-                self.C_filler = None
-                self.C_drop = None
+                self._C_filler = None
+                self._C_drop = None
                 self.version = str(Version(0, 1))
+            if version < Version(0, 2):
+                self.hw_version = Version(1)
+                self.version = str(Version(0, 2))
+                logging.info('[FeedbackCalibration] upgrade to version %s',
+                             self.version)
             if version < Version(0, 2):
                 self.hw_version = Version(1)
                 self.version = str(Version(0, 2))
@@ -771,7 +916,7 @@ class DMFControlBoard(Base, SerialDevice):
     @min_waveform_frequency.setter
     def min_waveform_frequency(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MIN_WAVEFORM_FREQUENCY,
+                                        self.PERSISTENT_MIN_WAVEFORM_FREQUENCY,
                                         value)
         self.__min_waveform_frequency = value
 
@@ -785,7 +930,7 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_frequency.setter
     def max_waveform_frequency(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MAX_WAVEFORM_FREQUENCY,
+                                        self.PERSISTENT_MAX_WAVEFORM_FREQUENCY,
                                         value)
         self.__max_waveform_frequency = value
 
@@ -799,7 +944,7 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_voltage.setter
     def max_waveform_voltage(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_MAX_WAVEFORM_VOLTAGE,
+                                        self.PERSISTENT_MAX_WAVEFORM_VOLTAGE,
                                         value)
         self.__max_waveform_voltage = value
 
