@@ -34,9 +34,9 @@ else:
 
 class AssistantView(WindowView):
     def __init__(self, control_board):
-        super(AssistantView, self).__init__(self)
         self.control_board = control_board
         self.calibration_file = None
+        super(AssistantView, self).__init__(self)
 
     def create_ui(self):
         self.widget = gtk.Assistant()
@@ -81,8 +81,8 @@ class AssistantView(WindowView):
         self.widget.set_page_complete(box, True)
 
         # # Select frequencies #
-        minimum = 100
-        maximum = 20e3
+        minimum = self.control_board.min_waveform_frequency
+        maximum = self.control_board.max_waveform_frequency
         form = Form.of(
             Integer.named('start_frequency').using(
                 default=minimum, optional=True,
