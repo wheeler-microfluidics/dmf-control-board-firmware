@@ -73,7 +73,9 @@ class AssistantView(WindowView):
                           '   1) DropBot "<tt>In from Amp</tt>".\n'
                           '   2) Oscilloscope input.')
         image = gtk.Image()
-        image.set_from_file('glade/reference_feedback_setup.svg')
+        img_path = path(__file__).parent.joinpath(
+            'reference_feedback_setup.svg')
+        image.set_from_file(str(img_path))
         label.set_line_wrap(True)
         label.set_use_markup(True)
         box.pack_start(label, True, False, padding=15)
