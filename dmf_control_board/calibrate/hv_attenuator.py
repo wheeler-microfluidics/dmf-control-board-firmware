@@ -159,7 +159,7 @@ def fit_feedback_params(calibration, max_resistor_readings):
     return data
 
 
-def plot_feedback_params(transfer_func, max_resistor_readings,
+def plot_feedback_params(hw_major_version, max_resistor_readings,
                          feedback_params, axis=None):
     '''
     Plot the effective attenuation _(i.e., gain less than 1)_ of the control
@@ -194,22 +194,26 @@ def plot_feedback_params(transfer_func, max_resistor_readings,
 
         F = feedback_params.loc[resistor_index]
         axis.loglog(x['frequency'],
-                    transfer_func(1, R1, 0,
-                                  F['original R'], F['original C'],
-                                  x['frequency']), color=color,
-                    linestyle='--', label='R$_{%d}$ (previous fit)' %
-                    resistor_index)
+                    compute_from_transfer_function(hw_major_version, 'V2',
+                                                   V1=1., R1=R1,
+                                                   R2=F['original R'],
+                                                   C2=F['original C'],
+                                                   f=x['frequency']),
+                    color=color, linestyle='--',
+                    label='R$_{%d}$ (previous fit)' % resistor_index)
 
         axis.loglog(x['frequency'],
-                    transfer_func(1, R1, 0,
-                                  F['fitted R'], F['fitted C'],
-                                  x['frequency']), color=color,
-                    linestyle='-', label='R$_{%d}$ (new fit)' % resistor_index,
-                    alpha=0.6)
+                    compute_from_transfer_function(hw_major_version, 'V2',
+                                                   V1=1., R1=R1,
+                                                   R2=F['fitted R'],
+                                                   C2=F['fitted C'],
+                                                   f=x['frequency']),
+                    color=color, linestyle='-', alpha=0.6,
+                    label='R$_{%d}$ (new fit)' % resistor_index)
         attenuation = x['board measured V'] / x['oscope measured V']
         axis.plot(x['frequency'], attenuation, color='none',
                   marker=markers[resistor_index % len(markers)],
-                  label='R$_{%d}$ (scope measurements)' % resistor_index,
+                  label='R$_{%d}$ (scope measured)' % resistor_index,
                   linestyle='none', markeredgecolor=color, markeredgewidth=2,
                   markersize=8)
         return 0
@@ -222,7 +226,6 @@ def plot_feedback_params(transfer_func, max_resistor_readings,
                     r'{V_{SCOPE}}$', fontsize=25)
 
 
-@lru_cache(maxsize=500)
 def update_control_board_calibration(control_board, fitted_params):
     '''
     Update the control board with the specified fitted parameters.
