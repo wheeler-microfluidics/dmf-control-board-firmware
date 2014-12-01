@@ -40,7 +40,7 @@ class AssistantView(WindowView):
 
     def create_ui(self):
         self.widget = gtk.Assistant()
-        self.widget.connect("prepare", self.assitant_prepared)
+        self.widget.connect("prepare", self.assistant_prepared)
         self.widget.connect("cancel", self.cancel_button_clicked)
         self.widget.connect("close", self.close_button_clicked)
         self.widget.connect("apply", self.apply_button_clicked)
@@ -141,7 +141,7 @@ class AssistantView(WindowView):
         box.pack_start(label, True, True, 0)
         self.widget.set_page_complete(box, True)
 
-    def assitant_prepared(self, assistant, *args):
+    def assistant_prepared(self, assistant, *args):
         print 'Page %s prepared.' % assistant.get_current_page()
         if assistant.get_current_page() < 3:
             self.widget.set_page_complete(self.box1, False)
@@ -159,8 +159,8 @@ class AssistantView(WindowView):
             gtk.idle_add(self.read_measurements, frequencies)
         elif assistant.get_current_page() == 4:
             display(self.fitted_params)
-            hw_version = (Version.fromstring(control_board.hardware_version())
-                          .major)
+            hw_version = Version.fromstring(self.control_board
+                                            .hardware_version()).major
             plot_feedback_params(hw_version, self.hv_readings,
                                  self.fitted_params, axis=self.axis)
 
@@ -168,25 +168,31 @@ class AssistantView(WindowView):
         try:
             self.measurement_count = len(frequencies) * 4 + 1
             self.measurement_i = 0
+            gtk.gdk.threads_enter()
             self.measurements_label.set_label('Measurements taken: 0 / %d' %
                                                 self.measurement_count)
+            gtk.gdk.threads_leave()
             self.hv_readings = resistor_max_actuation_readings(
                 self.control_board, frequencies, self.read_oscope)
             self.save_readings()
             self.fit_feedback_params()
             self.save_feedback_params()
+            gtk.gdk.threads_enter()
             self.widget.set_page_complete(self.box1, True)
+            gtk.gdk.threads_leave()
         except StopIteration:
             self.measurements_label.set_label('Measurements taken: 0 / %d' %
                                               self.measurement_count)
             self.widget.set_current_page(2)
 
     def read_oscope(self):
+        gtk.gdk.threads_enter()
         result = read_oscope()
         self.measurement_i += 1
         self.measurements_label.set_label('Measurements taken: %d / %d' %
                                           (self.measurement_i,
                                            self.measurement_count))
+        gtk.gdk.threads_leave()
         return result
 
     def apply_button_clicked(self, assistant):
