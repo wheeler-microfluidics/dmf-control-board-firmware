@@ -193,29 +193,8 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
 #endif  //#if ___HARDWARE_MAJOR_VERSION___ == 1
     case CMD_GET_WAVEFORM_VOLTAGE:
       if (payload_length() == 0) {
-#if ___HARDWARE_MAJOR_VERSION___ == 1
         return_code_ = RETURN_OK;
         serialize(&waveform_voltage_, sizeof(waveform_voltage_));
-#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
-        i2c_write(config_settings_.signal_generator_board_i2c_address, cmd);
-        delay(I2C_DELAY);
-        Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
-                         (uint8_t)1);
-        if (Wire.available()) {
-          uint8_t n_bytes_to_read = Wire.read();
-          if (n_bytes_to_read == sizeof(float) + 1) {
-            uint8_t data[5];
-            i2c_read(config_settings_.signal_generator_board_i2c_address,
-                     (uint8_t *)&data[0], 5);
-            return_code_ = data[4];
-            if (return_code_ == RETURN_OK) {
-              memcpy(&waveform_voltage_, &data[0], sizeof(float));
-              waveform_voltage_ *= amplifier_gain_;
-              serialize(&waveform_voltage_, sizeof(float));
-            }
-          }
-        }
-#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
