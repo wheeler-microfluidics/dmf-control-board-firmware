@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 from datetime import datetime
 import tempfile
 
@@ -7,6 +8,7 @@ import numpy as np
 import pandas as pd
 import gtk
 from dmf_control_board import DMFControlBoard, Version
+import matplotlib
 from pygtkhelpers.delegates import WindowView, SlaveView
 from pygtkhelpers.ui.form_view_dialog import create_form_view
 from flatland.schema import String, Form, Integer, Boolean, Float
@@ -22,14 +24,8 @@ from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
 from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
                                                 NavigationToolbar)
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-
-
 if VISA_AVAILABLE:
-    oscope = AgilentOscope()
-    read_oscope = lambda: oscope.read_ac_vrms()
-else:
-    read_oscope = read_oscope_
+    import visa
 
 
 class AssistantView(WindowView):
@@ -156,6 +152,7 @@ class AssistantView(WindowView):
             number_of_steps = np.array(settings['number_of_steps'])
             frequencies = np.logspace(np.log10(start_frequency),
                                       np.log10(end_frequency), number_of_steps)
+            self.reset_measurement_count(frequencies)
             gtk.idle_add(self.read_measurements, frequencies)
         elif assistant.get_current_page() == 4:
             display(self.fitted_params)
@@ -164,14 +161,25 @@ class AssistantView(WindowView):
             plot_feedback_params(hw_version, self.hv_readings,
                                  self.fitted_params, axis=self.axis)
 
+    def reset_measurement_count(self, frequencies):
+        self.measurement_count = (len(frequencies) - 1) * 4 + 1
+        self.measurement_i = 0
+        gtk.gdk.threads_enter()
+        self.measurements_label.set_label('Measurements taken: 0 / %d' %
+                                          self.measurement_count)
+        gtk.gdk.threads_leave()
+
     def read_measurements(self, frequencies):
+        self.reset_measurement_count(frequencies)
         try:
-            self.measurement_count = len(frequencies) * 4 + 1
-            self.measurement_i = 0
-            gtk.gdk.threads_enter()
-            self.measurements_label.set_label('Measurements taken: 0 / %d' %
-                                                self.measurement_count)
-            gtk.gdk.threads_leave()
+            if VISA_AVAILABLE:
+                try:
+                    oscope = AgilentOscope()
+                    self._read_oscope = lambda: oscope.read_ac_vrms()
+                except visa.VisaIOError:
+                    self._read_oscope = read_oscope_
+            else:
+                self._read_oscope = read_oscope_
             self.hv_readings = resistor_max_actuation_readings(
                 self.control_board, frequencies, self.read_oscope)
             self.save_readings()
@@ -187,7 +195,7 @@ class AssistantView(WindowView):
 
     def read_oscope(self):
         gtk.gdk.threads_enter()
-        result = read_oscope()
+        result = self._read_oscope()
         self.measurement_i += 1
         self.measurements_label.set_label('Measurements taken: %d / %d' %
                                           (self.measurement_i,

@@ -1,8 +1,14 @@
+import time
 import warnings
 try:
     import visa
-    import time
-    VISA_AVAILABLE = True
+    try:
+        resource_manager = visa.ResourceManager()
+        resource_manager.list_resources()
+    except visa.VisaIOError:
+        VISA_AVAILABLE = False
+    else:
+        VISA_AVAILABLE = True
 except ImportError:
     warnings.warn('Could not import `visa`.')
     VISA_AVAILABLE = False
