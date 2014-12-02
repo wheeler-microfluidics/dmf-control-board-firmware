@@ -89,7 +89,15 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     test_frame = get_test_frame(frequencies, test_loads, n_repeats,
                                 n_sampling_windows, actuation_voltage=voltage)
 
+    proxy.set_waveform_frequency(10e3)
+    proxy.auto_adjust_amplifier_gain = True
+    # TODO Default amplifier gain is 100.  Limits should be set on gain
+    # automatically during reference calibration.
+    proxy.set_waveform_voltage(0.5 * voltage)
+    state = np.zeros(proxy.number_of_channels())
+    readings = proxy.measure_impedance(10.0, 10, 0, True, True, state)
     proxy.set_waveform_voltage(voltage)
+    readings = proxy.measure_impedance(10.0, 10, 0, True, True, state)
 
     previous_frequency = None
     grouped = test_frame.groupby(['frequency', 'test_capacitor',
@@ -99,7 +107,8 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     for (frequency, C1, channel, i), group in grouped:
         if frequency != previous_frequency:
             proxy.set_waveform_frequency(frequency)
-        #print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1, i)
+        print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1, i)
+        proxy.set_waveform_voltage(voltage)
         state = np.zeros(proxy.number_of_channels())
         state[channel] = 1
         readings = proxy.measure_impedance(10.0, n_sampling_windows, 0, True,

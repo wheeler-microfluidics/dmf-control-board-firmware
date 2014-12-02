@@ -103,6 +103,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
         board_measured_rms = data.loc[data['divider resistor index']
                                     >= 0, 'board measured V'].mean()
         oscope_rms = oscope_reading_func()
+        print 'R=%s, f=%s' % (r, f)
         return pd.DataFrame([[r, f, actuation_index, board_measured_rms,
                             oscope_rms]],
                             columns=['resistor index', 'frequency',
