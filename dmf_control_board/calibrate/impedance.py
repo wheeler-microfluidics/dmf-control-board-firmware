@@ -8,7 +8,7 @@ import scipy.stats
 import scipy.optimize
 import pandas as pd
 
-from .feedback import compute_from_transfer_function
+from .feedback import compute_from_transfer_function, get_transfer_function
 
 
 # Default frequencies to test
@@ -190,11 +190,20 @@ def fit_fb_calibration(df, calibration):
         # feedback measurements.
         # Note that the transfer function definition depends on the hardware
         # version.
-        V_impedance = compute_from_transfer_function(calibration.hw_version
-                                                     .major, 'V2',
-                                                     V1=V_actuation, C1=df.C,
-                                                     R2=R_fb, C2=C_fb,
-                                                     f=df.frequency)
+        # __NB__ If we do not specify a value for `R1`, a symbolic value of
+        # infinity is used.  However, in this case, we have `R1` in both the
+        # numerator and denominator.  The result is a value of zero returned
+        # regardless of the values of the other arguments.  We avoid this issue
+        # by specifying a *very large* value for `R1`.
+        # TODO Figure out how we can solve for `V2/V1` in a generalizable way.
+        # TODO Check with Ryan if this is OK.
+        f = sp.lambdify('C1, R2, C2, f',
+                        sp.Abs(get_transfer_function(calibration.hw_version
+                                                     .major)
+                               .subs('R1', sp.oo)
+                               .subs('omega', '2 * pi * f').rhs), 'numpy')
+        V_impedance = V_actuation * f(df.test_capacitor, R_fb, C_fb,
+                                      df.frequency)
         return df.V_fb - V_impedance
 
     # Perform a nonlinear least-squares fit of the data.
