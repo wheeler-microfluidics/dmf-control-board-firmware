@@ -42,7 +42,7 @@ class AssistantView(WindowView):
         self.widget.connect("apply", self.apply_button_clicked)
 
         # # Introduction #
-        box = gtk.VBox()
+        box = gtk.HBox()
         self.widget.append_page(box)
         self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_INTRO)
         self.widget.set_page_title(box, "Introduction")
@@ -56,7 +56,12 @@ class AssistantView(WindowView):
         label = gtk.Label(content)
         label.set_use_markup(True)
         label.set_line_wrap(True)
-        box.pack_start(label, True, True, 0)
+        image = gtk.Image()
+        img_path = path(__file__).parent.joinpath(
+            'reference_feedback_intro.svg')
+        image.set_from_file(str(img_path))
+        box.pack_start(label, True, False, padding=15)
+        box.pack_start(image, True, True, padding=5)
         self.widget.set_page_complete(box, True)
 
         # # Connect hardware #
