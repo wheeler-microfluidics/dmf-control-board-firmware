@@ -104,6 +104,7 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
                                   'test_channel', 'repeat_index'])
 
     results = []
+    group_count = len(grouped.groups)
     for (frequency, C1, channel, i), group in grouped:
         if frequency != previous_frequency:
             proxy.set_waveform_frequency(frequency)
@@ -123,7 +124,7 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         data.set_index('sample_index', inplace=True)
         results.append(data)
         if on_update is not None:
-            on_update(frequency, C1, channel, i, data)
+            on_update(frequency, C1, channel, i, group_count, data)
     df = pd.concat(results, ignore_index=True)
 
     calibration = proxy.calibration
@@ -195,15 +196,12 @@ def fit_fb_calibration(df, calibration):
         # numerator and denominator.  The result is a value of zero returned
         # regardless of the values of the other arguments.  We avoid this issue
         # by specifying a *very large* value for `R1`.
-        # TODO Figure out how we can solve for `V2/V1` in a generalizable way.
-        # TODO Check with Ryan if this is OK.
-        f = sp.lambdify('C1, R2, C2, f',
-                        sp.Abs(get_transfer_function(calibration.hw_version
-                                                     .major)
-                               .subs('R1', sp.oo)
-                               .subs('omega', '2 * pi * f').rhs), 'numpy')
-        V_impedance = V_actuation * f(df.test_capacitor, R_fb, C_fb,
-                                      df.frequency)
+        # TODO Update comment if this works...
+        V_impedance = compute_from_transfer_function(calibration.hw_version
+                                                     .major, 'V2',
+                                                     V1=V_actuation, C1=df.C,
+                                                     R2=R_fb, C2=C_fb,
+                                                     f=df.frequency)
         return df.V_fb - V_impedance
 
     # Perform a nonlinear least-squares fit of the data.
@@ -298,13 +296,14 @@ def apply_calibration(df, calibration_df, calibration):
 
 
 def update_fb_calibration(proxy, calibration):
-    print "Updating feedback calibration values...\n"
-    proxy.connect()
+    port = proxy.port
+    baud_rate = proxy.baud_rate
 
-    # write new calibration parameters to the control board
+    # Write new calibration parameters to the control board.
     for i in range(0, len(calibration.R_fb)):
         proxy.set_series_resistor_index(1, i)
         proxy.set_series_resistance(1, calibration.R_fb[i])
         proxy.set_series_capacitance(1, calibration.C_fb[i])
-    # reconnect to update settings
-    proxy.connect()
+
+    # Reconnect to update settings.
+    proxy.connect(port, baud_rate)

@@ -2,6 +2,7 @@
 import pandas as pd
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
+from matplotlib.colors import Colormap
 from matplotlib.gridspec import GridSpec
 import numpy as np
 
@@ -158,7 +159,7 @@ def plot_measured_vs_nominal_capacitance_for_each_frequency(data, stats):
         plt.ylabel('C$_{measured}$ (F)')
 
 
-def plot_colormap(stats, column, axis=None):
+def plot_colormap(stats, column, axis=None, fig=None):
     freq_vs_C_rmse = stats.reindex_axis(
         pd.Index([(i, j) for i in stats.index.levels[0]
                   for j in stats.index.levels[1]],
@@ -173,17 +174,22 @@ def plot_colormap(stats, column, axis=None):
     frequencies = stats.index.levels[1]
     axis.set_xlabel('Capacitance')
     axis.set_ylabel('Frequency')
-    plt.pcolormesh(freq_vs_C_rmse.fillna(0).values)
-    plt.set_cmap('hot')
-    plt.colorbar()
-    plt.xticks(np.arange(freq_vs_C_rmse.shape[1])[::2] + 0.5,
-               ["%.2fpF" % (c*1e12) for c in freq_vs_C_rmse.columns][::2])
-    plt.yticks(np.arange(len(frequencies))[::2] + 0.5,
-               ["%.2fkHz" % (f/1e3) for f in frequencies][::2])
-    plt.xlim(0, freq_vs_C_rmse.shape[1])
-    plt.ylim(0, freq_vs_C_rmse.shape[0])
-    plt.setp(plt.xticks()[1], rotation=90)
-    plt.tight_layout()
+    vmax = np.abs(freq_vs_C_rmse.fillna(0).values).max()
+    vmin = -vmax
+    mesh = axis.pcolormesh(freq_vs_C_rmse.fillna(0).values, vmin=vmin,
+                           vmax=vmax, cmap=plt.cm.coolwarm)
+    if fig is not None:
+        fig.colorbar(mesh)
+    else:
+        plt.colorbar()
+    axis.set_xticks(np.arange(freq_vs_C_rmse.shape[1])[::2] + 0.5)
+    axis.set_xticklabels(["%.2fpF" % (c*1e12)
+                          for c in freq_vs_C_rmse.columns][::2],
+                         rotation=90)
+    axis.set_yticks(np.arange(len(frequencies))[::2] + 0.5,
+                    ["%.2fkHz" % (f/1e3) for f in frequencies][::2])
+    axis.set_xlim(0, freq_vs_C_rmse.shape[1])
+    axis.set_ylim(0, freq_vs_C_rmse.shape[0])
     return axis
 
 
@@ -221,9 +227,10 @@ def plot_stat_summary(df, fig=None):
         axis.set_title(stat)
         # Plot a colormap to show how the statistical value changes
         # according to frequency/capacitance pairs.
-        plot_colormap(stats, stat, axis=axis)
+        plot_colormap(stats, stat, axis=axis, fig=fig)
         axis = fig.add_subplot(grid[i, 1])
         axis.set_title(stat)
         # Plot a histogram to show the distribution of statistical
         # values across all frequency/capacitance pairs.
-        stats[stat].hist(bins=50, ax=axis)
+        axis.hist(stats[stat], bins=50)
+    fig.tight_layout()
