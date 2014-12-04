@@ -365,11 +365,11 @@ class FeedbackResults():
         '''
         Calculate $x$-position according to:
 
-                  ___ ⎛C     ⎞
-                ╲╱ a ⋅⎜─ - Cf⎟
-                      ⎝a     ⎠
-            x = ──────────────
-                   Cd - Cf
+               __ | C      |
+                           ╲╱ a   ⋅ | - - Cf |
+                  | a      |
+        x = ──────────────
+                 Cd
 
         where:
 
@@ -378,7 +378,8 @@ class FeedbackResults():
          - $C_d$ is the capacitance of a droplet.
          - $a$ is the area of a droplet.
 
-        Note that $x$ is expressed in terms of the square-root of the units of $a$.
+        Note that $x$ is expressed in terms of the square-root of the units of
+        $a$.
         '''
         if self.calibration._C_drop:
             C_drop = self.calibration.C_drop(self.frequency)
@@ -392,7 +393,7 @@ class FeedbackResults():
         return (self.capacitance(filter_order=filter_order,
                               window_size=window_size,
                               tol=tol) / self.area - C_filler
-        ) / (C_drop - C_filler) * np.sqrt(self.area)
+        ) / C_drop * np.sqrt(self.area)
         
     def mean_velocity(self, tol=0.05):
         '''
