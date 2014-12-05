@@ -31,8 +31,20 @@ if VISA_AVAILABLE:
 class AssistantView(WindowView):
     def __init__(self, control_board):
         self.control_board = control_board
+        self.settings = {}
+        self.settings['frequency'] = self.control_board.waveform_frequency()
+        self.settings['voltage'] = self.control_board.waveform_voltage()
+        self.settings['amplifier_gain'] = self.control_board.amplifier_gain
+        self.settings['auto_adjust_amplifier_gain'] = \
+                self.control_board.auto_adjust_amplifier_gain
         self.calibration_file = None
         super(AssistantView, self).__init__(self)
+
+    def restore_settings(self):
+        for k in ('amplifier_gain', 'auto_adjust_amplifier_gain'):
+            setattr(self.control_board, k, self.settings[k])
+        self.control_board.set_waveform_frequency(self.settings['frequency'])
+        self.control_board.set_waveform_voltage(self.settings['voltage'])
 
     def create_ui(self):
         self.widget = gtk.Assistant()
@@ -199,6 +211,8 @@ class AssistantView(WindowView):
         except StopIteration:
             self.measurements_label.set_label('Ready.')
             self.widget.set_current_page(2)
+        finally:
+            self.restore_settings()
 
     def read_oscope(self):
         gtk.gdk.threads_enter()

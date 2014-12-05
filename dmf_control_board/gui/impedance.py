@@ -30,6 +30,16 @@ class AssistantView(WindowView):
     def __init__(self, control_board, impedance_readings=None,
                  calibration=None):
         self.control_board = control_board
+        self.settings = {}
+        if control_board is not None:
+            self.settings['frequency'] = \
+                self.control_board.waveform_frequency()
+            self.settings['channel_states'] = \
+                self.control_board.state_of_all_channels
+            self.settings['voltage'] = self.control_board.waveform_voltage()
+            self.settings['amplifier_gain'] = self.control_board.amplifier_gain
+            self.settings['auto_adjust_amplifier_gain'] = \
+                self.control_board.auto_adjust_amplifier_gain
         self.calibration_file = None
         if calibration is None:
             self.calibration = self.control_board.calibration
@@ -37,6 +47,16 @@ class AssistantView(WindowView):
             self.calibration = calibration
         self.impedance_readings = impedance_readings
         super(AssistantView, self).__init__(self)
+
+    def restore_settings(self):
+        if self.control_board is not None:
+            for k in ('amplifier_gain', 'auto_adjust_amplifier_gain'):
+                setattr(self.control_board, k, self.settings[k])
+            self.control_board.set_waveform_frequency(self
+                                                      .settings['frequency'])
+            self.control_board.set_waveform_voltage(self.settings['voltage'])
+            self.control_board.set_state_of_all_channels(
+                self.settings['channel_states'])
 
     def create_ui(self):
         self.widget = gtk.Assistant()
@@ -189,24 +209,27 @@ class AssistantView(WindowView):
 
     def read_measurements(self, frequencies):
         if self.impedance_readings is None:
-            # No impedance_readings were provided, so run impedance routine to
-            # collect measurements.
-            def on_update(frequency, C1, channel, i, group_count, data):
-                gtk.gdk.threads_enter()
-                self.measurements_label.set_label('Frequency=%.2fkHz, '
-                                                  'C=%.2fpF' %
-                                                  (frequency, C1 * 1e12))
-                self.measure_progress.set_fraction(float(i) / group_count)
-                self.measure_progress.set_text('Measurement: %s/%s' %
-                                               (i + 1, group_count))
-                width, height = self.measure_progress.size_request()
-                self.measure_progress.set_size_request(width, 40)
-                while gtk.events_pending():
-                    gtk.main_iteration(False)
-                gtk.gdk.threads_leave()
-            self.impedance_readings = run_experiment(
-                self.control_board, frequencies=frequencies,
-                on_update=on_update)
+            try:
+                # No impedance_readings were provided, so run impedance routine to
+                # collect measurements.
+                def on_update(frequency, C1, channel, i, group_count, data):
+                    gtk.gdk.threads_enter()
+                    self.measurements_label.set_label('Frequency=%.2fkHz, '
+                                                    'C=%.2fpF' %
+                                                    (frequency, C1 * 1e12))
+                    self.measure_progress.set_fraction(float(i) / group_count)
+                    self.measure_progress.set_text('Measurement: %s/%s' %
+                                                (i + 1, group_count))
+                    width, height = self.measure_progress.size_request()
+                    self.measure_progress.set_size_request(width, 40)
+                    while gtk.events_pending():
+                        gtk.main_iteration(False)
+                    gtk.gdk.threads_leave()
+                self.impedance_readings = run_experiment(
+                    self.control_board, frequencies=frequencies,
+                    on_update=on_update)
+            finally:
+                self.restore_settings()
         self.save_readings()
         self.fit_feedback_params()
         self.save_feedback_params()
@@ -274,7 +297,7 @@ class AssistantView(WindowView):
 
 
 if __name__ == '__main__':
-    if True:
+    if False:
         impedance_readings = pd.read_hdf('/tmp/dropbot-impedance-calibration3NXvK0/2014-12-05T11h21m44-calibration.h5',
                                         '/feedback/impedance/measurements')
         calibration = pd.read_hdf('../../../dropbot-calibration/dropbot_calibration-002-2014-11-18.h5',
