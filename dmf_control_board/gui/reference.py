@@ -113,7 +113,11 @@ class AssistantView(WindowView):
         self.widget.set_page_title(box1, "Record measurements")
         self.measurements_label = gtk.Label('Ready')
         self.measurements_label.set_line_wrap(True)
+        self.measure_progress = gtk.ProgressBar()
+        self.measure_progress.set_size_request(300, 40)
         box1.pack_start(self.measurements_label, True, True, 0)
+        box1.pack_start(self.measure_progress, expand=False, fill=False,
+                        padding=15)
         self.box1 = box1
 
         # # Confirm fitted parameters #
@@ -167,11 +171,10 @@ class AssistantView(WindowView):
                                  self.fitted_params, axis=self.axis)
 
     def reset_measurement_count(self, frequencies):
-        self.measurement_count = (len(frequencies) - 1) * 4 + 1
+        self.measurement_count = len(frequencies) * 3 + 2
         self.measurement_i = 0
         gtk.gdk.threads_enter()
-        self.measurements_label.set_label('Measurements taken: 0 / %d' %
-                                          self.measurement_count)
+        self.measurements_label.set_label('Ready.')
         gtk.gdk.threads_leave()
 
     def read_measurements(self, frequencies):
@@ -194,17 +197,20 @@ class AssistantView(WindowView):
             self.widget.set_page_complete(self.box1, True)
             gtk.gdk.threads_leave()
         except StopIteration:
-            self.measurements_label.set_label('Measurements taken: 0 / %d' %
-                                              self.measurement_count)
+            self.measurements_label.set_label('Ready.')
             self.widget.set_current_page(2)
 
     def read_oscope(self):
         gtk.gdk.threads_enter()
         result = self._read_oscope()
         self.measurement_i += 1
-        self.measurements_label.set_label('Measurements taken: %d / %d' %
-                                          (self.measurement_i,
-                                           self.measurement_count))
+        self.measurements_label.set_label('Measuring amplifier voltage '
+                                          'readings...')
+        self.measure_progress.set_fraction(float(self.measurement_i) /
+                                           self.measurement_count)
+        self.measure_progress.set_text('Measurement: %s/%s' %
+                                       (self.measurement_i,
+                                        self.measurement_count))
         gtk.gdk.threads_leave()
         return result
 
