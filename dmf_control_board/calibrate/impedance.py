@@ -199,7 +199,8 @@ def fit_fb_calibration(df, calibration):
         # TODO Update comment if this works...
         V_impedance = compute_from_transfer_function(calibration.hw_version
                                                      .major, 'V2',
-                                                     V1=V_actuation, C1=df.C,
+                                                     V1=V_actuation,
+                                                     C1=df.test_capacitor,
                                                      R2=R_fb, C2=C_fb,
                                                      f=df.frequency)
         return df.V_fb - V_impedance
