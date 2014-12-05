@@ -79,7 +79,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
     # voltages to search when performing calibration.
     max_post_gain_V = 0.8 * control_board.max_waveform_voltage
     max_actuation_V = max_post_gain_V / estimated_amplifier_gain
-    actuation_steps = np.linspace(0.005, max_actuation_V, num=100)
+    actuation_steps = np.linspace(0.005, max_actuation_V, num=50)
 
     # Define frequency/resistor index pairs to take measurements at.
     conditions = pd.DataFrame([[r, f] for r in range(2, -1, -1)

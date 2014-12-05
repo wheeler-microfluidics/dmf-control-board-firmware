@@ -1,3 +1,4 @@
+import pandas as pd
 import time
 import warnings
 try:
@@ -22,13 +23,18 @@ class AgilentOscope(object):
         self.device = self.rm.get_instrument(address)
 
     def read_ac_vrms(self):
-        time.sleep(.75)
         self.device.write("AUTOSCALE")
-        time.sleep(.75)
-        self.device.write("MEASURE:VRMS? DISPLAY,AC")
-        time.sleep(.75)
-        return float(self.device.read())
 
+        def get_V():
+            self.device.write("MEASURE:VRMS? DISPLAY,AC")
+            for i in xrange(5):
+                try:
+                    return float(self.device.read())
+                except visa.VisaIOError:
+                    pass
+            raise
+
+        return pd.Series([get_V() for i in xrange(5)]).median()
 
 # `VisaIOError`:
 #  - Oscilloscope unplugged while running without restarting.
