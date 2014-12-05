@@ -111,7 +111,7 @@ class AssistantView(WindowView):
         self.widget.append_page(box1)
         self.widget.set_page_type(box1, gtk.ASSISTANT_PAGE_PROGRESS)
         self.widget.set_page_title(box1, "Record measurements")
-        self.measurements_label = gtk.Label('Measurements taken: 0 / ?')
+        self.measurements_label = gtk.Label('Ready')
         self.measurements_label.set_line_wrap(True)
         box1.pack_start(self.measurements_label, True, True, 0)
         self.box1 = box1

@@ -182,12 +182,12 @@ def plot_colormap(stats, column, axis=None, fig=None):
         fig.colorbar(mesh)
     else:
         plt.colorbar()
-    axis.set_xticks(np.arange(freq_vs_C_rmse.shape[1])[::2] + 0.5)
+    axis.set_xticks(np.arange(freq_vs_C_rmse.shape[1]) + 0.5)
     axis.set_xticklabels(["%.2fpF" % (c*1e12)
-                          for c in freq_vs_C_rmse.columns][::2],
+                          for c in freq_vs_C_rmse.columns],
                          rotation=90)
-    axis.set_yticks(np.arange(len(frequencies))[::2] + 0.5,
-                    ["%.2fkHz" % (f/1e3) for f in frequencies][::2])
+    axis.set_yticks(np.arange(len(frequencies)) + 0.5,
+                    ["%.2fkHz" % (f/1e3) for f in frequencies])
     axis.set_xlim(0, freq_vs_C_rmse.shape[1])
     axis.set_ylim(0, freq_vs_C_rmse.shape[0])
     return axis

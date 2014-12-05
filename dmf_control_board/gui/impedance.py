@@ -119,7 +119,10 @@ class AssistantView(WindowView):
         self.widget.set_page_title(box1, "Record measurements")
         self.measurements_label = gtk.Label('Ready.')
         self.measurements_label.set_line_wrap(True)
+        self.measure_progress = gtk.ProgressBar()
         box1.pack_start(self.measurements_label, True, True, 0)
+        box1.pack_start(self.measure_progress, expand=False, fill=False,
+                        padding=15)
         self.box1 = box1
 
         # # Confirm fitted parameters #
@@ -136,17 +139,17 @@ class AssistantView(WindowView):
         self.widget.set_page_complete(box, True)
 
         ## # Summary #
-        #box = gtk.VBox()
-        #self.widget.append_page(box)
-        #self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_SUMMARY)
-        #self.widget.set_page_title(box, "Summary")
-        #label = gtk.Label('Calibration of reference load feedback circuit is '
-                          #'complete.  The high-voltage output from amplifier '
-                          #'should now be measured accurately by the control '
-                          #'board.')
-        #label.set_line_wrap(True)
-        #box.pack_start(label, True, True, 0)
-        #self.widget.set_page_complete(box, True)
+        box = gtk.VBox()
+        self.widget.append_page(box)
+        self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_SUMMARY)
+        self.widget.set_page_title(box, "Summary")
+        label = gtk.Label('Calibration of device load feedback circuit is '
+                          'complete.  The impedance between actuated device '
+                          'area and ground should now be measured accurately '
+                          'by the control board.')
+        label.set_line_wrap(True)
+        box.pack_start(label, True, True, 0)
+        self.widget.set_page_complete(box, True)
 
     def assistant_prepared(self, assistant, *args):
         if assistant.get_current_page() not in (4, 5):
@@ -186,8 +189,24 @@ class AssistantView(WindowView):
 
     def read_measurements(self, frequencies):
         if self.impedance_readings is None:
+            # No impedance_readings were provided, so run impedance routine to
+            # collect measurements.
+            def on_update(frequency, C1, channel, i, group_count, data):
+                gtk.gdk.threads_enter()
+                self.measurements_label.set_label('Frequency=%.2fkHz, '
+                                                  'C=%.2fpF' %
+                                                  (frequency, C1 * 1e12))
+                self.measure_progress.set_fraction(float(i) / group_count)
+                self.measure_progress.set_text('Measurement: %s/%s' %
+                                               (i + 1, group_count))
+                width, height = self.measure_progress.size_request()
+                self.measure_progress.set_size_request(width, 40)
+                while gtk.events_pending():
+                    gtk.main_iteration(False)
+                gtk.gdk.threads_leave()
             self.impedance_readings = run_experiment(
-                self.control_board, frequencies=frequencies)
+                self.control_board, frequencies=frequencies,
+                on_update=on_update)
         self.save_readings()
         self.fit_feedback_params()
         self.save_feedback_params()
@@ -255,14 +274,15 @@ class AssistantView(WindowView):
 
 
 if __name__ == '__main__':
-    #control_board = DMFControlBoard()
-    #control_board.connect()
-    impedance_readings = pd.read_hdf('../../temp.h5',
-                                     '/feedback/impedance/measurements')
-    impedance_readings = pd.read_hdf('../../temp.h5',
-                                     '/feedback/impedance/measurements')
-    calibration = pd.read_hdf('../../../dropbot-calibration/dropbot_calibration-002-2014-11-18.h5',
-                              '/impedance/calibration')[0]
-    view = AssistantView(None, impedance_readings=impedance_readings,
-                         calibration=calibration)
+    if True:
+        impedance_readings = pd.read_hdf('/tmp/dropbot-impedance-calibration3NXvK0/2014-12-05T11h21m44-calibration.h5',
+                                        '/feedback/impedance/measurements')
+        calibration = pd.read_hdf('../../../dropbot-calibration/dropbot_calibration-002-2014-11-18.h5',
+                                  '/impedance/calibration')[0]
+        view = AssistantView(None, impedance_readings=impedance_readings,
+                             calibration=calibration)
+    else:
+        control_board = DMFControlBoard()
+        control_board.connect()
+        view = AssistantView(control_board)
     view.show_and_run()

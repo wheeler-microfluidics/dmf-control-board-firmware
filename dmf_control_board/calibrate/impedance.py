@@ -105,10 +105,11 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
 
     results = []
     group_count = len(grouped.groups)
-    for (frequency, C1, channel, i), group in grouped:
+    for i, ((frequency, C1, channel, repeat_index), group) in enumerate(grouped):
         if frequency != previous_frequency:
             proxy.set_waveform_frequency(frequency)
-        print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1, i)
+        print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1,
+                                             repeat_index)
         proxy.set_waveform_voltage(voltage)
         state = np.zeros(proxy.number_of_channels())
         state[channel] = 1
@@ -132,7 +133,7 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     # Set all channels back to zero
     proxy.set_state_of_all_channels(np.zeros(proxy.number_of_channels()))
 
-    return test_frame.join(df), calibration
+    return test_frame.join(df)
 
 
 def fit_fb_calibration(df, calibration):
