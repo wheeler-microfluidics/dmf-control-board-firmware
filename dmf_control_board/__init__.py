@@ -936,7 +936,7 @@ class DMFControlBoard(Base, SerialDevice):
     def max_waveform_voltage(self):
         if not hasattr(self, '__max_waveform_voltage'):
             self.__max_waveform_voltage = self.persistent_read_multibyte(
-                self.PERSISTENT_MAX_WAVEFORM_VOLTAGE, dtype=np.uint32)
+                self.PERSISTENT_MAX_WAVEFORM_VOLTAGE, dtype=np.float32)
         return self.__max_waveform_voltage
 
     @max_waveform_voltage.setter
@@ -1386,11 +1386,10 @@ class DMFControlBoard(Base, SerialDevice):
                 'a1_series_resistance', 'a1_series_capacitance',
                 'signal_generator_board_i2c_address',
                 'amplifier_gain', 'switching_board_i2c_address',
-                'voltage_tolerance', ]
+                'voltage_tolerance', 'min_waveform_frequency',
+                'max_waveform_frequency', 'max_waveform_voltage']
 
     def read_config(self):
-        '''
-        '''
         except_types = (PersistentSettingDoesNotExist, )
         return OrderedDict([(a, safe_getattr(self, a, except_types))
                             for a in self.config_attribute_names])
