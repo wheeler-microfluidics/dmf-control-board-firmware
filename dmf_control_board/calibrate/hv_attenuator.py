@@ -134,20 +134,18 @@ def fit_feedback_params(calibration, max_resistor_readings):
     #
     # See the `z_transfer_functions` function docstring for definitions of the
     # parameters based on the control board major version.
-    e = lambda p, freq, y, R1: \
-        compute_from_transfer_function(calibration.hw_version.major,
-                                       'V2', V1=1, R1=R1, R2=p[0], C2=p[1],
-                                       f=freq) - y
+    e = lambda p, df, R1: \
+        (compute_from_transfer_function(calibration.hw_version.major, 'V2',
+                                        V1=df['oscope measured V'], R1=R1,
+                                        R2=p[0], C2=p[1], f=df['frequency']) -
+         df['board measured V'])
 
     def fit_resistor_params(x):
         resistor_index = x['resistor index'].values[0]
-        x['attenuation'] = x['board measured V'] / x['oscope measured V']
         p0 = [calibration.C_hv[resistor_index],
               calibration.R_hv[resistor_index]]
 
-        p1, success = optimize.leastsq(e, p0,
-                                       args=(x['frequency'],
-                                             x['attenuation'], R1))
+        p1, success = optimize.leastsq(e, p0, args=(x, R1))
         return pd.DataFrame([p0 + p1.tolist()],
                             columns=['original C', 'original R',
                                      'fitted C', 'fitted R']).T
