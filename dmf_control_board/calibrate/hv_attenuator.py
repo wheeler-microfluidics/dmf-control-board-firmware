@@ -77,7 +77,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
 
     # Based on the maximum amplified RMS voltage, define a set of actuation
     # voltages to search when performing calibration.
-    max_post_gain_V = 150.  # TODO Read this value from device.
+    max_post_gain_V = 0.8 * control_board.max_waveform_voltage
     max_actuation_V = max_post_gain_V / estimated_amplifier_gain
     actuation_steps = np.linspace(0.005, max_actuation_V, num=100)
 

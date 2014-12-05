@@ -79,7 +79,7 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         rms = True
 
     # Actuation voltage.
-    voltage = 100
+    voltage = min(0.8 * proxy.max_waveform_voltage, 100.0)
     # Number of repeated/independent measurements for each condition.
     n_repeats = 1
     # Number of sampling windows per measurement.
@@ -91,8 +91,6 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
 
     proxy.set_waveform_frequency(10e3)
     proxy.auto_adjust_amplifier_gain = True
-    # TODO Default amplifier gain is 100.  Limits should be set on gain
-    # automatically during reference calibration.
     proxy.set_waveform_voltage(0.5 * voltage)
     state = np.zeros(proxy.number_of_channels())
     readings = proxy.measure_impedance(10.0, 10, 0, True, True, state)
