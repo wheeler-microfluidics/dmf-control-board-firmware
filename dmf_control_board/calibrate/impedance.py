@@ -307,4 +307,4 @@ def update_fb_calibration(proxy, calibration):
         proxy.set_series_capacitance(1, calibration.C_fb[i])
 
     # Reconnect to update settings.
-    proxy.connect(port, baud_rate)
+    proxy.connect(port, int(baud_rate))
