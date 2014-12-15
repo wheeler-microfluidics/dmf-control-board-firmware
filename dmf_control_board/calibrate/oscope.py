@@ -6,10 +6,12 @@ try:
     try:
         resource_manager = visa.ResourceManager()
         resource_manager.list_resources()
+        addresses = [a for a in resource_manager.list_resources()
+		     if a.startswith('USB')]
     except visa.VisaIOError:
         VISA_AVAILABLE = False
     else:
-        VISA_AVAILABLE = True
+        VISA_AVAILABLE = len(addresses) > 0
 except ImportError:
     warnings.warn('Could not import `visa`.')
     VISA_AVAILABLE = False
@@ -19,7 +21,10 @@ class AgilentOscope(object):
     def __init__(self, address=None):
         self.rm = visa.ResourceManager()
         if address is None:
-            address = self.rm.list_resources()[0]
+            # Only consider USB devices, since any COM port appears
+            # to be recognized as a NI instrument *even when it isn't*.
+            address = [a for a in self.rm.list_resources()
+                       if a.startswith('USB')][0]
         self.device = self.rm.get_instrument(address)
 
     def read_ac_vrms(self):
