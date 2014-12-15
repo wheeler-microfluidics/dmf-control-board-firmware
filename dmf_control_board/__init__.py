@@ -23,7 +23,6 @@ import decorator
 import time
 import copy
 import logging
-from struct import pack, unpack
 import math
 import warnings
 
@@ -1249,6 +1248,7 @@ class DMFControlBoard(Base, SerialDevice):
     @auto_adjust_amplifier_gain.setter
     def auto_adjust_amplifier_gain(self, value):
         return self._set_auto_adjust_amplifier_gain(value)
+
     @property
     def amplifier_gain(self):
         return self._amplifier_gain()
@@ -1381,13 +1381,13 @@ class DMFControlBoard(Base, SerialDevice):
 
     @property
     def config_attribute_names(self):
-        return ['aref', 'waveout_gain_1',
-                'vgnd', 'a0_series_resistance', 'a0_series_capacitance',
-                'a1_series_resistance', 'a1_series_capacitance',
-                'signal_generator_board_i2c_address',
-                'amplifier_gain', 'switching_board_i2c_address',
-                'voltage_tolerance', 'min_waveform_frequency',
-                'max_waveform_frequency', 'max_waveform_voltage']
+        return ['aref', 'waveout_gain_1', 'vgnd', 'a0_series_resistance',
+                'a0_series_capacitance', 'a1_series_resistance',
+                'a1_series_capacitance', 'signal_generator_board_i2c_address',
+                'auto_adjust_amplifier_gain', 'amplifier_gain',
+                'switching_board_i2c_address', 'voltage_tolerance',
+                'min_waveform_frequency', 'max_waveform_frequency',
+                'max_waveform_voltage']
 
     def read_config(self):
         except_types = (PersistentSettingDoesNotExist, )
