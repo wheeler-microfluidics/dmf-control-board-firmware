@@ -174,10 +174,17 @@ def plot_colormap(stats, column, axis=None, fig=None):
     frequencies = stats.index.levels[1]
     axis.set_xlabel('Capacitance')
     axis.set_ylabel('Frequency')
-    vmax = np.abs(freq_vs_C_rmse.fillna(0).values).max()
-    vmin = -vmax
+    vmin = freq_vs_C_rmse.fillna(0).values.min()
+    vmax = freq_vs_C_rmse.fillna(0).values.max()
+    if vmin < 0:
+        vmax = np.abs([vmin, vmax]).max()
+        vmin = -vmax
+        cmap=plt.cm.coolwarm
+    else:
+        vmin = 0
+        cmap=plt.cm.Reds
     mesh = axis.pcolormesh(freq_vs_C_rmse.fillna(0).values, vmin=vmin,
-                           vmax=vmax, cmap=plt.cm.coolwarm)
+                           vmax=vmax, cmap=cmap)
     if fig is not None:
         fig.colorbar(mesh)
     else:
