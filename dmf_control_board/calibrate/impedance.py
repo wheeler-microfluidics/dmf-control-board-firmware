@@ -15,11 +15,11 @@ from .feedback import compute_from_transfer_function, get_transfer_function
 FREQUENCIES = np.logspace(2, np.log10(20e3), 15)
 
 # Nominal capacitor values _(in F)_ for each channel on the feedback test
-# board.
+# board *(each capacitor is repeated twice on the board)*.
 TEST_LOADS = pd.Series([1e-12, 1.5e-12, 2.2e-12, 3.3e-12, 4.7e-12, 6.8e-12,
-                        1e-11, 1.5e-11, 2.2e-11, 3.3e-11, 4.7e-11, 6.8e-11,
-                        1e-10, 1.5e-10, 2.2e-10, 3.3e-10, 4.7e-10, 6.8e-10,
-                        1e-9])
+                        10e-12, 15e-12, 22e-12, 33e-12, 47e-12, 68e-12,
+                        100e-12, 150e-12, 220e-12, 330e-12, 470e-12, 680e-12,
+                        1e-9, 1.5e-9]).repeat(2).reset_index(drop=True)
 
 
 def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
@@ -283,7 +283,7 @@ def apply_calibration(df, calibration_df, calibration):
         calibration.C_fb[i] = C_fb
 
     cleaned_df = df.dropna()
-    grouped = cleaned_df.groupby(['frequency', 'test_channel', 'repeat_index'])
+    grouped = cleaned_df.groupby(['frequency', 'test_capacitor', 'repeat_index'])
 
     for (f, channel, repeat_index), group in grouped:
         r = FeedbackResults(group.V_actuation.iloc[0], f, 5.0,
