@@ -190,7 +190,7 @@ def plot_colormap(stats, column, axis=None, fig=None):
     else:
         plt.colorbar()
     axis.set_xticks(np.arange(freq_vs_C_rmse.shape[1]) + 0.5)
-    axis.set_xticklabels(["%.2fpF" % (c*1e12)
+    axis.set_xticklabels(["%.1fpF" % (c*1e12)
                           for c in freq_vs_C_rmse.columns],
                          rotation=90)
     axis.set_yticks(np.arange(len(frequencies)) + 0.5)
@@ -227,7 +227,7 @@ def plot_stat_summary(df, fig=None):
     # Define a subplot layout, 3 rows, 2 columns
     grid = GridSpec(3, 2)
     stats = calculate_stats(df, groupby=['test_capacitor',
-                                         'frequency'])
+                                         'frequency']).dropna()
 
     for i, stat in enumerate(['RMSE %', 'cv %', 'bias %']):
         axis = fig.add_subplot(grid[i, 0])
@@ -239,5 +239,8 @@ def plot_stat_summary(df, fig=None):
         axis.set_title(stat)
         # Plot a histogram to show the distribution of statistical
         # values across all frequency/capacitance pairs.
-        axis.hist(stats[stat], bins=50)
+        try:
+            axis.hist(stats[stat].values, bins=50)
+        except AttributeError:
+            print stats[stat].describe()
     fig.tight_layout()

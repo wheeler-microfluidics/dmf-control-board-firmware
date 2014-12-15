@@ -126,8 +126,6 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
             on_update(frequency, C1, channel, i, group_count, data)
     df = pd.concat(results, ignore_index=True)
 
-    calibration = proxy.calibration
-
     # Set all channels back to zero
     proxy.set_state_of_all_channels(np.zeros(proxy.number_of_channels()))
 
