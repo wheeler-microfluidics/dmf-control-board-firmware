@@ -185,12 +185,12 @@ class AssistantView(WindowView):
     def reset_measurement_count(self, frequencies):
         self.measurement_count = len(frequencies) * 3 + 2
         self.measurement_i = 0
-        gtk.gdk.threads_enter()
         self.measurements_label.set_label('Ready.')
-        gtk.gdk.threads_leave()
 
     def read_measurements(self, frequencies):
+        gtk.gdk.threads_enter()
         self.reset_measurement_count(frequencies)
+        gtk.gdk.threads_leave()
         try:
             if VISA_AVAILABLE:
                 try:

@@ -194,10 +194,8 @@ class AssistantView(WindowView):
             frequencies = np.floor(np.logspace(np.log10(start_frequency),
                                                np.log10(end_frequency),
                                                number_of_steps))
-            gtk.gdk.threads_enter()
             self.measurements_label.set_label('Reading measurements (this '
                                               'might take a few minutes)...')
-            gtk.gdk.threads_leave()
             gtk.idle_add(self.read_measurements, frequencies)
         elif assistant.get_current_page() == 4:
             self.widget.resize(600, 700)
