@@ -93,9 +93,9 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
     proxy.auto_adjust_amplifier_gain = True
     proxy.set_waveform_voltage(0.5 * voltage)
     state = np.zeros(proxy.number_of_channels())
-    readings = proxy.measure_impedance(10.0, 10, 0, True, True, state)
+    readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
     proxy.set_waveform_voltage(voltage)
-    readings = proxy.measure_impedance(10.0, 10, 0, True, True, state)
+    readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
 
     previous_frequency = None
     grouped = test_frame.groupby(['frequency', 'test_capacitor',
