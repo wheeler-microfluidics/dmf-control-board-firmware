@@ -2,6 +2,7 @@
 import os
 from datetime import datetime
 import tempfile
+import pkg_resources
 
 from path_helpers import path
 import numpy as np
@@ -68,8 +69,8 @@ class AssistantView(WindowView):
         label.set_use_markup(True)
         label.set_line_wrap(True)
         image = gtk.Image()
-        img_path = path(__file__).parent.joinpath(
-            'reference_feedback_intro.svg')
+        img_path = pkg_resources.resource_filename(
+            'dmf_control_board', 'gui/reference_feedback_intro.png')
         image.set_from_file(str(img_path))
         box.pack_start(label, True, False, padding=15)
         box.pack_start(image, True, True, padding=5)
@@ -85,8 +86,8 @@ class AssistantView(WindowView):
                           '   1) DropBot "<tt>In from Amp</tt>".\n'
                           '   2) Oscilloscope input.')
         image = gtk.Image()
-        img_path = path(__file__).parent.joinpath(
-            'reference_feedback_setup.svg')
+        img_path = pkg_resources.resource_filename(
+            'dmf_control_board', 'gui/reference_feedback_setup.png')
         image.set_from_file(str(img_path))
         label.set_line_wrap(True)
         label.set_use_markup(True)
