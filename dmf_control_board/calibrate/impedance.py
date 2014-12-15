@@ -79,7 +79,7 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         rms = True
 
     # Actuation voltage.
-    voltage = min(0.8 * proxy.max_waveform_voltage, 100.0)
+    voltage = min(0.5 * proxy.max_waveform_voltage, 75.0)
     # Number of repeated/independent measurements for each condition.
     n_repeats = 1
     # Number of sampling windows per measurement.
