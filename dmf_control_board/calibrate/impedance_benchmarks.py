@@ -193,8 +193,8 @@ def plot_colormap(stats, column, axis=None, fig=None):
     axis.set_xticklabels(["%.2fpF" % (c*1e12)
                           for c in freq_vs_C_rmse.columns],
                          rotation=90)
-    axis.set_yticks(np.arange(len(frequencies)) + 0.5,
-                    ["%.2fkHz" % (f/1e3) for f in frequencies])
+    axis.set_yticks(np.arange(len(frequencies)) + 0.5)
+    axis.set_yticklabels(["%.2fkHz" % (f / 1e3) for f in frequencies])
     axis.set_xlim(0, freq_vs_C_rmse.shape[1])
     axis.set_ylim(0, freq_vs_C_rmse.shape[0])
     return axis
