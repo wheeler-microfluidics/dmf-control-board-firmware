@@ -40,7 +40,6 @@ class AssistantView(WindowView):
             self.settings['amplifier_gain'] = self.control_board.amplifier_gain
             self.settings['auto_adjust_amplifier_gain'] = \
                 self.control_board.auto_adjust_amplifier_gain
-        self.calibration_file = None
         if calibration is None:
             self.calibration = self.control_board.calibration
         else:
@@ -228,9 +227,7 @@ class AssistantView(WindowView):
                     on_update=on_update)
             finally:
                 self.restore_settings()
-        self.save_readings()
         self.fit_feedback_params()
-        self.save_feedback_params()
         gtk.gdk.threads_enter()
         self.measurements_label.set_label('Done.')
         self.widget.set_page_complete(self.box1, True)
@@ -260,24 +257,6 @@ class AssistantView(WindowView):
         print("The 'Cancel' button has been clicked")
         gtk.main_quit()
 
-    def save_readings(self):
-        output_dir = path(tempfile.mkdtemp(prefix='dropbot-impedance-calibration'))
-        timestamp = datetime.now().strftime('%Y-%m-%dT%Hh%Mm%S')
-        self.calibration_file = output_dir.joinpath('%s-calibration.h5' %
-                                                    timestamp)
-
-        # Save measurements taken during calibration.
-        self.impedance_readings.to_hdf(str(self.calibration_file),
-                                       '/feedback/impedance/measurements',
-                                       format='t',
-                                       data_columns=self.impedance_readings
-                                       .columns, complib='blosc', complevel=2)
-
-        # Save measurements taken during calibration, along with input RMS
-        # voltage _(i.e., `V1`)_ values read using the oscilloscope.
-        pd.Series([self.calibration]).to_hdf(str(self.calibration_file),
-                                             '/feedback/impedance/calibration')
-
     def fit_feedback_params(self):
         # Using the collected measurements, fit the resistive and *(parasitic)*
         # capacitive load values for the reference *(i.e., high-voltage)*
@@ -285,13 +264,26 @@ class AssistantView(WindowView):
         self.fitted_params = fit_fb_calibration(self.impedance_readings,
                                                 self.calibration)
 
-    def save_feedback_params(self):
+    def to_hdf(self, output_path, complib='blosc', complevel=6):
+        # Save measurements taken during calibration.
+        self.impedance_readings.to_hdf(str(output_path),
+                                       '/feedback/impedance/measurements',
+                                       format='t',
+                                       data_columns=self.impedance_readings
+                                       .columns, complib=complib,
+                                       complevel=complevel)
+
+        # Save measurements taken during calibration, along with input RMS
+        # voltage _(i.e., `V1`)_ values read using the oscilloscope.
+        pd.Series([self.calibration]).to_hdf(str(output_path),
+                                             '/feedback/impedance/calibration')
+
         # Save fitted resistive and capacitive impedance values.
-        self.fitted_params.to_hdf(str(self.calibration_file),
-                                  '/feedback/reference/fitted_params',
+        self.fitted_params.to_hdf(str(output_path),
+                                  '/feedback/impedance/fitted_params',
                                   format='t',
                                   data_columns=self.fitted_params.columns,
-                                  complib='blosc', complevel=2)
+                                  complib=complib, complevel=complevel)
 
 
 if __name__ == '__main__':

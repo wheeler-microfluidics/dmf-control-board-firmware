@@ -37,7 +37,6 @@ class AssistantView(WindowView):
         self.settings['amplifier_gain'] = self.control_board.amplifier_gain
         self.settings['auto_adjust_amplifier_gain'] = \
                 self.control_board.auto_adjust_amplifier_gain
-        self.calibration_file = None
         super(AssistantView, self).__init__(self)
 
     def restore_settings(self):
@@ -202,9 +201,7 @@ class AssistantView(WindowView):
                 self._read_oscope = read_oscope_
             self.hv_readings = resistor_max_actuation_readings(
                 self.control_board, frequencies, self.read_oscope)
-            self.save_readings()
             self.fit_feedback_params()
-            self.save_feedback_params()
             gtk.gdk.threads_enter()
             self.widget.set_page_complete(self.box1, True)
             gtk.gdk.threads_leave()
@@ -243,18 +240,10 @@ class AssistantView(WindowView):
         print("The 'Cancel' button has been clicked")
         gtk.main_quit()
 
-    def save_readings(self):
         output_dir = path(tempfile.mkdtemp(prefix='dropbot-reference-calibration'))
         timestamp = datetime.now().strftime('%Y-%m-%dT%Hh%Mm%S')
         self.calibration_file = output_dir.joinpath('%s-calibration.h5' %
                                                     timestamp)
-
-        # Save measurements taken during calibration, along with input RMS
-        # voltage _(i.e., `V1`)_ values read using the oscilloscope.
-        self.hv_readings.to_hdf(str(self.calibration_file),
-                                '/feedback/reference/measurements', format='t',
-                                data_columns=self.hv_readings.columns,
-                                complib='blosc', complevel=2)
 
     def fit_feedback_params(self):
         # Using the collected measurements, fit the resistive and *(parasitic)*
@@ -264,13 +253,20 @@ class AssistantView(WindowView):
                                                  .calibration,
                                                  self.hv_readings)
 
-    def save_feedback_params(self):
+    def to_hdf(self, output_path, complib='blosc', complevel=6):
+        # Save measurements taken during calibration, along with input RMS
+        # voltage _(i.e., `V1`)_ values read using the oscilloscope.
+        self.hv_readings.to_hdf(str(output_path),
+                                '/feedback/reference/measurements', format='t',
+                                data_columns=self.hv_readings.columns,
+                                complib=complib, complevel=complevel)
+
         # Save fitted resistive and capacitive impedance values.
-        self.fitted_params.to_hdf(str(self.calibration_file),
+        self.fitted_params.to_hdf(str(output_path),
                                   '/feedback/reference/fitted_params',
                                   format='t',
-                                  data_columns=self.hv_readings.columns,
-                                  complib='blosc', complevel=2)
+                                  data_columns=self.fitted_params.columns,
+                                  complib=complib, complevel=complevel)
 
 
 if __name__ == '__main__':
