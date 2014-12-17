@@ -137,7 +137,7 @@ class AssistantView(WindowView):
         self.widget.append_page(box)
         self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_CONFIRM)
         self.widget.set_page_title(box, "Confirm fitted parameters")
-        figure = Figure(dpi=72)
+        figure = Figure(figsize=(14, 8), dpi=60)
         self.canvas = FigureCanvasGTK(figure)
         toolbar = NavigationToolbar(self.canvas, self.widget)
         self.axis = figure.add_subplot(111)
