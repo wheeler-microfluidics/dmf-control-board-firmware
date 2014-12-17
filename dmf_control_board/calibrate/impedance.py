@@ -8,18 +8,19 @@ import scipy.stats
 import scipy.optimize
 import pandas as pd
 
-from .feedback import compute_from_transfer_function
+from . import capacitive_load_func
+from .feedback import compute_from_transfer_function, get_transfer_function
 
 
 # Default frequencies to test
 FREQUENCIES = np.logspace(2, np.log10(20e3), 15)
 
 # Nominal capacitor values _(in F)_ for each channel on the feedback test
-# board.
+# board *(each capacitor is repeated twice on the board)*.
 TEST_LOADS = pd.Series([1e-12, 1.5e-12, 2.2e-12, 3.3e-12, 4.7e-12, 6.8e-12,
-                        1e-11, 1.5e-11, 2.2e-11, 3.3e-11, 4.7e-11, 6.8e-11,
-                        1e-10, 1.5e-10, 2.2e-10, 3.3e-10, 4.7e-10, 6.8e-10,
-                        1e-9])
+                        10e-12, 15e-12, 22e-12, 33e-12, 47e-12, 68e-12,
+                        100e-12, 150e-12, 220e-12, 330e-12, 470e-12, 680e-12,
+                        1e-9, 1.5e-9]).repeat(2).reset_index(drop=True)
 
 
 def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
@@ -61,14 +62,8 @@ def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
     return df
 
 
-def run_experiment(proxy, test_loads=None, frequencies=None,
-                   use_antialiasing_filter=None, rms=None, on_update=None):
-    if use_antialiasing_filter is None:
-        use_antialiasing_filter = True
-    # Update device anti-aliasing setting and reset the device to take effect.
-    proxy.use_antialiasing_filter = use_antialiasing_filter
-    proxy.connect()
-
+def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
+                   rms=None, on_update=None):
     if test_loads is None:
         test_loads = TEST_LOADS
 
@@ -76,30 +71,67 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         frequencies = FREQUENCIES
 
     if rms is None:
+        # Return feedback voltage measurements as RMS voltages.
         rms = True
 
-    # Actuation voltage.
-    voltage = 100
+    # Limit the actuation voltage according to the maximum voltage rating as
+    # reported by the control board.
+    rms_voltage = min(proxy.max_waveform_voltage, rms_voltage)
+
+    # Calculate the maximum capacitance value that can be measured using the
+    # impedance feedback circuit without exceeding current limits at the
+    # maximum sweep frequency. The maximum current through the device load
+    # measurement circuit is 30mA peak-to-peak or *~10mA RMS*.  This current
+    # limit is based on the current rating of the [op-amp][1] in the feedback
+    # circuit.
+    # *N.B.,* The maximum RMS current rating of the [PhotoMOS][2] chips is
+    # 50mA@~200V-RMS and 140mA@~110V-RMS.
+    #
+    # [1]: http://ww1.microchip.com/downloads/en/DeviceDoc/21685d.pdf
+    # [2]: http://www3.panasonic.biz/ac/e_download/control/relay/photomos/catalog/semi_eng_ge2a_aqw21_e.pdf
+    max_capacitance_func = sp.lambdify('i, f, V',
+                                       sp.Abs(sp.solve(capacitive_load_func,
+                                                       'C')[0]), 'numpy')
+    max_capacitance = max_capacitance_func(0.010, frequencies.max(),
+                                           rms_voltage)
+
+    # Only test using capacitance loads that are within the maximum for the
+    test_loads = test_loads[test_loads < max_capacitance]
+
     # Number of repeated/independent measurements for each condition.
     n_repeats = 1
     # Number of sampling windows per measurement.
     n_sampling_windows = 10
 
+    print 'Using V=%s' % rms_voltage
+
     # Prepare the test output `pandas.DataFrame`.
     test_frame = get_test_frame(frequencies, test_loads, n_repeats,
-                                n_sampling_windows, actuation_voltage=voltage)
+                                n_sampling_windows,
+                                actuation_voltage=rms_voltage)
 
-    proxy.set_waveform_voltage(voltage)
+    proxy.set_waveform_frequency(0.5 * proxy.max_waveform_frequency)
+    proxy.auto_adjust_amplifier_gain = True
+    proxy.set_waveform_voltage(0.25 * proxy.max_waveform_voltage)
+    state = np.zeros(proxy.number_of_channels())
+    readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
+
+    proxy.set_waveform_voltage(rms_voltage)
+    readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
 
     previous_frequency = None
     grouped = test_frame.groupby(['frequency', 'test_capacitor',
                                   'test_channel', 'repeat_index'])
 
     results = []
-    for (frequency, C1, channel, i), group in grouped:
+    group_count = len(grouped.groups)
+    for i, ((frequency, C1, channel, repeat_index), group) in enumerate(grouped):
         if frequency != previous_frequency:
             proxy.set_waveform_frequency(frequency)
-        #print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1, i)
+        print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1,
+                                             repeat_index)
+        print 'amplifier_gain: %s (auto=%s)' % (proxy.amplifier_gain,
+                                                proxy.auto_adjust_amplifier_gain)
         state = np.zeros(proxy.number_of_channels())
         state[channel] = 1
         readings = proxy.measure_impedance(10.0, n_sampling_windows, 0, True,
@@ -114,15 +146,13 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         data.set_index('sample_index', inplace=True)
         results.append(data)
         if on_update is not None:
-            on_update(frequency, C1, channel, i, data)
+            on_update(frequency, C1, channel, i, group_count, data)
     df = pd.concat(results, ignore_index=True)
-
-    calibration = proxy.calibration
 
     # Set all channels back to zero
     proxy.set_state_of_all_channels(np.zeros(proxy.number_of_channels()))
 
-    return test_frame.join(df), calibration
+    return test_frame.join(df)
 
 
 def fit_fb_calibration(df, calibration):
@@ -181,9 +211,16 @@ def fit_fb_calibration(df, calibration):
         # feedback measurements.
         # Note that the transfer function definition depends on the hardware
         # version.
+        # __NB__ If we do not specify a value for `R1`, a symbolic value of
+        # infinity is used.  However, in this case, we have `R1` in both the
+        # numerator and denominator.  The result is a value of zero returned
+        # regardless of the values of the other arguments.  We avoid this issue
+        # by specifying a *very large* value for `R1`.
+        # TODO Update comment if this works...
         V_impedance = compute_from_transfer_function(calibration.hw_version
                                                      .major, 'V2',
-                                                     V1=V_actuation, C1=df.C,
+                                                     V1=V_actuation,
+                                                     C1=df.test_capacitor,
                                                      R2=R_fb, C2=C_fb,
                                                      f=df.frequency)
         return df.V_fb - V_impedance
@@ -267,7 +304,7 @@ def apply_calibration(df, calibration_df, calibration):
         calibration.C_fb[i] = C_fb
 
     cleaned_df = df.dropna()
-    grouped = cleaned_df.groupby(['frequency', 'test_channel', 'repeat_index'])
+    grouped = cleaned_df.groupby(['frequency', 'test_capacitor', 'repeat_index'])
 
     for (f, channel, repeat_index), group in grouped:
         r = FeedbackResults(group.V_actuation.iloc[0], f, 5.0,
@@ -280,13 +317,14 @@ def apply_calibration(df, calibration_df, calibration):
 
 
 def update_fb_calibration(proxy, calibration):
-    print "Updating feedback calibration values...\n"
-    proxy.connect()
+    port = proxy.port
+    baud_rate = proxy.baud_rate
 
-    # write new calibration parameters to the control board
+    # Write new calibration parameters to the control board.
     for i in range(0, len(calibration.R_fb)):
         proxy.set_series_resistor_index(1, i)
         proxy.set_series_resistance(1, calibration.R_fb[i])
         proxy.set_series_capacitance(1, calibration.C_fb[i])
-    # reconnect to update settings
-    proxy.connect()
+
+    # Reconnect to update settings.
+    proxy.connect(port, int(baud_rate))

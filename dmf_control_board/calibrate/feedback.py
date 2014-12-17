@@ -15,7 +15,32 @@ import pandas as pd
 import sympy as sp
 
 
+def limit_default(equation, symbol_names, default, **kwargs):
+    return swap_default('limit_default', equation, symbol_names, default,
+                        **kwargs)
+
+
 def subs_default(equation, symbol_names, default, **kwargs):
+    return swap_default('subs', equation, symbol_names, default, **kwargs)
+
+
+@lru_cache(maxsize=500)
+def _subs(eq, symbol, value):
+    return eq.subs(symbol, value)
+
+
+@lru_cache(maxsize=500)
+def _limit(eq, *args, **kwargs):
+    if isinstance(eq, sp.Eq):
+        # The provided equation is an equality, so we need to process the limit
+        # of each side independently.
+        return sp.Eq(sp.limit(eq.lhs, *args, **kwargs),
+                     sp.limit(eq.rhs, *args, **kwargs))
+    else:
+        return sp.limit(*args, **kwargs)
+
+
+def swap_default(mode, equation, symbol_names, default, **kwargs):
     '''
     Given a `sympy` equation or equality, along with a list of symbol names,
     substitute the specified default value for each symbol for which a value is
@@ -51,15 +76,28 @@ def subs_default(equation, symbol_names, default, **kwargs):
     ── = 1/4
     V₁
     '''
+    if mode == 'subs':
+        swap_f = _subs
+        default_swap_f = _subs
+    elif mode == 'limit':
+        swap_f = _limit
+        default_swap_f = _subs
+    elif mode == 'limit_default':
+        swap_f = _subs
+        default_swap_f = _limit
+    else:
+        raise ValueError('''Unsupported mode.  `mode` must be one of: '''
+                         '''('subs', 'limit').''')
+
     result = equation
     for s in symbol_names:
         if s in kwargs:
             if isinstance(kwargs[s], Iterable):
                 continue
             else:
-                result = result.subs(s, kwargs[s])
+                result = swap_f(result, s, kwargs[s])
         else:
-            result = result.subs(s, default)
+            result = default_swap_f(result, s, default)
     return result
 
 
@@ -236,11 +274,11 @@ def compute_from_transfer_function(hardware_major_version, solve_for,
     # Substitute infinite resistance _(i.e., open circuit)_ for any resistive
     # term in the transfer function where a resistance value was not specified
     # as a keyword argument.
-    result = subs_default(result, Rs, sp.oo, **kwargs)
+    result = limit_default(result, Rs, sp.oo, **kwargs)
     # Substitute zero capacitance _(i.e., open circuit)_ for any capacitive
     # term in the transfer function where a resistance value was not specified
     # as a keyword argument.
-    result = subs_default(result, Cs, 0, **kwargs)
+    result = limit_default(result, Cs, 0, **kwargs)
     # Substitute frequency term for angular frequency as necessary.
     if 'f' in kwargs:
         result = result.subs('omega', sp.sympify('2 * pi * f'))

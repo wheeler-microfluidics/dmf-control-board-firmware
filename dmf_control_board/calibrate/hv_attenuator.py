@@ -77,9 +77,9 @@ def resistor_max_actuation_readings(control_board, frequencies,
 
     # Based on the maximum amplified RMS voltage, define a set of actuation
     # voltages to search when performing calibration.
-    max_post_gain_V = 150.  # TODO Read this value from device.
+    max_post_gain_V = 0.8 * control_board.max_waveform_voltage
     max_actuation_V = max_post_gain_V / estimated_amplifier_gain
-    actuation_steps = np.linspace(0.005, max_actuation_V, num=100)
+    actuation_steps = np.linspace(0.005, max_actuation_V, num=50)
 
     # Define frequency/resistor index pairs to take measurements at.
     conditions = pd.DataFrame([[r, f] for r in range(2, -1, -1)
@@ -103,6 +103,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
         board_measured_rms = data.loc[data['divider resistor index']
                                     >= 0, 'board measured V'].mean()
         oscope_rms = oscope_reading_func()
+        print 'R=%s, f=%s' % (r, f)
         return pd.DataFrame([[r, f, actuation_index, board_measured_rms,
                             oscope_rms]],
                             columns=['resistor index', 'frequency',
@@ -133,23 +134,24 @@ def fit_feedback_params(calibration, max_resistor_readings):
     #
     # See the `z_transfer_functions` function docstring for definitions of the
     # parameters based on the control board major version.
-    e = lambda p, freq, y, R1: \
-        compute_from_transfer_function(calibration.hw_version.major,
-                                       'V2', V1=1, R1=R1, R2=p[0], C2=p[1],
-                                       f=freq) - y
-
     def fit_resistor_params(x):
         resistor_index = x['resistor index'].values[0]
-        x['attenuation'] = x['board measured V'] / x['oscope measured V']
-        p0 = [calibration.C_hv[resistor_index],
-              calibration.R_hv[resistor_index]]
+        p0 = [calibration.R_hv[resistor_index],
+              calibration.C_hv[resistor_index]]
 
-        p1, success = optimize.leastsq(e, p0,
-                                       args=(x['frequency'],
-                                             x['attenuation'], R1))
+        def error(p, df, R1):
+            v1 = compute_from_transfer_function(calibration.hw_version.major,
+                                                'V1',
+                                                V2=df['board measured V'],
+                                                R1=R1, R2=p[0], C2=p[1],
+                                                f=df['frequency'].values)
+            e = df['oscope measured V'] - v1
+            return e
+
+        p1, success = optimize.leastsq(error, p0, args=(x, R1))
         return pd.DataFrame([p0 + p1.tolist()],
-                            columns=['original C', 'original R',
-                                     'fitted C', 'fitted R']).T
+                            columns=['original R', 'original C',
+                                     'fitted R', 'fitted C']).T
 
     results = (max_resistor_readings
                [max_resistor_readings['resistor index'] >= 0]
@@ -159,7 +161,7 @@ def fit_feedback_params(calibration, max_resistor_readings):
     return data
 
 
-def plot_feedback_params(transfer_func, max_resistor_readings,
+def plot_feedback_params(hw_major_version, max_resistor_readings,
                          feedback_params, axis=None):
     '''
     Plot the effective attenuation _(i.e., gain less than 1)_ of the control
@@ -193,23 +195,27 @@ def plot_feedback_params(transfer_func, max_resistor_readings,
         color = colors.next()
 
         F = feedback_params.loc[resistor_index]
-        axis.loglog(x['frequency'],
-                    transfer_func(1, R1, 0,
-                                  F['original R'], F['original C'],
-                                  x['frequency']), color=color,
-                    linestyle='--', label='R$_{%d}$ (previous fit)' %
-                    resistor_index)
+        # Broadcast values in case sympy function simplifies to scalar value.
+        values = np.empty_like(x['frequency'])
+        values[:] = compute_from_transfer_function(hw_major_version, 'V2',
+                                                   V1=1., R1=R1,
+                                                   R2=F['original R'],
+                                                   C2=F['original C'],
+                                                   f=x['frequency'])
+        axis.loglog(x['frequency'], values, color=color, linestyle='--',
+                    label='R$_{%d}$ (previous fit)' % resistor_index)
 
-        axis.loglog(x['frequency'],
-                    transfer_func(1, R1, 0,
-                                  F['fitted R'], F['fitted C'],
-                                  x['frequency']), color=color,
-                    linestyle='-', label='R$_{%d}$ (new fit)' % resistor_index,
-                    alpha=0.6)
+        values[:] = compute_from_transfer_function(hw_major_version, 'V2',
+                                                   V1=1., R1=R1,
+                                                   R2=F['fitted R'],
+                                                   C2=F['fitted C'],
+                                                   f=x['frequency'])
+        axis.loglog(x['frequency'], values, color=color, linestyle='-',
+                    alpha=0.6, label='R$_{%d}$ (new fit)' % resistor_index)
         attenuation = x['board measured V'] / x['oscope measured V']
         axis.plot(x['frequency'], attenuation, color='none',
                   marker=markers[resistor_index % len(markers)],
-                  label='R$_{%d}$ (scope measurements)' % resistor_index,
+                  label='R$_{%d}$ (scope measured)' % resistor_index,
                   linestyle='none', markeredgecolor=color, markeredgewidth=2,
                   markersize=8)
         return 0
@@ -222,7 +228,6 @@ def plot_feedback_params(transfer_func, max_resistor_readings,
                     r'{V_{SCOPE}}$', fontsize=25)
 
 
-@lru_cache(maxsize=500)
 def update_control_board_calibration(control_board, fitted_params):
     '''
     Update the control board with the specified fitted parameters.

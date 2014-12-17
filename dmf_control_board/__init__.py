@@ -23,7 +23,6 @@ import decorator
 import time
 import copy
 import logging
-from struct import pack, unpack
 import math
 import warnings
 
@@ -304,7 +303,7 @@ class FeedbackResults():
         ).interpolate(method='time').values)
 
         # if we're filtering and we don't have a window size specified,
-        # automatically determine one 
+        # automatically determine one
         if filter_order and window_size is None:
             window_size = self._get_window_size(tol)
 
@@ -332,12 +331,12 @@ class FeedbackResults():
                         C_filler = self.calibration.C_filler(self.frequency)
                     else:
                         C_filler = 0
-                    x = result['p'][0]*self.time + result['p'][1] 
+                    x = result['p'][0]*self.time + result['p'][1]
                     C = self.area * (x * (C_drop - C_filler) / \
                                      np.sqrt(self.area) + C_filler)
                     Z1 = 1.0 / (2.0 * math.pi * self.frequency * C)
                     Z1[mlab.find(self.time==result['t_end'])[0]+1:] = \
-                        Z1[mlab.find(self.time==result['t_end'])[0]]                     
+                        Z1[mlab.find(self.time==result['t_end'])[0]]
                 else:
                     Z1 = np.mean(Z1)*np.ones(Z1.shape)
         return Z1
@@ -352,9 +351,10 @@ class FeedbackResults():
 
         Note: this assumes impedance is purely capacitive load.
         TODO: Is this assumption ok?
-        '''        
-        C = 1.0 / (2.0 * math.pi * self.frequency * self.Z_device(
-            filter_order=filter_order, window_size=window_size, tol=tol))
+        '''
+        C = 1.0 / (2.0 * math.pi * self.frequency *
+                   self.Z_device(filter_order=filter_order,
+                                 window_size=window_size, tol=tol))
         return np.ma.masked_invalid(
             pandas.TimeSeries(
                 C, pandas.to_datetime(self.time, unit='s')
@@ -388,12 +388,12 @@ class FeedbackResults():
             C_filler = self.calibration.C_filler(self.frequency)
         else:
             C_filler = 0
-        
+
         return (self.capacitance(filter_order=filter_order,
                               window_size=window_size,
                               tol=tol) / self.area - C_filler
         ) / (C_drop - C_filler) * np.sqrt(self.area)
-        
+
     def mean_velocity(self, tol=0.05):
         '''
         Calculate the mean velocity for a step (mm/ms which is equivalent to
@@ -404,28 +404,28 @@ class FeedbackResults():
         p = None
         ind = None
         t_end = None
-        
+
         if self.area == 0:
             return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
-        
+
         x = self.x_position()
-        
+
         # find the first and last valid indices
         ind_start = mlab.find(x.mask==False)[0]
         ind_last = mlab.find(x.mask==False)[-1]
-        
+
         # if the original x value is within tol % of the final x value, include
         # all samples
         if x[ind_start] > (1 - tol) * x[ind_last]:
             ind_stop = ind_last
         else: # otherwise, stop when x reaches (1 - tol) % of it's final value
             ind_stop = mlab.find(x > (1 - tol) * x[ind_last])[0]
-        
+
         ind = [ind_start, ind_stop]
 
         # if we have at least 2 valid samples
         if len(ind) >=2:
-            dx = np.diff(x[ind])[0]        
+            dx = np.diff(x[ind])[0]
             dt = np.diff(self.time[ind])[0] # ms
 
             # suppress polyfit warnings
@@ -433,7 +433,7 @@ class FeedbackResults():
                 warnings.simplefilter("ignore")
                 # fit a line to the data
                 p = np.polyfit(self.time[ind[0]:ind[1]], x[ind[0]:ind[1]], 1)
-        
+
             # find time when the the line intercepts x[ind_last]
             ind_stop = mlab.find(self.time > \
                                  (x[ind_last] - p[1]) / p[0])
@@ -789,11 +789,9 @@ class DMFControlBoard(Base, SerialDevice):
 
     @property
     def config_version(self):
-        return unpack('HHH',
-                      pack(6 * 'B',
-                           *[self.persistent_read(self
-                                                  .PERSISTENT_CONFIG_SETTINGS +
-                                                  i) for i in range(2 * 3)]))
+        return tuple(
+            self.persistent_read_multibyte(self.PERSISTENT_CONFIG_SETTINGS,
+                                           count=3, dtype=np.uint16))
 
     def connect(self, port=None, baud_rate=115200):
         if port:
@@ -839,62 +837,63 @@ class DMFControlBoard(Base, SerialDevice):
         self.__aref__ = self._aref()
         return self.RETURN_OK
 
-    def persistent_read_multibyte(self, type, address):
-        if type == 'L' or 'f':
-            nbytes = 4
-        else:
-            raise TypeError()
-        data = np.zeros(nbytes)
-        for i in range(0, nbytes):
-            data[i] = self.persistent_read(address + i)
-        return unpack(type, pack('B'*nbytes, *data))[0]
+    def persistent_read_multibyte(self, address, count=None,
+                                  dtype=np.uint8):
+        nbytes = np.dtype(dtype).itemsize
+        if count is not None:
+            nbytes *= count
 
-    def persistent_write_multibyte(self, type, address, value):
-        if type == 'L' or 'f':
-            nbytes = 4
-        else:
-            raise TypeError()
-        data = unpack('B'*nbytes, pack(type, value))
-        for i in range(0, nbytes):
-            self.persistent_write(address + i,
-                                  data[i])
+        # Read enough bytes starting at specified address to match the
+        # requested number of the specified data type.
+        data_bytes = np.array([self.persistent_read(address + i)
+                               for i in xrange(nbytes)], dtype=np.uint8)
+
+        # Cast byte array as array of specified data type.
+        result = data_bytes.view(dtype)
+
+        # If no count was specified, we return a scalar value rather than the
+        # resultant array.
+        if count is None:
+            return result[0]
+        return result
+
+    def persistent_write_multibyte(self, address, data):
+        for i, byte in enumerate(data.view(np.uint8)):
+            self.persistent_write(address + i, int(byte))
 
     @property
     def baud_rate(self):
         return self.persistent_read_multibyte(
-            'L', self.PERSISTENT_BAUD_RATE_ADDRESS)
+            self.PERSISTENT_BAUD_RATE_ADDRESS, dtype=np.uint32)
 
     @baud_rate.setter
     def baud_rate(self, value):
-        self.persistent_write_multibyte('L',
-                                        PERSISTENT_BAUD_RATE_ADDRESS,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_BAUD_RATE_ADDRESS,
+                                        np.array([value], dtype=np.uint32))
         self.__baud_rate = value
 
     @property
     def serial_number(self):
         return self.persistent_read_multibyte(
-            'L', self.PERSISTENT_SERIAL_NUMBER_ADDRESS)
+            self.PERSISTENT_SERIAL_NUMBER_ADDRESS, dtype=np.uint32)
 
     @serial_number.setter
     def serial_number(self, value):
-        self.persistent_write_multibyte('L',
-                                        PERSISTENT_SERIAL_NUMBER_ADDRESS,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_SERIAL_NUMBER_ADDRESS,
+                                        np.array([value], dtype=np.uint32))
         self.__serial_number = value
 
     @property
     def voltage_tolerance(self):
         if not hasattr(self, '__voltage_tolerance'):
             self.__voltage_tolerance = self.persistent_read_multibyte(
-                'f', self.PERSISTENT_VOLTAGE_TOLERANCE)
+                self.PERSISTENT_VOLTAGE_TOLERANCE, dtype=np.float32)
         return self.__voltage_tolerance
 
     @voltage_tolerance.setter
     def voltage_tolerance(self, value):
-        self.persistent_write_multibyte('f',
-                                        PERSISTENT_VOLTAGE_TOLERANCE,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_VOLTAGE_TOLERANCE,
+                                        np.array([value], dtype=np.float32))
         self.__voltage_tolerance = value
 
     @property
@@ -910,42 +909,39 @@ class DMFControlBoard(Base, SerialDevice):
     def min_waveform_frequency(self):
         if not hasattr(self, '__min_waveform_frequency'):
             self.__min_waveform_frequency = self.persistent_read_multibyte(
-                'f', self.PERSISTENT_MIN_WAVEFORM_FREQUENCY)
+                self.PERSISTENT_MIN_WAVEFORM_FREQUENCY, dtype=np.float32)
         return self.__min_waveform_frequency
 
     @min_waveform_frequency.setter
     def min_waveform_frequency(self, value):
-        self.persistent_write_multibyte('f',
-                                        self.PERSISTENT_MIN_WAVEFORM_FREQUENCY,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_MIN_WAVEFORM_FREQUENCY,
+                                        np.array([value], dtype=np.float32))
         self.__min_waveform_frequency = value
 
     @property
     def max_waveform_frequency(self):
         if not hasattr(self, '__max_waveform_frequency'):
             self.__max_waveform_frequency = self.persistent_read_multibyte(
-                'f', self.PERSISTENT_MAX_WAVEFORM_FREQUENCY)
+                self.PERSISTENT_MAX_WAVEFORM_FREQUENCY, dtype=np.float32)
         return self.__max_waveform_frequency
 
     @max_waveform_frequency.setter
     def max_waveform_frequency(self, value):
-        self.persistent_write_multibyte('f',
-                                        self.PERSISTENT_MAX_WAVEFORM_FREQUENCY,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_MAX_WAVEFORM_FREQUENCY,
+                                        np.array([value], dtype=np.float32))
         self.__max_waveform_frequency = value
 
     @property
     def max_waveform_voltage(self):
         if not hasattr(self, '__max_waveform_voltage'):
             self.__max_waveform_voltage = self.persistent_read_multibyte(
-                'f', self.PERSISTENT_MAX_WAVEFORM_VOLTAGE)
+                self.PERSISTENT_MAX_WAVEFORM_VOLTAGE, dtype=np.float32)
         return self.__max_waveform_voltage
 
     @max_waveform_voltage.setter
     def max_waveform_voltage(self, value):
-        self.persistent_write_multibyte('f',
-                                        self.PERSISTENT_MAX_WAVEFORM_VOLTAGE,
-                                        value)
+        self.persistent_write_multibyte(self.PERSISTENT_MAX_WAVEFORM_VOLTAGE,
+                                        np.array([value], dtype=np.float32))
         self.__max_waveform_voltage = value
 
     @property
@@ -1058,6 +1054,16 @@ class DMFControlBoard(Base, SerialDevice):
                           interleave_samples,
                           rms,
                           state):
+        '''
+        Measure voltage across load of each of the following control board
+        feedback circuits:
+
+         - Reference _(i.e., attenuated high-voltage amplifier output)_.
+         - Load _(i.e., voltage across DMF device)_.
+
+        The measured voltage _(i.e., `V2`)_ can be used to compute the
+        impedance of the measured load, the input voltage _(i.e., `V1`)_, etc.
+        '''
         state_ = uint8_tVector()
         for i in range(0, len(state)):
             state_.append(int(state[i]))
@@ -1242,6 +1248,7 @@ class DMFControlBoard(Base, SerialDevice):
     @auto_adjust_amplifier_gain.setter
     def auto_adjust_amplifier_gain(self, value):
         return self._set_auto_adjust_amplifier_gain(value)
+
     @property
     def amplifier_gain(self):
         return self._amplifier_gain()
@@ -1374,16 +1381,15 @@ class DMFControlBoard(Base, SerialDevice):
 
     @property
     def config_attribute_names(self):
-        return ['aref', 'waveout_gain_1',
-                'vgnd', 'a0_series_resistance', 'a0_series_capacitance',
-                'a1_series_resistance', 'a1_series_capacitance',
-                'signal_generator_board_i2c_address',
-                'amplifier_gain', 'switching_board_i2c_address',
-                'voltage_tolerance', ]
+        return ['aref', 'waveout_gain_1', 'vgnd', 'a0_series_resistance',
+                'a0_series_capacitance', 'a1_series_resistance',
+                'a1_series_capacitance', 'signal_generator_board_i2c_address',
+                'auto_adjust_amplifier_gain', 'amplifier_gain',
+                'switching_board_i2c_address', 'voltage_tolerance',
+                'min_waveform_frequency', 'max_waveform_frequency',
+                'max_waveform_voltage']
 
     def read_config(self):
-        '''
-        '''
         except_types = (PersistentSettingDoesNotExist, )
         return OrderedDict([(a, safe_getattr(self, a, except_types))
                             for a in self.config_attribute_names])
