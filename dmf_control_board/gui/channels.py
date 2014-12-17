@@ -169,7 +169,7 @@ class AssistantView(WindowView):
             box.pack_start(b, expand=False, fill=False, padding=20)
         self.widget.append_page(box)
         self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_CONTENT)
-        self.widget.set_page_title(box, "Select calibration frequencies")
+        self.widget.set_page_title(box, "Select bank of test channels")
         self.widget.set_page_complete(box, True)
 
         ## # Record measurements #
