@@ -1,19 +1,15 @@
 #!/usr/bin/env python
-import os
-from datetime import datetime
-import tempfile
 import pkg_resources
 
-from path_helpers import path
 import numpy as np
 import pandas as pd
 import gtk
-from dmf_control_board import DMFControlBoard, Version
-from pygtkhelpers.delegates import WindowView, SlaveView
+from pygtkhelpers.delegates import WindowView
 from pygtkhelpers.ui.form_view_dialog import create_form_view
-from flatland.schema import String, Form, Integer, Boolean, Float
-from flatland.validation import ValueAtLeast
+from flatland.schema import Form, Integer
+from flatland.validation import ValueAtLeast, ValueAtMost
 from IPython.display import display
+from dmf_control_board import DMFControlBoard
 from dmf_control_board.calibrate.impedance import (run_experiment,
                                                    fit_fb_calibration,
                                                    apply_calibration,
@@ -108,24 +104,33 @@ class AssistantView(WindowView):
         self.widget.set_page_complete(box, True)
 
         # # Select frequencies #
-        #minimum = self.control_board.min_waveform_frequency
-        #maximum = self.control_board.max_waveform_frequency
-        minimum = 100
-        maximum = 20e3
         form = Form.of(
             Integer.named('start_frequency').using(
-                default=minimum, optional=True,
-                validators=[ValueAtLeast(minimum=minimum), ]),
+                default=self.control_board.min_waveform_frequency,
+                optional=True, validators=
+                [ValueAtLeast(minimum=
+                              self.control_board.min_waveform_frequency),
+                 ValueAtMost(maximum=
+                             self.control_board.max_waveform_frequency)]),
             Integer.named('end_frequency').using(
-                default=maximum, optional=True,
-                validators=[ValueAtLeast(minimum=minimum), ]),
+                default=self.control_board.max_waveform_frequency,
+                optional=True, validators=
+                [ValueAtLeast(minimum=
+                              self.control_board.min_waveform_frequency),
+                 ValueAtMost(maximum=
+                             self.control_board.max_waveform_frequency)]),
             Integer.named('number_of_steps').using(
                 default=10, optional=True,
                 validators=[ValueAtLeast(minimum=2), ]),
-        )
+            Integer.named('RMS_voltage').using(
+                default=min(100, self.control_board.max_waveform_voltage),
+                optional=True,
+                validators=
+                [ValueAtLeast(minimum=10),
+                 ValueAtMost(maximum=
+                             self.control_board.max_waveform_voltage)]))
         box = gtk.HBox()
         self.form_view = create_form_view(form)
-        self.form_view.form.proxies.connect('changed', display)
         box.pack_start(self.form_view.widget, fill=False, padding=40)
         self.widget.append_page(box)
         self.widget.set_page_type(box, gtk.ASSISTANT_PAGE_CONTENT)
@@ -187,7 +192,7 @@ class AssistantView(WindowView):
             settings = dict([(f, self.form_view.form.fields[f].proxy
                               .get_widget_value())
                              for f in ('start_frequency', 'number_of_steps',
-                                       'end_frequency')])
+                                       'end_frequency', 'RMS_voltage')])
             start_frequency = np.array(settings['start_frequency'])
             end_frequency = np.array(settings['end_frequency'])
             number_of_steps = np.array(settings['number_of_steps'])
@@ -196,7 +201,8 @@ class AssistantView(WindowView):
                                                number_of_steps))
             self.measurements_label.set_label('Reading measurements (this '
                                               'might take a few minutes)...')
-            gtk.idle_add(self.read_measurements, frequencies)
+            gtk.idle_add(self.read_measurements, settings['RMS_voltage'],
+                         frequencies)
         elif assistant.get_current_page() == 4:
             self.widget.resize(600, 700)
             display(self.fitted_params)
@@ -205,7 +211,7 @@ class AssistantView(WindowView):
                               self.calibration)
             plot_stat_summary(fitted_readings, fig=self.figure)
 
-    def read_measurements(self, frequencies):
+    def read_measurements(self, rms_voltage, frequencies):
         if self.impedance_readings is None:
             try:
                 # No impedance_readings were provided, so run impedance routine to
@@ -224,7 +230,7 @@ class AssistantView(WindowView):
                         gtk.main_iteration(False)
                     gtk.gdk.threads_leave()
                 self.impedance_readings = run_experiment(
-                    self.control_board, frequencies=frequencies,
+                    self.control_board, rms_voltage, frequencies=frequencies,
                     on_update=on_update)
             finally:
                 self.restore_settings()

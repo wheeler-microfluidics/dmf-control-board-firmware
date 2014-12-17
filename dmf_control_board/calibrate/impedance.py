@@ -8,6 +8,7 @@ import scipy.stats
 import scipy.optimize
 import pandas as pd
 
+from . import capacitive_load_func
 from .feedback import compute_from_transfer_function, get_transfer_function
 
 
@@ -61,14 +62,8 @@ def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
     return df
 
 
-def run_experiment(proxy, test_loads=None, frequencies=None,
-                   use_antialiasing_filter=None, rms=None, on_update=None):
-    if use_antialiasing_filter is None:
-        use_antialiasing_filter = True
-    # Update device anti-aliasing setting and reset the device to take effect.
-    proxy.use_antialiasing_filter = use_antialiasing_filter
-    proxy.connect()
-
+def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
+                   rms=None, on_update=None):
     if test_loads is None:
         test_loads = TEST_LOADS
 
@@ -76,25 +71,52 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
         frequencies = FREQUENCIES
 
     if rms is None:
+        # Return feedback voltage measurements as RMS voltages.
         rms = True
 
-    # Actuation voltage.
-    voltage = min(0.5 * proxy.max_waveform_voltage, 75.0)
+    # Limit the actuation voltage according to the maximum voltage rating as
+    # reported by the control board.
+    rms_voltage = min(proxy.max_waveform_voltage, rms_voltage)
+
+    # Calculate the maximum capacitance value that can be measured using the
+    # impedance feedback circuit without exceeding current limits at the
+    # maximum sweep frequency. The maximum current through the device load
+    # measurement circuit is 30mA peak-to-peak or *~10mA RMS*.  This current
+    # limit is based on the current rating of the [op-amp][1] in the feedback
+    # circuit.
+    # *N.B.,* The maximum RMS current rating of the [PhotoMOS][2] chips is
+    # 50mA@~200V-RMS and 140mA@~110V-RMS.
+    #
+    # [1]: http://ww1.microchip.com/downloads/en/DeviceDoc/21685d.pdf
+    # [2]: http://www3.panasonic.biz/ac/e_download/control/relay/photomos/catalog/semi_eng_ge2a_aqw21_e.pdf
+    max_capacitance_func = sp.lambdify('i, f, V',
+                                       sp.Abs(sp.solve(capacitive_load_func,
+                                                       'C')[0]), 'numpy')
+    max_capacitance = max_capacitance_func(0.010, frequencies.max(),
+                                           rms_voltage)
+
+    # Only test using capacitance loads that are within the maximum for the
+    test_loads = test_loads[test_loads < max_capacitance]
+
     # Number of repeated/independent measurements for each condition.
     n_repeats = 1
     # Number of sampling windows per measurement.
     n_sampling_windows = 10
 
+    print 'Using V=%s' % rms_voltage
+
     # Prepare the test output `pandas.DataFrame`.
     test_frame = get_test_frame(frequencies, test_loads, n_repeats,
-                                n_sampling_windows, actuation_voltage=voltage)
+                                n_sampling_windows,
+                                actuation_voltage=rms_voltage)
 
-    proxy.set_waveform_frequency(10e3)
+    proxy.set_waveform_frequency(0.5 * proxy.max_waveform_frequency)
     proxy.auto_adjust_amplifier_gain = True
-    proxy.set_waveform_voltage(0.5 * voltage)
+    proxy.set_waveform_voltage(0.25 * proxy.max_waveform_voltage)
     state = np.zeros(proxy.number_of_channels())
     readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
-    proxy.set_waveform_voltage(voltage)
+
+    proxy.set_waveform_voltage(rms_voltage)
     readings = proxy.measure_impedance(5.0, 60, 0, True, True, state)
 
     previous_frequency = None
@@ -108,7 +130,8 @@ def run_experiment(proxy, test_loads=None, frequencies=None,
             proxy.set_waveform_frequency(frequency)
         print "%.2fkHz, C=%.2fpF, rep=%d" % (frequency / 1e3, 1e12 * C1,
                                              repeat_index)
-        proxy.set_waveform_voltage(voltage)
+        print 'amplifier_gain: %s (auto=%s)' % (proxy.amplifier_gain,
+                                                proxy.auto_adjust_amplifier_gain)
         state = np.zeros(proxy.number_of_channels())
         state[channel] = 1
         readings = proxy.measure_impedance(10.0, n_sampling_windows, 0, True,
