@@ -488,6 +488,7 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
        channel_index++) {
     set_series_resistor_index(channel_index,
                               original_resistor_index[channel_index]);
+
   }
 
   // Return the number of samples that we measured _(i.e, the number of values

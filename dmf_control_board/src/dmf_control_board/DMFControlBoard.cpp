@@ -469,7 +469,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
           // make sure that the number of sampling windows doesn't exceed the
           // limits of the output buffer and that the sampling window length
           // will not overflow the sum^2 variables
-          if ((n_sampling_windows <= (MAX_PAYLOAD_LENGTH - sizeof(float)) /
+          if ((n_sampling_windows <= (MAX_PAYLOAD_LENGTH - 4 * sizeof(float)) /
                 (FeedbackController::NUMBER_OF_ADC_CHANNELS * \
                  (sizeof(int8_t) + sizeof(int16_t)))) && \
                  (sampling_window_ms / 1000 * \
@@ -493,6 +493,18 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
             float dt_ms = (float)(micros() - start_time) / \
                 (1000.0 * n_sampling_windows);
             serialize(&dt_ms, sizeof(dt_ms));
+
+            // return the vgnd values
+            for (uint8_t index = 0;
+                 index < FeedbackController::NUMBER_OF_ADC_CHANNELS;
+                 index++) {
+              serialize(&
+                feedback_controller_.channels()[index].vgnd_exp_filtered,
+                sizeof(float));
+            }
+            // return the amplifier gain
+            float gain = amplifier_gain();
+            serialize(&gain, sizeof(float));
           } else {
             return_code_ = RETURN_GENERAL_ERROR;
           }
@@ -1275,18 +1287,20 @@ void DMFControlBoard::measure_impedance_non_blocking(
 std::vector<float> DMFControlBoard::get_impedance_data() {
   const char* function_name = "get_impedance_data()";
   if (validate_reply(CMD_MEASURE_IMPEDANCE) == RETURN_OK) {
-    uint16_t n_samples = (payload_length() - sizeof(float)) / \
+    uint16_t n_samples = (payload_length() - 4 * sizeof(float)) / \
         (2 * sizeof(int16_t) + 2 * sizeof(int8_t));
     log_message(str(format("Read %d impedance samples") % n_samples).c_str(),
                 function_name);
-    std::vector <float> impedance_buffer(4 * n_samples + 1);
+    std::vector <float> impedance_buffer(4 * n_samples + 4);
     for (uint16_t i = 0; i < n_samples; i++) {
       impedance_buffer[4 * i] = read_uint16();     // V_hv
       impedance_buffer[4 * i + 1] = read_int8();  // hv_resistor
       impedance_buffer[4 * i + 2] = read_uint16(); // V_fb
       impedance_buffer[4 * i + 3] = read_int8();  // fb_resistor
     }
-    impedance_buffer[4*n_samples] = read_float();
+    for (uint16_t i = 0; i < 4; i++) {
+      impedance_buffer[4*n_samples + i] = read_float();
+    }
     log_message(str(format("payload_length()=%d") % payload_length()).c_str(),
                 function_name);
     log_message(str(format("bytes_read() - payload_length()=%d")

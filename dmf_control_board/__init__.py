@@ -138,10 +138,11 @@ class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
     """
-    class_version = str(Version(0, 4))
+    class_version = str(Version(0, 6))
 
     def __init__(self, voltage, frequency, dt_ms, V_hv, hv_resistor, V_fb,
-                 fb_resistor, calibration, area=0):
+                 fb_resistor, calibration, area=0, amplifier_gain=None,
+                 vgnd_hv=None, vgnd_fb=None):
         self.voltage = voltage
         self.frequency = frequency
         self.V_hv = V_hv
@@ -152,6 +153,9 @@ class FeedbackResults():
         self.calibration = calibration
         self.version = self.class_version
         self.area = area
+        self.amplifier_gain = amplifier_gain
+        self.vgnd_hv = vgnd_hv
+        self.vgnd_fb = vgnd_fb
         self._sanitize_data()
 
     def _sanitize_data(self):
@@ -196,6 +200,11 @@ class FeedbackResults():
             if version < Version(0, 5):
                 self.area = 0
                 self.version = str(Version(0, 5))
+            if version < Version(0, 6):
+                self.amplifier_gain = None
+                self.vgnd_hv = None
+                self.vgnd_fb = None
+                self.version = str(Version(0, 6))
                 logging.info('[FeedbackResults] upgrade to version %s' %
                              self.version)
         else:
@@ -417,7 +426,7 @@ class FeedbackResults():
         
         # if the original x value is within tol % of the final x value, include
         # all samples
-        if x[ind_start] > (1 - tol) * x[ind_last]:
+        if x[ind_start] > (1 - tol) * x[ind_last] or x[ind_last] < 0:
             ind_stop = ind_last
         else: # otherwise, stop when x reaches (1 - tol) % of it's final value
             ind_stop = mlab.find(x > (1 - tol) * x[ind_last])[0]
@@ -880,7 +889,7 @@ class DMFControlBoard(Base, SerialDevice):
     @serial_number.setter
     def serial_number(self, value):
         self.persistent_write_multibyte('L',
-                                        PERSISTENT_SERIAL_NUMBER_ADDRESS,
+                                        self.PERSISTENT_SERIAL_NUMBER_ADDRESS,
                                         value)
         self.__serial_number = value
 
@@ -894,7 +903,7 @@ class DMFControlBoard(Base, SerialDevice):
     @voltage_tolerance.setter
     def voltage_tolerance(self, value):
         self.persistent_write_multibyte('f',
-                                        PERSISTENT_VOLTAGE_TOLERANCE,
+                                        self.PERSISTENT_VOLTAGE_TOLERANCE,
                                         value)
         self.__voltage_tolerance = value
 
@@ -1037,8 +1046,11 @@ class DMFControlBoard(Base, SerialDevice):
                                             state_)
 
     def impedance_buffer_to_feedback_result(self, buffer):
-        dt_ms = buffer[-1]
-        buffer = buffer[:-1]
+        amplifier_gain = buffer[-1]
+        vgnd_hv = buffer[-2]
+        vgnd_fb = buffer[-3]
+        dt_ms = buffer[-4]
+        buffer = buffer[:-4]
         V_hv = buffer[0::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
         hv_resistor = buffer[1::4].astype(int)
         V_fb = buffer[2::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
@@ -1046,7 +1058,9 @@ class DMFControlBoard(Base, SerialDevice):
         voltage = self.waveform_voltage()
         frequency = self.waveform_frequency()
         return FeedbackResults(voltage, frequency, dt_ms, V_hv, hv_resistor,
-                               V_fb, fb_resistor, self.calibration)
+                               V_fb, fb_resistor, self.calibration,
+                               amplifier_gain=amplifier_gain,
+                               vgnd_hv=vgnd_hv, vgnd_fb=vgnd_fb)
 
     def get_impedance_data(self):
         buffer = np.array(Base.get_impedance_data(self))

@@ -74,6 +74,7 @@ public:
   static void interleaved_callback(uint8_t channel_index, uint16_t value);
   static void hv_channel_callback(uint8_t channel_index, uint16_t value);
   static void fb_channel_callback(uint8_t channel_index, uint16_t value);
+  static ADCChannel* channels() { return channels_; }
 private:
   static void find_sampling_rate(float sampling_window_ms,
                                  float frequency,
