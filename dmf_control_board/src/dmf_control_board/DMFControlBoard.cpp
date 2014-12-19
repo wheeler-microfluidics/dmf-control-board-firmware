@@ -648,7 +648,7 @@ void DMFControlBoard::begin() {
   #endif
 
   // default amplifier gain
-  amplifier_gain_ = 100;
+  amplifier_gain_ = 300;
 
   load_config();
   Serial.print("Configuration version=");
