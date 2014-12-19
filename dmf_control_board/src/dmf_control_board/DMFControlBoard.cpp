@@ -236,60 +236,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       break;
     case CMD_SET_WAVEFORM_FREQUENCY:
       if (payload_length() == sizeof(float)) {
-        float target_frequency = read_float();
-
-        // check that the waveform frequency is within the valid range
-        if (target_frequency >= \
-          config_settings_.waveform_frequency_range[0] && \
-          target_frequency <= config_settings_.waveform_frequency_range[1]) {
-#if ___HARDWARE_MAJOR_VERSION___ == 1
-          // the frequency of the LTC6904 oscillator needs to be set to 50x
-          // the fundamental frequency
-          float freq = target_frequency * 50;
-          // valid frequencies are 1kHz to 68MHz
-          if (freq < 1e3 || freq > 68e6) {
-            return_code_ = RETURN_BAD_VALUE;
-          } else {
-            uint8_t oct = 3.322 * log(freq / 1039) / log(10);
-            uint16_t dac = round(2048 - (2078 * pow(2, 10 + oct)) / freq);
-            uint8_t cnf = 2; // CLK on, /CLK off
-            // msb = OCT3 OCT2 OCT1 OCT0 DAC9 DAC8 DAC7 DAC6
-            uint8_t msb = (oct << 4) | (dac >> 6);
-            // lsb =  DAC5 DAC4 DAC3 DAC2 DAC1 DAC0 CNF1 CNF0
-            uint8_t lsb = (dac << 2) | cnf;
-            Wire.beginTransmission(LTC6904_);
-            Wire.write(msb);
-            Wire.write(lsb);
-            Wire.endTransmission();     // stop transmitting
-            return_code_ = RETURN_OK;
-          }
-#else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
-          uint8_t data[5];
-          data[0] = cmd;
-          memcpy(&data[1], &target_frequency, sizeof(float));
-          i2c_write(config_settings_.signal_generator_board_i2c_address,
-                    data, 5);
-          delay(I2C_DELAY);
-          Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
-                           (uint8_t)1);
-          if (Wire.available()) {
-            uint8_t n_bytes_to_read = Wire.read();
-            if (n_bytes_to_read == 1) {
-              uint8_t n_bytes_read = 0;
-              n_bytes_read += i2c_read(
-                config_settings_.signal_generator_board_i2c_address,
-                (uint8_t * )&return_code_,
-                sizeof(return_code_));
-            }
-          }
-#endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
-        } else {
-          return_code_ = RETURN_BAD_VALUE;
-        }
-        if (return_code_ == RETURN_OK) {
-          // if we get here, the frequency was successfully updated
-          waveform_frequency_ = target_frequency;
-        }
+        return_code_ = set_waveform_frequency(read_float());
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -773,6 +720,9 @@ void DMFControlBoard::begin() {
   } else {
     feedback_controller_.begin(this, 0, 1);
   }
+
+  // set the default frequency to 10kHz
+  set_waveform_frequency(10e3);
 }
 
 const char* DMFControlBoard::hardware_version() {
@@ -1033,6 +983,63 @@ uint8_t DMFControlBoard::set_waveform_voltage(const float output_vrms,
     waveform_voltage_ = output_vrms;
   }
 #endif  // #if ___HARDWARE_MAJOR_VERSION___==1 / #else
+  return return_code;
+}
+
+uint8_t DMFControlBoard::set_waveform_frequency(const float frequency) {
+  uint8_t return_code;
+  // check that the waveform frequency is within the valid range
+  if (frequency >= \
+    config_settings_.waveform_frequency_range[0] && \
+    frequency <= config_settings_.waveform_frequency_range[1]) {
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    // the frequency of the LTC6904 oscillator needs to be set to 50x
+    // the fundamental frequency
+    float freq = frequency * 50;
+    // valid frequencies are 1kHz to 68MHz
+    if (freq < 1e3 || freq > 68e6) {
+      return_code = RETURN_BAD_VALUE;
+    } else {
+      uint8_t oct = 3.322 * log(freq / 1039) / log(10);
+      uint16_t dac = round(2048 - (2078 * pow(2, 10 + oct)) / freq);
+      uint8_t cnf = 2; // CLK on, /CLK off
+      // msb = OCT3 OCT2 OCT1 OCT0 DAC9 DAC8 DAC7 DAC6
+      uint8_t msb = (oct << 4) | (dac >> 6);
+      // lsb =  DAC5 DAC4 DAC3 DAC2 DAC1 DAC0 CNF1 CNF0
+      uint8_t lsb = (dac << 2) | cnf;
+      Wire.beginTransmission(LTC6904_);
+      Wire.write(msb);
+      Wire.write(lsb);
+      Wire.endTransmission();     // stop transmitting
+      return_code = RETURN_OK;
+    }
+  #else  // #if ___HARDWARE_MAJOR_VERSION___ == 1
+    uint8_t data[5];
+    data[0] = CMD_SET_WAVEFORM_FREQUENCY;
+    memcpy(&data[1], &frequency, sizeof(float));
+    i2c_write(config_settings_.signal_generator_board_i2c_address,
+              data, 5);
+    delay(I2C_DELAY);
+    Wire.requestFrom(config_settings_.signal_generator_board_i2c_address,
+                     (uint8_t)1);
+    if (Wire.available()) {
+      uint8_t n_bytes_to_read = Wire.read();
+      if (n_bytes_to_read == 1) {
+        uint8_t n_bytes_read = 0;
+        n_bytes_read += i2c_read(
+          config_settings_.signal_generator_board_i2c_address,
+          (uint8_t * )&return_code,
+          sizeof(return_code));
+      }
+    }
+  #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
+  } else {
+    return_code = RETURN_BAD_VALUE;
+  }
+  if (return_code == RETURN_OK) {
+    // if we get here, the frequency was successfully updated
+    waveform_frequency_ = frequency;
+  }
   return return_code;
 }
 

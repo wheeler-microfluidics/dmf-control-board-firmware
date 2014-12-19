@@ -371,6 +371,7 @@ public:
   void begin();
   uint8_t set_waveform_voltage(const float output_vrms,
                                const bool wait_for_reply=true);
+  uint8_t set_waveform_frequency(const float frequency);
   void set_amplifier_gain(float gain);
 
   // local accessors
