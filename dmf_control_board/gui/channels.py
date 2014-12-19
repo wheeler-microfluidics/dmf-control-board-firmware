@@ -275,7 +275,6 @@ class AssistantView(WindowView):
 
     def apply_button_clicked(self, assistant):
         print("The 'Apply' button has been clicked")
-        gtk.main_quit()
 
     def close_button_clicked(self, assistant):
         print("The 'Close' button has been clicked")
