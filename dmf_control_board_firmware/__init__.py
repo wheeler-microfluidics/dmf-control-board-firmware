@@ -846,7 +846,12 @@ class DMFControlBoard(Base, SerialDevice):
                                                 .hardware_version()))
         self.set_series_resistor_index(0, 0)
         self.set_series_resistor_index(1, 0)
-        self.__aref__ = self._aref()
+        try:
+            self.__aref__ = self._aref()
+        except: # need to catch exceptions here because this call will generate
+                # an error on old firmware which will prevent us from getting
+                # the opportunity to apply a firmware update.
+            pass
         return self.RETURN_OK
 
     def persistent_read_multibyte(self, address, count=None,
