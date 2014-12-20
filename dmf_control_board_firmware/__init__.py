@@ -1136,11 +1136,17 @@ class DMFControlBoard(Base, SerialDevice):
             logger.info("hex_path=%s" % hex_path)
 
             logger.info("initializing avrdude")
-            protocol = 'wiring'
-            baud_rate = 115200
-            microcontroller = 'mega2560'
-            avrdude = AvrDude(protocol, microcontroller, baud_rate,
-                              port=self.port)
+
+            # revert to the previous API for avr_helpers until this bug is
+            # fixed: 
+            #   https://github.com/wheeler-microfluidics/avr_helpers/issues/1
+            avrdude = AvrDude(self.port)
+            
+            #protocol = 'wiring'
+            #baud_rate = 115200
+            #microcontroller = 'mega2560'
+            #avrdude = AvrDude(protocol, microcontroller, baud_rate,
+            #                  port=self.port)
 
             logger.info("flashing firmware: hardware version %s"
                         % (hardware_version))
