@@ -9,12 +9,10 @@ from pygtkhelpers.ui.form_view_dialog import create_form_view
 from flatland.schema import Form, Integer
 from flatland.validation import ValueAtLeast, ValueAtMost
 from IPython.display import display
-from dmf_control_board import DMFControlBoard
-from dmf_control_board.calibrate.impedance import (run_experiment,
-                                                   fit_fb_calibration,
-                                                   apply_calibration,
-                                                   update_fb_calibration)
-from dmf_control_board.calibrate.impedance_benchmarks import (
+from dmf_control_board_firmware import DMFControlBoard
+from dmf_control_board_firmware.calibrate.impedance import (
+  run_experiment, fit_fb_calibration, apply_calibration, update_fb_calibration)
+from dmf_control_board_firmware.calibrate.impedance_benchmarks import (
     plot_stat_summary)
 from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
                                                 FigureCanvasGTK)
@@ -79,7 +77,7 @@ class AssistantView(WindowView):
         label.set_line_wrap(True)
         image = gtk.Image()
         img_path = pkg_resources.resource_filename(
-            'dmf_control_board', 'gui/impedance_feedback_intro.png')
+            'dmf_control_board_firmware', 'gui/impedance_feedback_intro.png')
         image.set_from_file(str(img_path))
         box.pack_start(label, True, False, padding=15)
         box.pack_start(image, True, True, padding=5)
@@ -95,7 +93,7 @@ class AssistantView(WindowView):
                           ' - Connect DropBot "<tt>0-39</tt>" to test board.')
         image = gtk.Image()
         img_path = pkg_resources.resource_filename(
-            'dmf_control_board', 'gui/impedance_feedback_setup.png')
+            'dmf_control_board_firmware', 'gui/impedance_feedback_setup.png')
         image.set_from_file(str(img_path))
         label.set_line_wrap(True)
         label.set_use_markup(True)

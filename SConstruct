@@ -89,7 +89,7 @@ if os.name == 'nt':
     libs = [get_lib('libboost_python-*-mt-*.dll'),
             get_lib('mingwm10.dll')]
     for lib in libs:
-        lib_destination = path('dmf_control_board').joinpath(lib.name)
+        lib_destination = path('dmf_control_board_firmware').joinpath(lib.name)
         if not lib_destination.exists():
             path(lib).copy(lib_destination)
 else:
@@ -102,13 +102,13 @@ else:
 
 # # Build host binaries #
 Export('env')
-SConscript('dmf_control_board/src/dmf_control_board/SConscript.host',
+SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.host',
             variant_dir='build/host', duplicate=0)
 
 # # Build Arduino binaries #
 sketch_build_root = path('build/arduino').abspath()
 Export('sketch_build_root')
-SConscript('dmf_control_board/src/dmf_control_board/SConscript.arduino')
+SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.arduino')
 
 Import('arduino_hex')
 Import('arduino_hexes')
@@ -119,14 +119,14 @@ Import('build_context')
 package_hexes = []
 
 for k, v in arduino_hexes.iteritems():
-    firmware_path = path('dmf_control_board').joinpath('firmware',
+    firmware_path = path('dmf_control_board_firmware').joinpath('firmware',
                                                        build_context
                                                        .ARDUINO_BOARD, k)
     package_hexes.append(env.Install(firmware_path, v)[0])
-package_pyext = Install('dmf_control_board', pyext)
+package_pyext = Install('dmf_control_board_firmware', pyext)
 
 # # Build documentation #
 if 'docs' in COMMAND_LINE_TARGETS:
-    SConscript('dmf_control_board/src/dmf_control_board/SConscript.docs')
+    SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.docs')
     Import('doc')
     Alias('docs', doc)

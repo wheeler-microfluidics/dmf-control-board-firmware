@@ -8,18 +8,20 @@ from path_helpers import path
 import numpy as np
 import pandas as pd
 import gtk
-from dmf_control_board import DMFControlBoard, Version
+from dmf_control_board_firmware import DMFControlBoard, Version
 import matplotlib
 from pygtkhelpers.delegates import WindowView, SlaveView
 from pygtkhelpers.ui.form_view_dialog import create_form_view
 from flatland.schema import String, Form, Integer, Boolean, Float
 from flatland.validation import ValueAtLeast
 from IPython.display import display
-from dmf_control_board.calibrate.hv_attenuator import (
+from dmf_control_board_firmware.calibrate.hv_attenuator import (
     resistor_max_actuation_readings, fit_feedback_params,
     update_control_board_calibration, plot_feedback_params)
-from dmf_control_board.calibrate.oscope import (VISA_AVAILABLE, AgilentOscope,
-                                                read_oscope as read_oscope_)
+from dmf_control_board_firmware.calibrate.oscope import (VISA_AVAILABLE,
+                                                         AgilentOscope,
+                                                         read_oscope as
+                                                         read_oscope_)
 from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
                                                 FigureCanvasGTK)
 from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
@@ -70,7 +72,7 @@ class AssistantView(WindowView):
         label.set_line_wrap(True)
         image = gtk.Image()
         img_path = pkg_resources.resource_filename(
-            'dmf_control_board', 'gui/reference_feedback_intro.png')
+            'dmf_control_board_firmware', 'gui/reference_feedback_intro.png')
         image.set_from_file(str(img_path))
         box.pack_start(label, True, False, padding=15)
         box.pack_start(image, True, True, padding=5)
@@ -87,7 +89,7 @@ class AssistantView(WindowView):
                           '   2) Oscilloscope input.')
         image = gtk.Image()
         img_path = pkg_resources.resource_filename(
-            'dmf_control_board', 'gui/reference_feedback_setup.png')
+            'dmf_control_board_firmware', 'gui/reference_feedback_setup.png')
         image.set_from_file(str(img_path))
         label.set_line_wrap(True)
         label.set_use_markup(True)

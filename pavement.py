@@ -5,21 +5,21 @@ from paver.setuputils import setup, find_package_data
 
 import version
 
-dmf_control_board_files = find_package_data(package='dmf_control_board',
-                                            where='dmf_control_board',
+dmf_control_board_files = find_package_data(package='dmf_control_board_firmware',
+                                            where='dmf_control_board_firmware',
                                             only_in_packages=False)
 pprint(dmf_control_board_files)
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
-setup(name='wheeler.dmf-control-board',
+setup(name='wheeler.dmf-control-board-firmware',
       version=version.getVersion(),
       description='Arduino-based dmf_control_board firmware and Python API.',
       author='Ryan Fobel',
       author_email='ryan@fobel.net',
       url='http://microfluidics.utoronto.ca/git/dmf-control-board.git',
       license='GPLv2',
-      packages=['dmf_control_board'],
+      packages=['dmf_control_board_firmware'],
       package_data=dmf_control_board_files,
       install_requires=['avr_helpers', 'arduino_helpers', 'decorator',
                         'functools32'])
@@ -27,7 +27,7 @@ setup(name='wheeler.dmf-control-board',
 
 @task
 def create_config():
-    sketch_directory = path('dmf_control_board').joinpath('src',
+    sketch_directory = path('dmf_control_board_firmware').joinpath('src',
                                                           'dmf_control_board')
     sketch_directory.joinpath('Config.h.skeleton').copy(sketch_directory
                                                         .joinpath('Config.h'))

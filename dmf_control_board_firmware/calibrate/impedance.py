@@ -297,7 +297,7 @@ def apply_calibration(df, calibration_df, calibration):
     Apply calibration values from `fit_fb_calibration` result to `calibration`
     object.
     '''
-    from dmf_control_board import FeedbackResults
+    from dmf_control_board_firmware import FeedbackResults
 
     for i, (R_fb, C_fb) in calibration_df[['R_fb', 'C_fb']].iterrows():
         calibration.R_fb[i] = R_fb
