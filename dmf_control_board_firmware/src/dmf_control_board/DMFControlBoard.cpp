@@ -988,10 +988,12 @@ uint8_t DMFControlBoard::set_waveform_voltage(const float output_vrms,
 
 uint8_t DMFControlBoard::set_waveform_frequency(const float frequency) {
   uint8_t return_code;
-  // check that the waveform frequency is within the valid range
+  // Check that the waveform frequency is within the valid range (allow a 1%
+  // tolerance to ensure that we don't accidentally throw exceptions due to
+  // floating point error).
   if (frequency >= \
-    config_settings_.waveform_frequency_range[0] && \
-    frequency <= config_settings_.waveform_frequency_range[1]) {
+    config_settings_.waveform_frequency_range[0] * 0.99 && \
+    frequency <= config_settings_.waveform_frequency_range[1] * 1.01) {
   #if ___HARDWARE_MAJOR_VERSION___ == 1
     // the frequency of the LTC6904 oscillator needs to be set to 50x
     // the fundamental frequency
