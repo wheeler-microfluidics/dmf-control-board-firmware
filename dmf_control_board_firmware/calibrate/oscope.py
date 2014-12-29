@@ -10,6 +10,8 @@ try:
 		     if a.startswith('USB')]
     except visa.VisaIOError:
         VISA_AVAILABLE = False
+    except OSError:
+        VISA_AVIALABLE = False
     else:
         VISA_AVAILABLE = len(addresses) > 0
 except ImportError:
