@@ -11,7 +11,7 @@ try:
     except visa.VisaIOError:
         VISA_AVAILABLE = False
     except OSError:
-        VISA_AVIALABLE = False
+        VISA_AVAILABLE = False
     else:
         VISA_AVAILABLE = len(addresses) > 0
 except ImportError:
