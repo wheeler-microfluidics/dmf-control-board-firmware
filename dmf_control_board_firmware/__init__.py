@@ -38,7 +38,7 @@ from dmf_control_board_base import uint8_tVector
 # Import firmware constants
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
-from avr_helpers import AvrDude
+from arduino_helpers.context import auto_context, Board, Uploader
 from calibrate.feedback import compute_from_transfer_function
 
 
@@ -1135,27 +1135,15 @@ class DMFControlBoard(Base, SerialDevice):
                                                'dmf_control_board.hex')
             logger.info("hex_path=%s" % hex_path)
 
-            logger.info("initializing avrdude")
-
-            # revert to the previous API for avr_helpers until this bug is
-            # fixed: 
-            #   https://github.com/wheeler-microfluidics/avr_helpers/issues/1
-            avrdude = AvrDude(self.port)
-            
-            #protocol = 'wiring'
-            #baud_rate = 115200
-            #microcontroller = 'mega2560'
-            #avrdude = AvrDude(protocol, microcontroller, baud_rate,
-            #                  port=self.port)
+            context = auto_context()
+            board = Board(context, 'mega2560')
+            uploader = Uploader(board)
 
             logger.info("flashing firmware: hardware version %s"
                         % (hardware_version))
-            stdout, stderr = avrdude.flash(hex_path.abspath())
+            
+            logger.info(uploader.upload(hex_path.abspath(), self.port))
 
-            if stdout:
-                logger.info(str(stdout))
-            if stderr:
-                logger.info(str(stderr))
             if reconnect:
                 # need to sleep here, otherwise reconnect fails
                 time.sleep(.1)

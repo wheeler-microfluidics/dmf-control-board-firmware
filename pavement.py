@@ -23,8 +23,7 @@ setup(name='wheeler.dmf-control-board-firmware',
                 'dmf_control_board_firmware.calibrate',
                 'dmf_control_board_firmware.gui'],
       package_data=dmf_control_board_files,
-      install_requires=['avr_helpers', 'arduino_helpers', 'decorator',
-                        'functools32'])
+      install_requires=['arduino_helpers', 'decorator', 'functools32'])
 
 
 @task
