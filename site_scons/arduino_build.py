@@ -43,6 +43,7 @@ import os
 import platform
 from itertools import imap
 from subprocess import check_call, CalledProcessError
+import warnings
 import json
 
 from path_helpers import path
@@ -533,7 +534,7 @@ class ArduinoBuildContext(object):
                                  'port to use. Available ports: %s' %
                                  available_ports)
             elif not available_ports:
-                raise SystemExit('There are no available serial ports.')
+                warnings.warn('There are no available serial ports.')
             else:
                 self.ARDUINO_PORT = available_ports[0]
         if hex_root is None:
