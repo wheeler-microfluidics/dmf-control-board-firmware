@@ -1123,10 +1123,12 @@ class DMFControlBoard(Base, SerialDevice):
             logger.info('On port %s, %s' % (port, why))
         return False
 
-    def flash_firmware(self, hardware_version):
+    def flash_firmware(self, hardware_version=None):
         logger.info("[DMFControlBoard].flash_firmware()")
         reconnect = self.connected()
         if reconnect:
+            if not hardware_version:
+                hardware_version = Version.fromstring(self.hardware_version())
             self.disconnect()
         try:
             hex_path = package_path().joinpath('firmware', 'mega2560', '%s_%s'
