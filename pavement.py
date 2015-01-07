@@ -1,14 +1,9 @@
 from pprint import pprint
 
 from paver.easy import task, needs, path, sh, cmdopts, options
-from paver.setuputils import setup, find_package_data
+from paver.setuputils import setup
 
 import version
-
-dmf_control_board_files = find_package_data(package='dmf_control_board_firmware',
-                                            where='dmf_control_board_firmware',
-                                            only_in_packages=False)
-pprint(dmf_control_board_files)
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
@@ -19,10 +14,8 @@ setup(name='wheeler.dmf-control-board-firmware',
       author_email='ryan@fobel.net',
       url='http://microfluidics.utoronto.ca/git/dmf-control-board.git',
       license='GPLv2',
-      packages=['dmf_control_board_firmware',
-                'dmf_control_board_firmware.calibrate',
-                'dmf_control_board_firmware.gui'],
-      package_data=dmf_control_board_files,
+      packages=['dmf_control_board_firmware'],
+      include_package_data=True,
       install_requires=['arduino_helpers', 'decorator', 'functools32'])
 
 

@@ -5,3 +5,4 @@ include pavement.py
 include paver-minilib.zip
 include setup.py
 include SConstruct
+recursive-include dmf_control_board_firmware *
