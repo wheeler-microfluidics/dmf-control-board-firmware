@@ -325,6 +325,6 @@ def update_fb_calibration(proxy, calibration):
         proxy.set_series_resistor_index(1, i)
         proxy.set_series_resistance(1, calibration.R_fb[i])
         proxy.set_series_capacitance(1, calibration.C_fb[i])
-
-    # Reconnect to update settings.
-    proxy.connect(port, int(baud_rate))
+        
+        # refresh the proxy's cached calibration
+        proxy.calibration = calibration
