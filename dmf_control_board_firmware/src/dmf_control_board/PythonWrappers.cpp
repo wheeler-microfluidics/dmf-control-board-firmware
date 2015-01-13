@@ -143,7 +143,7 @@ object DMFControlBoard_class
     .def("send_interrupt",&DMFControlBoard::send_interrupt)
     .def("get_impedance_data",&DMFControlBoard::get_impedance_data)
     .def("waiting_for_reply",&DMFControlBoard::waiting_for_reply)
-    .def("reset_config_to_defaults",&DMFControlBoard::reset_config_to_defaults)
+    .def("_reset_config_to_defaults",&DMFControlBoard::reset_config_to_defaults)
     .def("load_config",&DMFControlBoard::load_config)
     .def("flush",&DMFControlBoard::flush)
     .def("host_name",&DMFControlBoard::host_name)

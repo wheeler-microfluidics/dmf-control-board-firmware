@@ -238,10 +238,6 @@ def update_control_board_calibration(control_board, fitted_params):
         control_board.set_series_resistance(0, abs(x['fitted R']))
         control_board.set_series_capacitance(0, abs(x['fitted C']))
 
-        # refresh the cached calibration data 
-        control_board.calibration.R_hv[resistor_index] = abs(x['fitted R'])
-        control_board.calibration.C_hv[resistor_index] = abs(x['fitted C'])
-
     # For each resistor index, update the control board with the new
     # fitted capacitor and resistor values.
     fitted_params[['fitted C', 'fitted R']].apply(

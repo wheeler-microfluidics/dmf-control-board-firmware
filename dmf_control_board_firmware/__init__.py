@@ -759,7 +759,15 @@ class DMFControlBoard(Base, SerialDevice):
         the original value.  See definition of
         `safe_series_resistor_index_read` decorator.
         '''
-        return self._series_capacitance(channel)
+        value = self._series_capacitance(channel)
+        try:
+            if channel == 0:
+                self.calibration.C_hv[resistor_index] = value
+            else:
+                self.calibration.C_fb[resistor_index] = value
+        except:
+            pass
+        return value
 
     @safe_series_resistor_index_read
     def series_resistance(self, channel, resistor_index=None):
@@ -773,7 +781,17 @@ class DMFControlBoard(Base, SerialDevice):
         original value.  See definition of `safe_series_resistor_index_read`
         decorator.
         '''
-        return self._series_resistance(channel)
+        if not resistor_index:
+            resistor_index = self.series_resistor_index(channel)
+        value = self._series_resistance(channel)
+        try:
+            if channel == 0:
+                self.calibration.R_hv[resistor_index] = value
+            else:
+                self.calibration.R_fb[resistor_index] = value
+        except:
+            pass
+        return value
 
     @safe_series_resistor_index_write
     def set_series_capacitance(self, channel, value, resistor_index=None):
@@ -787,6 +805,15 @@ class DMFControlBoard(Base, SerialDevice):
         the original value.  See definition of
         `safe_series_resistor_index_write` decorator.
         '''
+        if not resistor_index:
+            resistor_index = self.series_resistor_index(channel)
+        try:
+            if channel == 0:
+                self.calibration.C_hv[resistor_index] = value
+            else:
+                self.calibration.C_fb[resistor_index] = value
+        except:
+            pass
         return self._set_series_capacitance(channel, value)
 
     @safe_series_resistor_index_write
@@ -801,6 +828,15 @@ class DMFControlBoard(Base, SerialDevice):
         original value.  See definition of `safe_series_resistor_index_write`
         decorator.
         '''
+        if not resistor_index:
+            resistor_index = self.series_resistor_index(channel)
+        try:
+            if channel == 0:
+                self.calibration.R_hv[resistor_index] = value
+            else:
+                self.calibration.R_fb[resistor_index] = value
+        except:
+            pass
         return self._set_series_resistance(channel, value)
 
     @property
@@ -819,37 +855,8 @@ class DMFControlBoard(Base, SerialDevice):
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")
 
-        R_hv = []
-        C_hv = []
-        R_fb = []
-        C_fb = []
-        try:
-            i = 0
-            while True:
-                self.set_series_resistor_index(0, i)
-                R_hv.append(self.series_resistance(0))
-                C_hv.append(self.series_capacitance(0))
-                i += 1
-        except:
-            logger.info("HV series resistors =% s" % R_hv)
-            logger.info("HV series capacitance =% s" % C_hv)
-        try:
-            i = 0
-            while True:
-                self.set_series_resistor_index(1, i)
-                R_fb.append(self.series_resistance(1))
-                C_fb.append(self.series_capacitance(1))
-                i += 1
-        except:
-            logger.info("Feedback series resistors=%s" % R_fb)
-            logger.info("Feedback series capacitance=%s" % C_fb)
-        self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb,
-                                               hw_version=
-                                               Version.fromstring
-                                               (self
-                                                .hardware_version()))
-        self.set_series_resistor_index(0, 0)
-        self.set_series_resistor_index(1, 0)
+        self._read_calibration_data()
+        
         try:
             self.__aref__ = self._aref()
         except: # need to catch exceptions here because this call will generate
@@ -870,6 +877,21 @@ class DMFControlBoard(Base, SerialDevice):
         
         return self.RETURN_OK
 
+    def _read_calibration_data(self):
+        R_hv = self.a0_series_resistance
+        C_hv = self.a0_series_capacitance
+        R_fb = self.a1_series_resistance
+        C_fb = self.a1_series_capacitance
+        logger.info("HV series resistors=%s" % R_hv)
+        logger.info("HV series capacitance=%s" % C_hv)
+        logger.info("Feedback series resistors=%s" % R_fb)
+        logger.info("Feedback series capacitance=%s" % C_fb)
+        self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb,
+                                               hw_version=
+                                               Version.fromstring
+                                               (self
+                                                .hardware_version()))
+
     def persistent_write(self, address, byte, refresh_config=False):
         '''
         Write a single byte to an address in persistent memory.
@@ -879,7 +901,7 @@ class DMFControlBoard(Base, SerialDevice):
         '''        
         self._persistent_write(address, byte)
         if refresh_config:
-            self.load_config(use_defaults=False)
+            self.load_config(False)
 
     def persistent_read_multibyte(self, address, count=None,
                                   dtype=np.uint8):
@@ -911,7 +933,7 @@ class DMFControlBoard(Base, SerialDevice):
         for i, byte in enumerate(data.view(np.uint8)):
             self.persistent_write(address + i, int(byte))
         if refresh_config:
-            self.load_config(use_defaults=False)
+            self.load_config(False)
 
     @property
     def baud_rate(self):
@@ -1450,6 +1472,10 @@ class DMFControlBoard(Base, SerialDevice):
                 'switching_board_i2c_address', 'voltage_tolerance',
                 'min_waveform_frequency', 'max_waveform_frequency',
                 'max_waveform_voltage', 'use_antialiasing_filter']
+
+    def reset_config_to_defaults(self):
+        self._reset_config_to_defaults()
+        self._read_calibration_data()
 
     def read_config(self):
         except_types = (PersistentSettingDoesNotExist, )
