@@ -79,6 +79,8 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
   const char* function_name = "process_command()";
   log_message(str(format("command=0x%0X (%d)") % cmd % cmd).c_str(),
               function_name);
+#else
+  watchdog_reset();
 #endif
   switch(cmd) {
 #if defined(AVR) || defined(__SAM3X8E__) // Commands that only the Arduino handles
@@ -490,9 +492,9 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       if (payload_length() == sizeof(uint8_t)) {
         uint8_t value = read_uint8();
         if (value > 0) {
-          watchdog_enabled(true);
+          set_watchdog_enabled(true);
         } else {
-          watchdog_enabled(false);
+          set_watchdog_enabled(false);
         }
         return_code_ = RETURN_OK;
       } else {
@@ -512,9 +514,9 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
       if (payload_length() == sizeof(uint8_t)) {
         uint8_t value = read_uint8();
         if (value > 0) {
-          watchdog_state(true);
+          set_watchdog_state(true);
         } else {
-          watchdog_state(false);
+          set_watchdog_state(false);
         }
         return_code_ = RETURN_OK;
       } else {
@@ -1168,8 +1170,8 @@ bool DMFControlBoard::atx_power_state() {
 }
 
 uint8_t DMFControlBoard::set_watchdog_state(bool state) {
-    return send_set_command(CMD_SET_WATCHDOG_STATE, "set_watchdog_state()",
-                            (uint8_t)state);
+  return send_set_command(CMD_SET_WATCHDOG_STATE, "set_watchdog_state()",
+                          (uint8_t)state);
 }
 
 uint8_t DMFControlBoard::set_watchdog_enabled(bool on) {

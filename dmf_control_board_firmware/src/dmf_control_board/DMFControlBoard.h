@@ -395,10 +395,10 @@ public:
   bool atx_power_state() const { return !digitalRead(POWER_SUPPLY_ON_PIN_); }
 #endif  // ATX_POWER_SUPPLY
   bool watchdog_enabled() const { return watchdog_.enabled; }
-  void watchdog_enabled(bool state) { watchdog_.enabled = state; }
+  void set_watchdog_enabled(bool state) { watchdog_.enabled = state; }
   bool watchdog_state() const { return watchdog_.state; }
-  void watchdog_state(bool state) { watchdog_.state = state; }
-  void watchdog_reset() { watchdog_state(true); }
+  void set_watchdog_state(bool state) { watchdog_.state = state; }
+  void watchdog_reset() { set_watchdog_state(true); }
 
   /* Callback function when watchdog timer period is finished. */
   void watchdog_timeout() {
@@ -419,7 +419,7 @@ public:
       } else {
         /* Watchdog timer has timed out, but the state has been reset.  Prepare
          * for next timeout event. */
-        watchdog_state(false);
+        set_watchdog_state(false);
       }
     }
   }
