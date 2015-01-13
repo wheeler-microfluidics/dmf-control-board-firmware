@@ -133,6 +133,10 @@ class PersistentSettingDoesNotExist(Exception):
     pass
 
 
+class BadVGND(Exception):
+    pass
+
+
 class FeedbackResults():
     """
     This class stores the impedance results for a single step in the protocol.
@@ -852,6 +856,18 @@ class DMFControlBoard(Base, SerialDevice):
                 # an error on old firmware which will prevent us from getting
                 # the opportunity to apply a firmware update.
             pass
+        
+        # Check that VGND is close to its target value for both analog channels.
+        # Otherwise, the op-amp may be damaged.
+        expected = 2**10/2
+        for channel in [0, 1]:
+            # expected error is <= 5% 
+            if np.abs(np.mean(self.analog_reads(channel, 10)) - expected
+                      ) / expected > .05:
+                raise BadVGND("Analog channel %d appears to be damaged. You "
+                              "may need to replace the op-amp on the control "
+                              "board." % channel)
+        
         return self.RETURN_OK
 
     def persistent_read_multibyte(self, address, count=None,
