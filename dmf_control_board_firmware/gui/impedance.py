@@ -269,7 +269,7 @@ class AssistantView(WindowView):
         self.fitted_params = fit_fb_calibration(self.impedance_readings,
                                                 self.calibration)
 
-    def to_hdf(self, output_path, complib='blosc', complevel=6):
+    def to_hdf(self, output_path, complib='zlib', complevel=6):
         # Save measurements taken during calibration.
         self.impedance_readings.to_hdf(str(output_path),
                                        '/feedback/impedance/measurements',

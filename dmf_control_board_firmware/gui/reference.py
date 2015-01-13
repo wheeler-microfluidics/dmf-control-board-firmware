@@ -256,7 +256,7 @@ class AssistantView(WindowView):
                                                  .calibration,
                                                  self.hv_readings)
 
-    def to_hdf(self, output_path, complib='blosc', complevel=6):
+    def to_hdf(self, output_path, complib='zlib', complevel=6):
         # Save measurements taken during calibration, along with input RMS
         # voltage _(i.e., `V1`)_ values read using the oscilloscope.
         self.hv_readings.to_hdf(str(output_path),
