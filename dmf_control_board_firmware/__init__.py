@@ -1421,7 +1421,7 @@ class DMFControlBoard(Base, SerialDevice):
                 'auto_adjust_amplifier_gain', 'amplifier_gain',
                 'switching_board_i2c_address', 'voltage_tolerance',
                 'min_waveform_frequency', 'max_waveform_frequency',
-                'max_waveform_voltage']
+                'max_waveform_voltage', 'use_antialiasing_filter']
 
     def read_config(self):
         except_types = (PersistentSettingDoesNotExist, )
