@@ -218,7 +218,7 @@ class AssistantView(WindowView):
                     gtk.gdk.threads_enter()
                     self.measurements_label.set_label('Frequency=%.2fkHz, '
                                                     'C=%.2fpF' %
-                                                    (frequency, C1 * 1e12))
+                                                    (frequency/1e3, C1 * 1e12))
                     self.measure_progress.set_fraction(float(i) / group_count)
                     self.measure_progress.set_text('Measurement: %s/%s' %
                                                 (i + 1, group_count))
