@@ -462,10 +462,11 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         }
       }
       break;
-    case CMD_RESET_CONFIG_TO_DEFAULTS:
-      if (payload_length() == 0) {
+    case CMD_LOAD_CONFIG:
+      if (payload_length() == 1) {
         return_code_ = RETURN_OK;
-        load_config(true);
+        bool use_defaults = read_uint8() > 0;
+        load_config(use_defaults);
       } else {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
@@ -1047,14 +1048,6 @@ uint8_t DMFControlBoard::set_waveform_frequency(const float frequency) {
   return return_code;
 }
 
-void /* DEVICE */ DMFControlBoard::persistent_write(uint16_t address,
-                                                    uint8_t value) {
-    RemoteObject::persistent_write(address, value);
-    /* Reload config from persistent storage _(e.g., EEPROM)_ to refresh
-     * `ConfigSettings` struct with new value. */
-    load_config();
-}
-
 #else   // #ifdef AVR
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -1321,12 +1314,14 @@ std::vector<float> DMFControlBoard::get_impedance_data() {
   return std::vector<float>(); // return an empty vector
 }
 
-uint8_t DMFControlBoard::reset_config_to_defaults() {
-  const char* function_name = "reset_config_to_defaults()";
+uint8_t DMFControlBoard::load_config(bool use_defaults) {
+	const char* function_name = "load_config()";
   log_separator();
-  if (send_command(CMD_RESET_CONFIG_TO_DEFAULTS) == RETURN_OK) {
-    log_message("CMD_RESET_CONFIG_TO_DEFAULTS", function_name);
-    log_message("config reset successfully", function_name);
+  uint8_t data = use_defaults;
+  serialize(&data, sizeof(data));
+  if (send_command(CMD_LOAD_CONFIG) == RETURN_OK) {
+    log_message("CMD_LOAD_CONFIG", function_name);
+    log_message("config loaded successfully", function_name);
   }
   return return_code();
 }

@@ -870,6 +870,17 @@ class DMFControlBoard(Base, SerialDevice):
         
         return self.RETURN_OK
 
+    def persistent_write(self, address, byte, refresh_config=False):
+        '''
+        Write a single byte to an address in persistent memory.
+        
+        If refresh_config is True, load_config() is called afterward to
+        refresh the configuration settings.
+        '''        
+        self._persistent_write(address, byte)
+        if refresh_config:
+            self.load_config(use_defaults=False)
+
     def persistent_read_multibyte(self, address, count=None,
                                   dtype=np.uint8):
         nbytes = np.dtype(dtype).itemsize
@@ -890,9 +901,17 @@ class DMFControlBoard(Base, SerialDevice):
             return result[0]
         return result
 
-    def persistent_write_multibyte(self, address, data):
+    def persistent_write_multibyte(self, address, data, refresh_config=False):
+        '''
+        Write multiple bytes to an address in persistent memory.
+        
+        If refresh_config is True, load_config() is called afterward to
+        refresh the configuration settings.
+        '''        
         for i, byte in enumerate(data.view(np.uint8)):
             self.persistent_write(address + i, int(byte))
+        if refresh_config:
+            self.load_config(use_defaults=False)
 
     @property
     def baud_rate(self):
@@ -902,7 +921,8 @@ class DMFControlBoard(Base, SerialDevice):
     @baud_rate.setter
     def baud_rate(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_BAUD_RATE_ADDRESS,
-                                        np.array([value], dtype=np.uint32))
+                                        np.array([value], dtype=np.uint32),
+                                        True)
         self.__baud_rate = value
 
     @property
@@ -913,7 +933,8 @@ class DMFControlBoard(Base, SerialDevice):
     @serial_number.setter
     def serial_number(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_SERIAL_NUMBER_ADDRESS,
-                                        np.array([value], dtype=np.uint32))
+                                        np.array([value], dtype=np.uint32),
+                                        True)
         self.__serial_number = value
 
     @property
@@ -926,7 +947,8 @@ class DMFControlBoard(Base, SerialDevice):
     @voltage_tolerance.setter
     def voltage_tolerance(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_VOLTAGE_TOLERANCE,
-                                        np.array([value], dtype=np.float32))
+                                        np.array([value], dtype=np.float32),
+                                        True)
         self.__voltage_tolerance = value
 
     @property
@@ -936,7 +958,7 @@ class DMFControlBoard(Base, SerialDevice):
     @use_antialiasing_filter.setter
     def use_antialiasing_filter(self, value):
         return self.persistent_write(self.PERSISTENT_USE_ANTIALIASING_FILTER,
-                                     value)
+                                     value, True)
 
     @property
     def min_waveform_frequency(self):
@@ -948,7 +970,8 @@ class DMFControlBoard(Base, SerialDevice):
     @min_waveform_frequency.setter
     def min_waveform_frequency(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_MIN_WAVEFORM_FREQUENCY,
-                                        np.array([value], dtype=np.float32))
+                                        np.array([value], dtype=np.float32),
+                                        True)
         self.__min_waveform_frequency = value
 
     @property
@@ -961,7 +984,8 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_frequency.setter
     def max_waveform_frequency(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_MAX_WAVEFORM_FREQUENCY,
-                                        np.array([value], dtype=np.float32))
+                                        np.array([value], dtype=np.float32),
+                                        True)
         self.__max_waveform_frequency = value
 
     @property
@@ -974,7 +998,8 @@ class DMFControlBoard(Base, SerialDevice):
     @max_waveform_voltage.setter
     def max_waveform_voltage(self, value):
         self.persistent_write_multibyte(self.PERSISTENT_MAX_WAVEFORM_VOLTAGE,
-                                        np.array([value], dtype=np.float32))
+                                        np.array([value], dtype=np.float32),
+                                        True)
         self.__max_waveform_voltage = value
 
     @property
@@ -1012,7 +1037,7 @@ class DMFControlBoard(Base, SerialDevice):
                 if i * 8 + j <= 53:
                     mode += pin_modes[i * 8 + j] << j
             self.persistent_write(self.PERSISTENT_PIN_MODE_ADDRESS + i, ~mode &
-                                  0xFF)
+                                  0xFF, True)
 
     @property
     def default_pin_states(self):
@@ -1035,7 +1060,7 @@ class DMFControlBoard(Base, SerialDevice):
                 if i * 8 + j <= 53:
                     state += pin_states[i * 8 + j] << j
             self.persistent_write(self.PERSISTENT_PIN_STATE_ADDRESS + i, ~state
-                                  & 0xFF)
+                                  & 0xFF, True)
 
     def analog_reads(self, pins, n_samples):
         pins_ = uint8_tVector()
@@ -1297,7 +1322,8 @@ class DMFControlBoard(Base, SerialDevice):
 
     @aref.setter
     def aref(self, value):
-        return self.persistent_write(self.PERSISTENT_AREF_ADDRESS, value)
+        return self.persistent_write(self.PERSISTENT_AREF_ADDRESS, value,
+                                     True)
 
     @property
     def switching_board_i2c_address(self):
@@ -1308,7 +1334,8 @@ class DMFControlBoard(Base, SerialDevice):
     def switching_board_i2c_address(self, value):
         return self.persistent_write(self
                                      .PERSISTENT_SWITCHING_BOARD_I2C_ADDRESS,
-                                     value)
+                                     value,
+                                     True)
 
     @property
     def waveout_gain_1(self):
@@ -1317,7 +1344,8 @@ class DMFControlBoard(Base, SerialDevice):
     @waveout_gain_1.setter
     def waveout_gain_1(self, value):
         return self.persistent_write(self.PERSISTENT_WAVEOUT_GAIN_1_ADDRESS,
-                                     value)
+                                     value,
+                                     True)
 
     @property
     def vgnd(self):
@@ -1325,7 +1353,7 @@ class DMFControlBoard(Base, SerialDevice):
 
     @vgnd.setter
     def vgnd(self, value):
-        return self.persistent_write(self.PERSISTENT_VGND_ADDRESS, value)
+        return self.persistent_write(self.PERSISTENT_VGND_ADDRESS, value, True)
 
     @property
     def signal_generator_board_i2c_address(self):
@@ -1335,7 +1363,7 @@ class DMFControlBoard(Base, SerialDevice):
     @signal_generator_board_i2c_address.setter
     def signal_generator_board_i2c_address(self, value):
         return self.persistent_write(
-            self.PERSISTENT_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS, value)
+            self.PERSISTENT_SIGNAL_GENERATOR_BOARD_I2C_ADDRESS, value, True)
 
     def read_all_series_channel_values(self, f, channel):
         '''
