@@ -3,6 +3,12 @@ from pprint import pprint
 from paver.easy import task, needs, path, sh, cmdopts, options
 from paver.setuputils import setup
 
+import os
+import sys
+
+# add the current directory as the first listing on the python path
+# so that we import the correct version.py
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import version
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
