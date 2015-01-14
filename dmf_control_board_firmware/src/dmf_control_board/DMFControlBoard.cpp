@@ -81,6 +81,9 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
               function_name);
 #else
   watchdog_reset();
+  if (!connected_) {
+    on_connect();
+  }
 #endif
   switch(cmd) {
 #if defined(AVR) || defined(__SAM3X8E__) // Commands that only the Arduino handles
@@ -524,7 +527,6 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-#ifdef ATX_POWER_SUPPLY
     case CMD_GET_ATX_POWER_STATE:
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
@@ -547,7 +549,6 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
-#endif  // ATX_POWER_SUPPLY
 #endif  // #ifdef AVR
   }
   RemoteObject::process_command(cmd);
@@ -573,16 +574,46 @@ void DMFControlBoard::begin() {
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
   pinMode(WAVEFORM_SELECT_, OUTPUT);
 #endif
+  // Set the POWER_SUPPLY_ON_PIN_ HIGH. Otherwise, the power supply turns on
+  // when we set the pin as an output (i.e., LOW is the default state).
+  digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH);
+  pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
 
-  // versions > 1.1 need to pull a pin low to turn on the power supply
-  #if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) \
-    || ___HARDWARE_MAJOR_VERSION___ > 1
-    pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
-    digitalWrite(POWER_SUPPLY_ON_PIN_, LOW);
+#if ___HARDWARE_MAJOR_VERSION___ == 1
+  // set waveform (SINE=0, SQUARE=1)
+  digitalWrite(WAVEFORM_SELECT_, SINE);
+#endif
 
-    // wait for the power supply to turn on
-    delay(500);
+  // set all digital pots
+
+  // Versions > 1.2 use the built in 5V AREF
+  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
+    set_pot(POT_INDEX_AREF_, config_settings_.aref);
   #endif
+  #if ___HARDWARE_MAJOR_VERSION___ == 1
+    set_pot(POT_INDEX_VGND_, config_settings_.vgnd);
+    set_pot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
+    set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
+  #endif
+
+  // if we're using the anti-aliasing filter, the feedback channel is A2
+  if (config_settings_.use_antialiasing_filter) {
+    feedback_controller_.begin(this, 0, 2);
+  } else {
+    feedback_controller_.begin(this, 0, 1);
+  }
+
+  // default amplifier gain
+  amplifier_gain_ = 300;
+
+  load_config();
+}
+
+void DMFControlBoard::on_connect() {
+  connected_ = true;
+
+  // turn on the power supply
+  atx_power_on();
 
   Serial.print(name());
   Serial.print(" v");
@@ -592,15 +623,6 @@ void DMFControlBoard::begin() {
 
   i2c_scan();
 
-  #if ___HARDWARE_MAJOR_VERSION___ == 1
-    // set waveform (SINE=0, SQUARE=1)
-    digitalWrite(WAVEFORM_SELECT_, SINE);
-  #endif
-
-  // default amplifier gain
-  amplifier_gain_ = 300;
-
-  load_config();
   Serial.print("Configuration version=");
   Serial.print(config_settings_.version.major, DEC);
   Serial.print(".");
@@ -704,25 +726,6 @@ void DMFControlBoard::begin() {
   }
   Serial.print(number_of_channels_);
   Serial.println(" channels available.");
-
-  // set all digital pots
-
-  // Versions > 1.2 use the built in 5V AREF
-  #if ___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 3
-    set_pot(POT_INDEX_AREF_, config_settings_.aref);
-  #endif
-  #if ___HARDWARE_MAJOR_VERSION___ == 1
-    set_pot(POT_INDEX_VGND_, config_settings_.vgnd);
-    set_pot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
-    set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
-  #endif
-
-  // if we're using the anti-aliasing filter, the feedback channel is A2
-  if (config_settings_.use_antialiasing_filter) {
-    feedback_controller_.begin(this, 0, 2);
-  } else {
-    feedback_controller_.begin(this, 0, 1);
-  }
 
   // set the default frequency to 10kHz
   set_waveform_frequency(10e3);

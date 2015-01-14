@@ -34,11 +34,6 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 #include "RemoteObject.h"
 
-#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ > 1) ||\
-        ___HARDWARE_MAJOR_VERSION___ == 2
-#define ATX_POWER_SUPPLY
-#endif
-
 
 class DMFControlBoard : public RemoteObject {
 public:
@@ -371,6 +366,7 @@ public:
   std::string host_url() { return URL_; }
 #else  // #ifndef AVR
   void begin();
+  void on_connect();
   uint8_t set_waveform_voltage(const float output_vrms,
                                const bool wait_for_reply=true);
   uint8_t set_waveform_frequency(const float frequency);
@@ -389,12 +385,13 @@ public:
   float waveform_frequency() { return waveform_frequency_; }
   bool auto_adjust_amplifier_gain() { return auto_adjust_amplifier_gain_; }
   float amplifier_gain() { return amplifier_gain_; }
-#ifdef ATX_POWER_SUPPLY
   /* Note that the ATX power-supply output-enable is _active-low_. */
-  void atx_power_on() const { digitalWrite(POWER_SUPPLY_ON_PIN_, LOW); }
+  void atx_power_on() const {
+    digitalWrite(POWER_SUPPLY_ON_PIN_, LOW);
+    delay(500);
+  }
   void atx_power_off() const { digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH); }
   bool atx_power_state() const { return !digitalRead(POWER_SUPPLY_ON_PIN_); }
-#endif  // ATX_POWER_SUPPLY
   bool watchdog_enabled() const { return watchdog_.enabled; }
   void set_watchdog_enabled(bool state) { watchdog_.enabled = state; }
   bool watchdog_state() const { return watchdog_.state; }
@@ -425,10 +422,9 @@ public:
     }
   }
 
-  virtual void watchdog_error() const {
-#ifdef ATX_POWER_SUPPLY
+  virtual void watchdog_error() {
     atx_power_off();
-#endif  // ATX_POWER_SUPPLY
+    connected_ = false;
   }
 
   /* Expose to allow timer callback to check state. */
@@ -500,6 +496,7 @@ private:
 
   //private members
 #if defined(AVR) || defined(__SAM3X8E__)
+  bool connected_;
   uint16_t number_of_channels_;
   FeedbackController feedback_controller_;
   float waveform_voltage_;
