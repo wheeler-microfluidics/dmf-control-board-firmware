@@ -242,6 +242,3 @@ def update_control_board_calibration(control_board, fitted_params):
     # fitted capacitor and resistor values.
     fitted_params[['fitted C', 'fitted R']].apply(
         update_control_board_params, axis=1)
-
-    # Reconnnect to update calibration data.
-    control_board.connect()
