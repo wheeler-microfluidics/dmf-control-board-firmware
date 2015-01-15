@@ -1,22 +1,20 @@
+import logging
+
 import pandas as pd
 import time
 import warnings
+
 try:
     import visa
-    try:
-        resource_manager = visa.ResourceManager()
-        resource_manager.list_resources()
-        addresses = [a for a in resource_manager.list_resources()
-		     if a.startswith('USB')]
-    except visa.VisaIOError:
-        VISA_AVAILABLE = False
-    except OSError:
-        VISA_AVAILABLE = False
-    else:
-        VISA_AVAILABLE = len(addresses) > 0
-except ImportError:
-    warnings.warn('Could not import `visa`.')
+    resource_manager = visa.ResourceManager()
+    resource_manager.list_resources()
+    addresses = [a for a in resource_manager.list_resources()
+	     if a.startswith('USB')]
+    VISA_AVAILABLE = len(addresses) > 0
+    logging.info('Imported `visa`: %s addresses available' % len(addresses))
+except Exception, e:
     VISA_AVAILABLE = False
+    logging.info('Could not import `visa`: %s' % e)
 
 
 class AgilentOscope(object):
