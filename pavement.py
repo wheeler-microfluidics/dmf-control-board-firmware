@@ -22,7 +22,8 @@ setup(name='wheeler.dmf-control-board-firmware',
       license='GPLv2',
       packages=['dmf_control_board_firmware'],
       include_package_data=True,
-      install_requires=['arduino_helpers', 'decorator', 'functools32'])
+      install_requires=['arduino_helpers', 'decorator', 'functools32',
+                        'pyserial'])
 
 
 @task
