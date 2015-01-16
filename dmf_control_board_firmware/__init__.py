@@ -868,8 +868,15 @@ class DMFControlBoard(Base, SerialDevice):
         # Otherwise, the op-amp may be damaged.
         expected = 2**10/2
         for channel in [0, 1]:
+            try:
+                v = self.analog_reads(channel, 10)
+            except: # need to catch exceptions here because this call will generate
+                    # an error on old firmware which will prevent us from getting
+                    # the opportunity to apply a firmware update.
+                break
+                
             # expected error is <= 5% 
-            if np.abs(np.mean(self.analog_reads(channel, 10)) - expected
+            if np.abs(np.mean(v) - expected
                       ) / expected > .05:
                 raise BadVGND("Analog channel %d appears to be damaged. You "
                               "may need to replace the op-amp on the control "
