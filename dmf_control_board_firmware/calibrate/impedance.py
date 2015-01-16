@@ -141,6 +141,10 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
                                          ('V_fb', readings.V_fb),
                                          ('hv_resistor', readings.hv_resistor),
                                          ('fb_resistor', readings.fb_resistor),
+                                         ('amplifier_gain', 
+                                          readings.amplifier_gain),
+                                         ('vgnd_hv', readings.vgnd_hv), 
+                                         ('vgnd_hv', readings.vgnd_fb),
                                          ('sample_index',
                                           range(len(readings.hv_resistor)))]))
         data.set_index('sample_index', inplace=True)
