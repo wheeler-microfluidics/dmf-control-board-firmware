@@ -178,6 +178,7 @@ class AssistantView(WindowView):
             self.reset_measurement_count(frequencies)
             gtk.idle_add(self.read_measurements, frequencies)
         elif assistant.get_current_page() == 4:
+            self.fit_feedback_params()
             display(self.fitted_params)
             hw_version = Version.fromstring(self.control_board
                                             .hardware_version()).major
@@ -204,7 +205,6 @@ class AssistantView(WindowView):
                 self._read_oscope = read_oscope_
             self.hv_readings = resistor_max_actuation_readings(
                 self.control_board, frequencies, self.read_oscope)
-            self.fit_feedback_params()
             gtk.gdk.threads_enter()
             self.widget.set_page_complete(self.box1, True)
             gtk.gdk.threads_leave()
@@ -257,6 +257,15 @@ class AssistantView(WindowView):
                                                  self.hv_readings)
 
     def to_hdf(self, output_path, complib='zlib', complevel=6):
+        # save control board meta data
+        proxy = self.control_board
+        df = {}
+        df['software_version'] = proxy.software_version()
+        df['hardware_version'] = proxy.hardware_version()
+        pd.Series(df).to_hdf(str(output_path),
+                             '/feedback/reference/control_board_info',
+                             format='t', complib=complib, complevel=complevel)
+        
         # Save measurements taken during calibration, along with input RMS
         # voltage _(i.e., `V1`)_ values read using the oscilloscope.
         self.hv_readings.to_hdf(str(output_path),

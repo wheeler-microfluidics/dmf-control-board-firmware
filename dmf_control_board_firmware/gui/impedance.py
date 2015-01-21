@@ -203,6 +203,7 @@ class AssistantView(WindowView):
                          frequencies)
         elif assistant.get_current_page() == 4:
             self.widget.resize(600, 700)
+            self.fit_feedback_params()
             display(self.fitted_params)
             fitted_readings = self.impedance_readings.copy()
             apply_calibration(fitted_readings, self.fitted_params,
@@ -232,9 +233,10 @@ class AssistantView(WindowView):
                     on_update=on_update)
             finally:
                 self.restore_settings()
-        self.fit_feedback_params()
         gtk.gdk.threads_enter()
-        self.measurements_label.set_label('Done.')
+        self.measurements_label.set_label('Done.\n\nClick "Forward" to fit '
+                                          'the data (this can take a few '
+                                          'minutes).')
         self.widget.set_page_complete(self.box1, True)
         gtk.gdk.threads_leave()
 
@@ -270,6 +272,15 @@ class AssistantView(WindowView):
                                                 self.calibration)
 
     def to_hdf(self, output_path, complib='zlib', complevel=6):
+        # save control board meta data
+        proxy = self.control_board
+        df = {}
+        df['software_version'] = proxy.software_version()
+        df['hardware_version'] = proxy.hardware_version()
+        pd.Series(df).to_hdf(str(output_path),
+                             '/feedback/impedance/control_board_info',
+                             format='t', complib=complib, complevel=complevel)
+        
         # Save measurements taken during calibration.
         self.impedance_readings.to_hdf(str(output_path),
                                        '/feedback/impedance/measurements',

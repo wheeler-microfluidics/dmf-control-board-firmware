@@ -56,8 +56,6 @@ def get_test_frame(frequencies, test_loads, n_repeats, n_sampling_windows,
     df['repeat_index'] = repeat_index
     df['sample_index'] = sample_index
     df['V_actuation'] = actuation_voltage
-    df['rms'] = True
-    df['antialiasing_filter'] = True
 
     return df
 
@@ -71,7 +69,8 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
         frequencies = FREQUENCIES
 
     if rms is None:
-        # Return feedback voltage measurements as RMS voltages.
+        # Perform feedback voltage measurements using RMS voltages
+        # (vs peak-to-peak)
         rms = True
 
     # Limit the actuation voltage according to the maximum voltage rating as
@@ -122,6 +121,7 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
     previous_frequency = None
     grouped = test_frame.groupby(['frequency', 'test_capacitor',
                                   'test_channel', 'repeat_index'])
+    use_antialiasing_filter = proxy.use_antialiasing_filter
 
     results = []
     group_count = len(grouped.groups)
@@ -145,6 +145,9 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
                                           readings.amplifier_gain),
                                          ('vgnd_hv', readings.vgnd_hv), 
                                          ('vgnd_hv', readings.vgnd_fb),
+                                         ('antialiasing_filter',
+                                          use_antialiasing_filter),
+                                         ('rms', rms),
                                          ('sample_index',
                                           range(len(readings.hv_resistor)))]))
         data.set_index('sample_index', inplace=True)

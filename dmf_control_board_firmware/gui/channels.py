@@ -70,13 +70,9 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
 
     results = pd.concat(result_frames).groupby('channel').agg('median')
 
-    timestamp = datetime.now().isoformat()
-    hardware_version = proxy.hardware_version()
-    software_version = proxy.software_version()
-
-    results['software_version'] = software_version
-    results['hardware_version'] = hardware_version
-    results['timestamp'] = timestamp
+    results['software_version'] = proxy.software_version()
+    results['hardware_version'] = proxy.hardware_version()
+    results['timestamp'] = datetime.now().isoformat()
     
     return results
 
