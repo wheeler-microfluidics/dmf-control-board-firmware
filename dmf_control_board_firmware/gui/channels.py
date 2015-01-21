@@ -16,6 +16,7 @@ from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
 from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
                                                 NavigationToolbar)
 from matplotlib.figure import Figure
+from datetime import datetime
 
 
 def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
@@ -54,6 +55,11 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
                                  / df['expected capacitance'])
         df['voltage'] = voltage
         df['frequency'] = frequency
+        df['V_hv'] = results.V_hv
+        df['V_fb'] = results.V_fb
+        df['hv_resistor'] = results.hv_resistor
+        df['fb_resistor'] = results.hv_resistor
+        
         result = df.dropna()
         on_update(result)
         return result
@@ -61,7 +67,17 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     result_frames = []
     for c, v in test_loads.iteritems():
         result_frames.append(measure_load(c, v))
+
     results = pd.concat(result_frames).groupby('channel').agg('median')
+
+    timestamp = datetime.now().isoformat()
+    hardware_version = proxy.hardware_version()
+    software_version = proxy.software_version()
+
+    results['software_version'] = software_version
+    results['hardware_version'] = hardware_version
+    results['timestamp'] = timestamp
+    
     return results
 
 
@@ -285,12 +301,20 @@ class AssistantView(WindowView):
         gtk.main_quit()
 
     def to_hdf(self, output_path, complib='zlib', complevel=6):
-        # Save measurements taken during sweep.
-        self.readings.to_hdf(str(output_path), '/channel_sweeps',
-                             format='t', append=True,
-                             data_columns=self.readings.columns,
-                             complib=complib, complevel=complevel)
+        
+        def write_results(output_path, df, append=True):
+            # Save measurements taken during sweep.
+            df.to_hdf(str(output_path), '/channel_sweeps',
+                      format='t', append=append,
+                      data_columns=self.readings.columns,
+                      complib=complib, complevel=complevel)
 
+        try:
+            write_results(output_path, self.readings)
+        except ValueError:
+            df = pd.read_hdf(str(output_path), '/channel_sweeps')
+            self.readings = pd.concat([self.readings, df])
+            write_results(output_path, self.readings, append=False)
 
 if __name__ == '__main__':
     control_board = DMFControlBoard()
