@@ -570,19 +570,19 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
 void DMFControlBoard::begin() {
   RemoteObject::begin();
 
-#if ___HARDWARE_MAJOR_VERSION___ == 1
-  pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
-  pinMode(WAVEFORM_SELECT_, OUTPUT);
-#endif
   // Set the POWER_SUPPLY_ON_PIN_ HIGH. Otherwise, the power supply turns on
   // when we set the pin as an output (i.e., LOW is the default state).
   digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH);
   pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
 
 #if ___HARDWARE_MAJOR_VERSION___ == 1
+  pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
+  pinMode(WAVEFORM_SELECT_, OUTPUT);
   // set waveform (SINE=0, SQUARE=1)
   digitalWrite(WAVEFORM_SELECT_, SINE);
 #endif
+
+  load_config();
 
   // set all digital pots
 
@@ -596,17 +596,8 @@ void DMFControlBoard::begin() {
     set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
   #endif
 
-  // if we're using the anti-aliasing filter, the feedback channel is A2
-  if (config_settings_.use_antialiasing_filter) {
-    feedback_controller_.begin(this, 0, 2);
-  } else {
-    feedback_controller_.begin(this, 0, 1);
-  }
-
   // default amplifier gain
   amplifier_gain_ = 300;
-
-  load_config();
 }
 
 void DMFControlBoard::on_connect() {
@@ -927,6 +918,13 @@ void DMFControlBoard::load_config(bool use_defaults) {
   } else {
     amplifier_gain_ = config_settings_.amplifier_gain;
     auto_adjust_amplifier_gain_ = false;
+  }
+
+  // if we're using the anti-aliasing filter, the feedback channel is A2
+  if (config_settings_.use_antialiasing_filter) {
+    feedback_controller_.begin(this, 0, 2);
+  } else {
+    feedback_controller_.begin(this, 0, 1);
   }
 }
 
