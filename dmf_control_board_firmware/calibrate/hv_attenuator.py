@@ -81,8 +81,10 @@ def resistor_max_actuation_readings(control_board, frequencies,
     max_actuation_V = max_post_gain_V / estimated_amplifier_gain
     actuation_steps = np.linspace(0.005, max_actuation_V, num=50)
 
+    resistor_count = len(control_board.a0_series_resistance)
+
     # Define frequency/resistor index pairs to take measurements at.
-    conditions = pd.DataFrame([[r, f] for r in range(2, -1, -1)
+    conditions = pd.DataFrame([[r, f] for r in range(resistor_count - 1, -1, -1)
                                for f in frequencies],
                               columns=['resistor index', 'frequency'])
 
