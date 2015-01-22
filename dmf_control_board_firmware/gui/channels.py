@@ -33,16 +33,20 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     if on_update is None:
         on_update = default_on_update
 
+    n_samples = 10
+
     # Set device frequency and voltage.
     proxy.set_waveform_frequency(frequency)
     proxy.set_waveform_voltage(voltage)
     # Measure impedance to trigger auto-amplifier gain update.
-    proxy.measure_impedance(5, 10, 0, True, True, [])
+    results = proxy.measure_impedance(5, 100, 0, True, True, [])
+    # store the capacitance with all switches off
+    C_off = np.max(results.capacitance()[-n_samples:])
 
     def measure_load(channel, expected_load):
         states = pd.Series(np.zeros(proxy.number_of_channels()))
         states[channel] = 1
-        results = proxy.measure_impedance(5, 10, 0, True, True,
+        results = proxy.measure_impedance(5, n_samples, 0, True, True,
                                           states)
         df = pd.DataFrame(results.capacitance(),
                           columns=['measured capacitance'])
@@ -59,6 +63,7 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
         df['V_fb'] = results.V_fb
         df['hv_resistor'] = results.hv_resistor
         df['fb_resistor'] = results.hv_resistor
+        df['C_off'] = C_off
         
         result = df.dropna()
         on_update(result)
