@@ -185,8 +185,12 @@ class AssistantView(WindowView):
             plot_feedback_params(hw_version, self.hv_readings,
                                  self.fitted_params, axis=self.axis)
 
+    @property
+    def resistor_count(self):
+        return len(self.control_board.a0_series_resistance)
+    
     def reset_measurement_count(self, frequencies):
-        self.measurement_count = len(frequencies) * 3 + 2
+        self.measurement_count = len(frequencies) * self.resistor_count + 2
         self.measurement_i = 0
         self.measurements_label.set_label('Ready.')
 
