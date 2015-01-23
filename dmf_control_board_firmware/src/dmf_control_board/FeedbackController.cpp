@@ -44,8 +44,8 @@ void FeedbackController::begin(DMFControlBoard* parent,
   AdvancedADC.setPrescaler(3);
 
   // turn on smallest series resistors
-  set_series_resistor_index(0, 0);
-  set_series_resistor_index(1, 0);
+  set_series_resistor_index(0, series_resistor_index(0));
+  set_series_resistor_index(1, series_resistor_index(1));
 
   // initialize virtual ground levels
   for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;

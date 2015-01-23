@@ -37,6 +37,7 @@ public:
   static const float MAX_SAMPLING_RATE = 40e3;
 
   struct ADCChannel {
+    ADCChannel() : series_resistor_index(0) {}
     uint8_t channel;
     uint8_t series_resistor_index;
     uint8_t saturated;
