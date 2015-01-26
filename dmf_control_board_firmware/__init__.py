@@ -871,7 +871,7 @@ class DMFControlBoard(Base, SerialDevice):
         for channel in [0, 1]:
             try:
                 v = self.analog_reads(channel, 10)
-                logger.info("A%d VGND = %.2f V (%.2f%% of AVCC)" % (
+                logger.info("A%d VGND = %.2f V (%.2f%% of Aref)" % (
                     channel, self.__aref__ * np.mean(v) / (2**10),
                     100.0 * np.mean(v) / (2**10)))
             except: # need to catch exceptions here because this call will generate
