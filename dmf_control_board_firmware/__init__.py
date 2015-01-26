@@ -865,25 +865,34 @@ class DMFControlBoard(Base, SerialDevice):
                 # the opportunity to apply a firmware update.
             pass
         
-        # Check that VGND is close to its target value for both analog channels.
-        # Otherwise, the op-amp may be damaged.
+        # Check VGND for both analog channels
         expected = 2**10/2
-        for channel in [0, 1]:
+        v = {}
+        channels = [0,1]
+        damaged = []
+        for channel in channels:
             try:
-                v = self.analog_reads(channel, 10)
+                v[channel] = np.mean(self.analog_reads(channel, 10))
                 logger.info("A%d VGND = %.2f V (%.2f%% of Aref)" % (
-                    channel, self.__aref__ * np.mean(v) / (2**10),
-                    100.0 * np.mean(v) / (2**10)))
-            except: # need to catch exceptions here because this call will generate
-                    # an error on old firmware which will prevent us from getting
-                    # the opportunity to apply a firmware update.
+                    channel, self.__aref__ * v[channel] / (2**10),
+                    100.0 * v[channel] / (2**10)))
+                # Make sure that the VGND is close to the expected value;
+                # otherwise, the op-amp may be damaged (expected error
+                # is <= 10%).
+                if np.abs(v[channel] - expected) / expected > .1:
+                    damaged.append(channel)
+            except: # need to catch exceptions here because this call will
+                    # generate an error on old firmware which will prevent us
+                    # from getting the opportunity to apply a firmware update.
                 break
-                
-            # expected error is <= 10%
-            if np.abs(np.mean(v) - expected) / expected > .1:
-                raise BadVGND("Analog channel %d appears to be damaged. You "
-                              "may need to replace the op-amp on the control "
-                              "board." % channel)
+
+        if damaged:
+            if len(damaged) == 1:
+                msg = "Analog channel %d appears" % damaged[0]
+            else:
+                msg = "Analog channels %s appear" % damaged 
+            raise BadVGND(msg + " to be damaged. You may need to replace the "
+                          "op-amp on the control board.")
 
         return self.RETURN_OK
 
