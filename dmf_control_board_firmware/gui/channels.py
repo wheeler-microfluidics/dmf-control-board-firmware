@@ -64,6 +64,9 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
         df['hv_resistor'] = results.hv_resistor
         df['fb_resistor'] = results.hv_resistor
         df['C_off'] = C_off
+        df['amplifier_gain'] = results.amplifier_gain
+        df['vgnd_hv'] = results.vgnd_hv
+        df['vgnd_fb'] = results.vgnd_fb
         
         result = df.dropna()
         on_update(result)
@@ -77,6 +80,7 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
 
     results['software_version'] = proxy.software_version()
     results['hardware_version'] = proxy.hardware_version()
+    results['aref'] = proxy.__aref__
     results['timestamp'] = datetime.now().isoformat()
     
     return results

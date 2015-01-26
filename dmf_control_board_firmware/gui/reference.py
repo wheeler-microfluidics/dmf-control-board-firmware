@@ -266,6 +266,8 @@ class AssistantView(WindowView):
         df = {}
         df['software_version'] = proxy.software_version()
         df['hardware_version'] = proxy.hardware_version()
+        df['aref'] = str(proxy.__aref__) # need to store as string or to_hdf
+                                         # will raise an error
         pd.Series(df).to_hdf(str(output_path),
                              '/feedback/reference/control_board_info',
                              format='t', complib=complib, complevel=complevel)
