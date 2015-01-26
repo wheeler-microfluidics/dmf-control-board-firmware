@@ -859,6 +859,7 @@ class DMFControlBoard(Base, SerialDevice):
         
         try:
             self.__aref__ = self._aref()
+            logger.info("Analog reference = %.2f V" % self.__aref__)
         except: # need to catch exceptions here because this call will generate
                 # an error on old firmware which will prevent us from getting
                 # the opportunity to apply a firmware update.
@@ -870,18 +871,20 @@ class DMFControlBoard(Base, SerialDevice):
         for channel in [0, 1]:
             try:
                 v = self.analog_reads(channel, 10)
+                logger.info("A%d VGND = %.2f V (%.2f%% of AVCC)" % (
+                    channel, self.__aref__ * np.mean(v) / (2**10),
+                    100.0 * np.mean(v) / (2**10)))
             except: # need to catch exceptions here because this call will generate
                     # an error on old firmware which will prevent us from getting
                     # the opportunity to apply a firmware update.
                 break
                 
-            # expected error is <= 5% 
-            if np.abs(np.mean(v) - expected
-                      ) / expected > .05:
+            # expected error is <= 10%
+            if np.abs(np.mean(v) - expected) / expected > .1:
                 raise BadVGND("Analog channel %d appears to be damaged. You "
                               "may need to replace the op-amp on the control "
                               "board." % channel)
-        
+
         return self.RETURN_OK
 
     def _read_calibration_data(self):
