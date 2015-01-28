@@ -141,9 +141,9 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
                                          ('V_fb', readings.V_fb),
                                          ('hv_resistor', readings.hv_resistor),
                                          ('fb_resistor', readings.fb_resistor),
-                                         ('amplifier_gain', 
+                                         ('amplifier_gain',
                                           readings.amplifier_gain),
-                                         ('vgnd_hv', readings.vgnd_hv), 
+                                         ('vgnd_hv', readings.vgnd_hv),
                                          ('vgnd_hv', readings.vgnd_fb),
                                          ('antialiasing_filter',
                                           use_antialiasing_filter),
@@ -324,11 +324,7 @@ def apply_calibration(df, calibration_df, calibration):
 
 
 def update_fb_calibration(proxy, calibration):
-    port = proxy.port
-    baud_rate = proxy.baud_rate
-
-    # Write new calibration parameters to the control board.
-    for i in range(0, len(calibration.R_fb)):
-        proxy.set_series_resistor_index(1, i)
-        proxy.set_series_resistance(1, calibration.R_fb[i])
-        proxy.set_series_capacitance(1, calibration.C_fb[i])
+    # Update the control board with the new calibrated capacitor and resistor
+    # values for the reference load analog input (channel 1).
+    proxy.a1_series_resistance = calibration.R_fb
+    proxy.a1_series_capacitance = calibration.C_fb

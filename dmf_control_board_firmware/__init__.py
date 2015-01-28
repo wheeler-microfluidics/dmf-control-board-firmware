@@ -60,8 +60,8 @@ def get_includes():
     '''
     Return directories containing the `dmf_control_board` Arduino header files.
 
-    Modules that need to compile against `dmf_control_boad` should use this function
-    to locate the appropriate include directories.
+    Modules that need to compile against `dmf_control_boad` should use this
+    function to locate the appropriate include directories.
 
     Notes
     =====
@@ -404,11 +404,10 @@ class FeedbackResults():
             C_filler = self.calibration.C_filler(self.frequency)
         else:
             C_filler = 0
-        
+
         return (self.capacitance(filter_order=filter_order,
-                              window_size=window_size,
-                              tol=tol) / self.area - C_filler
-        ) / (C_drop - C_filler) * np.sqrt(self.area)
+                                 window_size=window_size, tol=tol) / self.area
+                - C_filler) / (C_drop - C_filler) * np.sqrt(self.area)
 
     def mean_velocity(self, tol=0.05):
         '''
@@ -759,6 +758,8 @@ class DMFControlBoard(Base, SerialDevice):
         the original value.  See definition of
         `safe_series_resistor_index_read` decorator.
         '''
+        if resistor_index is None:
+            resistor_index = self.series_resistor_index(channel)
         value = self._series_capacitance(channel)
         try:
             if channel == 0:
@@ -781,7 +782,7 @@ class DMFControlBoard(Base, SerialDevice):
         original value.  See definition of `safe_series_resistor_index_read`
         decorator.
         '''
-        if not resistor_index:
+        if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
         value = self._series_resistance(channel)
         try:
@@ -805,7 +806,7 @@ class DMFControlBoard(Base, SerialDevice):
         the original value.  See definition of
         `safe_series_resistor_index_write` decorator.
         '''
-        if not resistor_index:
+        if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
         try:
             if channel == 0:
@@ -828,7 +829,7 @@ class DMFControlBoard(Base, SerialDevice):
         original value.  See definition of `safe_series_resistor_index_write`
         decorator.
         '''
-        if not resistor_index:
+        if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
         try:
             if channel == 0:
@@ -856,7 +857,7 @@ class DMFControlBoard(Base, SerialDevice):
                     "capacitance values.")
 
         self._read_calibration_data()
-        
+
         try:
             self.__aref__ = self._aref()
             logger.info("Analog reference = %.2f V" % self.__aref__)
@@ -864,7 +865,7 @@ class DMFControlBoard(Base, SerialDevice):
                 # an error on old firmware which will prevent us from getting
                 # the opportunity to apply a firmware update.
             pass
-        
+
         # Check VGND for both analog channels
         expected = 2**10/2
         v = {}
@@ -890,7 +891,7 @@ class DMFControlBoard(Base, SerialDevice):
             if len(damaged) == 1:
                 msg = "Analog channel %d appears" % damaged[0]
             else:
-                msg = "Analog channels %s appear" % damaged 
+                msg = "Analog channels %s appear" % damaged
             raise BadVGND(msg + " to be damaged. You may need to replace the "
                           "op-amp on the control board.")
 
@@ -914,10 +915,10 @@ class DMFControlBoard(Base, SerialDevice):
     def persistent_write(self, address, byte, refresh_config=False):
         '''
         Write a single byte to an address in persistent memory.
-        
+
         If refresh_config is True, load_config() is called afterward to
         refresh the configuration settings.
-        '''        
+        '''
         self._persistent_write(address, byte)
         if refresh_config:
             self.load_config(False)
@@ -945,10 +946,10 @@ class DMFControlBoard(Base, SerialDevice):
     def persistent_write_multibyte(self, address, data, refresh_config=False):
         '''
         Write multiple bytes to an address in persistent memory.
-        
+
         If refresh_config is True, load_config() is called afterward to
         refresh the configuration settings.
-        '''        
+        '''
         for i, byte in enumerate(data.view(np.uint8)):
             self.persistent_write(address + i, int(byte))
         if refresh_config:
@@ -1225,7 +1226,7 @@ class DMFControlBoard(Base, SerialDevice):
 
             logger.info("flashing firmware: hardware version %s"
                         % (hardware_version))
-            
+
             logger.info(uploader.upload(hex_path.abspath(), self.port))
 
             if reconnect:

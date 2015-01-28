@@ -1,13 +1,10 @@
 # coding: utf-8
 import pandas as pd
 import numpy as np
-import sympy as sp
 import matplotlib.pyplot as plt
 from matplotlib.markers import MarkerStyle
 import scipy.optimize as optimize
 
-from functools32 import lru_cache
-from microdrop_utility import Version, is_float
 from .feedback import compute_from_transfer_function
 
 
@@ -102,8 +99,8 @@ def resistor_max_actuation_readings(control_board, frequencies,
 
         actuation_index, data = find_good(control_board, actuation_steps, r, 0,
                                           len(actuation_steps) - 1)
-        board_measured_rms = data.loc[data['divider resistor index']
-                                    >= 0, 'board measured V'].mean()
+        board_measured_rms = data.loc[data['divider resistor index'] >= 0,
+                                      'board measured V'].mean()
         oscope_rms = oscope_reading_func()
         print 'R=%s, f=%s' % (r, f)
         return pd.DataFrame([[r, f, actuation_index, board_measured_rms,
@@ -234,13 +231,7 @@ def update_control_board_calibration(control_board, fitted_params):
     '''
     Update the control board with the specified fitted parameters.
     '''
-    def update_control_board_params(x):
-        resistor_index = int(x.name)
-        control_board.set_series_resistor_index(0, resistor_index)
-        control_board.set_series_resistance(0, abs(x['fitted R']))
-        control_board.set_series_capacitance(0, abs(x['fitted C']))
-
-    # For each resistor index, update the control board with the new
-    # fitted capacitor and resistor values.
-    fitted_params[['fitted C', 'fitted R']].apply(
-        update_control_board_params, axis=1)
+    # Update the control board with the new fitted capacitor and resistor
+    # values for the reference load analog input (channel 0).
+    control_board.a0_series_resistance = fitted_params['fitted R'].values
+    control_board.a0_series_capacitance = fitted_params['fitted C'].values
