@@ -42,9 +42,10 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     results = proxy.measure_impedance(5, 100, 0, True, True, [])
     # store the capacitance with all switches off
     C_off = np.max(results.capacitance()[-n_samples:])
+    n_channels = proxy.number_of_channels()
 
     def measure_load(channel, expected_load):
-        states = pd.Series(np.zeros(proxy.number_of_channels()))
+        states = pd.Series(np.zeros(n_channels))
         states[channel] = 1
         results = proxy.measure_impedance(5, n_samples, 0, True, True,
                                           states)
@@ -67,17 +68,18 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
         df['amplifier_gain'] = results.amplifier_gain
         df['vgnd_hv'] = results.vgnd_hv
         df['vgnd_fb'] = results.vgnd_fb
-        
         result = df.dropna()
         on_update(result)
         return result
 
     result_frames = []
-    for c, v in test_loads.iteritems():
-        result_frames.append(measure_load(c, v))
+    for channel, v in test_loads.iteritems():
+        result_frames.append(measure_load(channel, v))
 
     results = pd.concat(result_frames).groupby('channel').agg('median')
 
+    address = proxy.switching_board_i2c_address + channel / 40
+    results['hv_switching_board' % address] = proxy._i2c_devices[address]
     results['software_version'] = proxy.software_version()
     results['hardware_version'] = proxy.hardware_version()
     results['aref'] = proxy.__aref__
