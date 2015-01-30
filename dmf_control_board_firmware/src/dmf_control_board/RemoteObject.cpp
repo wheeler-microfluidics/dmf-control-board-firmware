@@ -1354,6 +1354,10 @@ std::vector<uint8_t> /* HOST */ RemoteObject::i2c_send_command(uint8_t address,
   i2c_write(address, data);
   boost::this_thread::sleep(boost::posix_time::milliseconds(delay_ms));
   uint8_t n_bytes = i2c_read(address, 1)[0];
+  if (n_bytes == 0) {
+    throw runtime_error(str(format("Error sending command 0x%0X (%d). "
+      "No return code provided.") % (int)cmd % (int)cmd).c_str());
+  }
   std::vector<uint8_t> out = i2c_read(address, n_bytes);
   uint8_t return_code = out.back();
   log_message(str(format("Return code=%d") % (int)return_code).c_str(),
@@ -1361,7 +1365,7 @@ std::vector<uint8_t> /* HOST */ RemoteObject::i2c_send_command(uint8_t address,
   out.pop_back();
   if (return_code != RETURN_OK) {
     throw runtime_error(str(format("Error sending command 0x%0X (%d). "
-        "Return code=%d.") % (int)cmd % (int)cmd % (int)return_code).c_str());
+      "Return code=%d.") % (int)cmd % (int)cmd % (int)return_code).c_str());
   }
   return out;
 }
