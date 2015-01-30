@@ -853,6 +853,20 @@ class DMFControlBoard(Base, SerialDevice):
             self.port = port
         else:
             self.get_port(baud_rate)
+
+        name = self.name()
+        version = self.hardware_version()
+        firmware = self.software_version()
+        serial_number_string = ""
+        try:
+            serial_number_string = ", S/N %03d" % self.serial_number
+        except: # need to catch exceptions here because this call will generate
+                # an error on old firmware which will prevent us from getting
+                # the opportunity to apply a firmware update.
+            pass
+        logger.info("Connected to %s v%s (Firmware: %s%s)" % 
+                    (name, version, firmware, serial_number_string))
+        
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")
 
