@@ -102,6 +102,7 @@ object DMFControlBoard_class
     .def("i2c_read",&DMFControlBoard::i2c_read)
     .def("i2c_write",&DMFControlBoard::i2c_write)
     .def("i2c_send_command",&DMFControlBoard::i2c_send_command)
+    .def("i2c_scan",&DMFControlBoard::i2c_scan)
     .def("spi_set_bit_order",&DMFControlBoard::spi_set_bit_order)
     .def("spi_set_clock_divider",&DMFControlBoard::spi_set_clock_divider)
     .def("spi_set_data_mode",&DMFControlBoard::spi_set_data_mode)

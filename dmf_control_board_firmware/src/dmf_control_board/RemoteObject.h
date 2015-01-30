@@ -129,6 +129,7 @@ public:
   static const uint8_t CMD_GET_ADC_PRESCALER =          0x9B;
   static const uint8_t CMD_SET_ADC_PRESCALER =          0x9C;
   static const uint8_t CMD_GET_AREF =                   0x9D;
+  static const uint8_t CMD_I2C_SCAN =                   0x9E;
 
   // reserved return codes
   static const uint8_t RETURN_OK =                      0x00;
@@ -168,7 +169,6 @@ public:
 
 #if defined(AVR) || defined(__SAM3X8E__)
   virtual void begin();
-  void i2c_scan();
 
   // These methods force the derived class to define functions that
   // return the following attributes:
@@ -189,7 +189,8 @@ public:
                            uint8_t cmd,
                            uint8_t* data,
                            uint8_t delay_ms);
-  /* The following two `persistent...` methods provide sub-classes a mechanism
+  void i2c_scan(bool serialize_to_payload=false);
+   /* The following two `persistent...` methods provide sub-classes a mechanism
    * to customize persistent storage.  For example, the Arduino DUE does not
    * support the `EEPROM` library used by the AVR chips. */
   virtual uint8_t persistent_read(uint16_t address);
@@ -202,72 +203,71 @@ public:
   virtual std::string host_software_version() = 0;
   virtual std::string host_url() = 0;
   virtual std::string host_manufacturer() = 0;
-
-    virtual std::string command_label(uint8_t command) const {
-        if (command == CMD_GET_PROTOCOL_NAME) {
-            return std::string("CMD_GET_PROTOCOL_NAME");
-        } else if (command == CMD_GET_PROTOCOL_VERSION) {
-            return std::string("CMD_GET_PROTOCOL_VERSION");
-        } else if (command == CMD_GET_DEVICE_NAME) {
-            return std::string("CMD_GET_DEVICE_NAME");
-        } else if (command == CMD_GET_MANUFACTURER) {
-            return std::string("CMD_GET_MANUFACTURER");
-        } else if (command == CMD_GET_HARDWARE_VERSION) {
-            return std::string("CMD_GET_HARDWARE_VERSION");
-        } else if (command == CMD_GET_SOFTWARE_VERSION) {
-            return std::string("CMD_GET_SOFTWARE_VERSION");
-        } else if (command == CMD_GET_URL) {
-            return std::string("CMD_GET_URL");
-        } else if (command == CMD_SET_PIN_MODE) {
-            return std::string("CMD_SET_PIN_MODE");
-        } else if (command == CMD_DIGITAL_READ) {
-            return std::string("CMD_DIGITAL_READ");
-        } else if (command == CMD_DIGITAL_WRITE) {
-            return std::string("CMD_DIGITAL_WRITE");
-        } else if (command == CMD_ANALOG_READ) {
-            return std::string("CMD_ANALOG_READ");
-        } else if (command == CMD_ANALOG_WRITE) {
-            return std::string("CMD_ANALOG_WRITE");
-        } else if (command == CMD_PERSISTENT_READ) {
-            return std::string("CMD_PERSISTENT_READ");
-        } else if (command == CMD_PERSISTENT_WRITE) {
-            return std::string("CMD_PERSISTENT_WRITE");
-        } else if (command == CMD_ONEWIRE_GET_ADDRESS) {
-            return std::string("CMD_ONEWIRE_GET_ADDRESS");
-        } else if (command == CMD_ONEWIRE_WRITE) {
-            return std::string("CMD_ONEWIRE_WRITE");
-        } else if (command == CMD_ONEWIRE_READ) {
-            return std::string("CMD_ONEWIRE_READ");
-        } else if (command == CMD_I2C_WRITE) {
-            return std::string("CMD_I2C_WRITE");
-        } else if (command == CMD_I2C_READ) {
-            return std::string("CMD_I2C_READ");
-        } else if (command == CMD_SPI_SET_BIT_ORDER) {
-            return std::string("CMD_SPI_SET_BIT_ORDER");
-        } else if (command == CMD_SPI_SET_CLOCK_DIVIDER) {
-            return std::string("CMD_SPI_SET_CLOCK_DIVIDER");
-        } else if (command == CMD_SPI_SET_DATA_MODE) {
-            return std::string("CMD_SPI_SET_DATA_MODE");
-        } else if (command == CMD_SPI_TRANSFER) {
-            return std::string("CMD_SPI_TRANSFER");
-        } else if (command == CMD_GET_DEBUG_BUFFER) {
-            return std::string("CMD_GET_DEBUG_BUFFER");
-        } else if (command == CMD_GET_MCU_TYPE) {
-            return std::string("CMD_GET_MCU_TYPE");
-        } else if (command == CMD_GET_SAMPLING_RATE) {
-          return std::string("CMD_GET_SAMPLING_RATE");
-        } else if (command == CMD_SET_SAMPLING_RATE) {
-          return std::string("CMD_SET_SAMPLING_RATE");
-        } else if (command == CMD_GET_ADC_PRESCALER) {
-          return std::string("CMD_GET_ADC_PRESCALER");
-        } else if (command == CMD_SET_ADC_PRESCALER) {
-          return std::string("CMD_SET_ADC_PRESCALER");
-        } else if (command == CMD_GET_AREF) {
-          return std::string("CMD_GET_AREF");
-        } else {
-            throw std::runtime_error("Invalid command.");
-        }
+  virtual std::string command_label(uint8_t command) const {
+    if (command == CMD_GET_PROTOCOL_NAME) {
+      return std::string("CMD_GET_PROTOCOL_NAME");
+    } else if (command == CMD_GET_PROTOCOL_VERSION) {
+      return std::string("CMD_GET_PROTOCOL_VERSION");
+    } else if (command == CMD_GET_DEVICE_NAME) {
+      return std::string("CMD_GET_DEVICE_NAME");
+    } else if (command == CMD_GET_MANUFACTURER) {
+      return std::string("CMD_GET_MANUFACTURER");
+    } else if (command == CMD_GET_HARDWARE_VERSION) {
+      return std::string("CMD_GET_HARDWARE_VERSION");
+    } else if (command == CMD_GET_SOFTWARE_VERSION) {
+      return std::string("CMD_GET_SOFTWARE_VERSION");
+    } else if (command == CMD_GET_URL) {
+      return std::string("CMD_GET_URL");
+    } else if (command == CMD_SET_PIN_MODE) {
+      return std::string("CMD_SET_PIN_MODE");
+    } else if (command == CMD_DIGITAL_READ) {
+      return std::string("CMD_DIGITAL_READ");
+    } else if (command == CMD_DIGITAL_WRITE) {
+      return std::string("CMD_DIGITAL_WRITE");
+    } else if (command == CMD_ANALOG_READ) {
+      return std::string("CMD_ANALOG_READ");
+    } else if (command == CMD_ANALOG_WRITE) {
+      return std::string("CMD_ANALOG_WRITE");
+    } else if (command == CMD_PERSISTENT_READ) {
+      return std::string("CMD_PERSISTENT_READ");
+    } else if (command == CMD_PERSISTENT_WRITE) {
+      return std::string("CMD_PERSISTENT_WRITE");
+    } else if (command == CMD_ONEWIRE_GET_ADDRESS) {
+      return std::string("CMD_ONEWIRE_GET_ADDRESS");
+    } else if (command == CMD_ONEWIRE_WRITE) {
+      return std::string("CMD_ONEWIRE_WRITE");
+    } else if (command == CMD_ONEWIRE_READ) {
+      return std::string("CMD_ONEWIRE_READ");
+    } else if (command == CMD_I2C_WRITE) {
+      return std::string("CMD_I2C_WRITE");
+    } else if (command == CMD_I2C_READ) {
+      return std::string("CMD_I2C_READ");
+    } else if (command == CMD_SPI_SET_BIT_ORDER) {
+      return std::string("CMD_SPI_SET_BIT_ORDER");
+    } else if (command == CMD_SPI_SET_CLOCK_DIVIDER) {
+      return std::string("CMD_SPI_SET_CLOCK_DIVIDER");
+    } else if (command == CMD_SPI_SET_DATA_MODE) {
+      return std::string("CMD_SPI_SET_DATA_MODE");
+    } else if (command == CMD_SPI_TRANSFER) {
+      return std::string("CMD_SPI_TRANSFER");
+    } else if (command == CMD_GET_DEBUG_BUFFER) {
+      return std::string("CMD_GET_DEBUG_BUFFER");
+    } else if (command == CMD_GET_MCU_TYPE) {
+      return std::string("CMD_GET_MCU_TYPE");
+    } else if (command == CMD_GET_SAMPLING_RATE) {
+      return std::string("CMD_GET_SAMPLING_RATE");
+    } else if (command == CMD_SET_SAMPLING_RATE) {
+      return std::string("CMD_SET_SAMPLING_RATE");
+    } else if (command == CMD_GET_ADC_PRESCALER) {
+      return std::string("CMD_GET_ADC_PRESCALER");
+    } else if (command == CMD_SET_ADC_PRESCALER) {
+      return std::string("CMD_SET_ADC_PRESCALER");
+    } else if (command == CMD_GET_AREF) {
+      return std::string("CMD_GET_AREF");
+    } else {
+      throw std::runtime_error("Invalid command.");
     }
+  }
   /////////////////////////////////////////////////////////////////////////
   //
   // Remote accessors
@@ -312,6 +312,7 @@ public:
                                         uint8_t cmd,
                                         std::vector<uint8_t> data,
                                         uint8_t delay_ms);
+  std::vector<uint8_t> i2c_scan();
 
   /**Set the order of the bits shifted out of and into the SPI bus, either
   LSBFIRST (least-significant bit first) or MSBFIRST (most-significant bit

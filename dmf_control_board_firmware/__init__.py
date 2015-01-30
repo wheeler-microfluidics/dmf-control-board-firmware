@@ -32,6 +32,7 @@ from scipy.signal import savgol_filter
 import matplotlib.mlab as mlab
 from path_helpers import path
 from microdrop_utility import Version, FutureVersionError
+from base_node import BaseNode
 
 from dmf_control_board_base import DMFControlBoard as Base
 from dmf_control_board_base import uint8_tVector
@@ -40,7 +41,6 @@ from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW
 from serial_device import SerialDevice
 from arduino_helpers.context import auto_context, Board, Uploader
 from calibrate.feedback import compute_from_transfer_function
-
 
 logger = logging.getLogger()
 
@@ -853,6 +853,7 @@ class DMFControlBoard(Base, SerialDevice):
             self.port = port
         else:
             self.get_port(baud_rate)
+            return self.RETURN_OK
 
         name = self.name()
         version = self.hardware_version()
@@ -909,17 +910,39 @@ class DMFControlBoard(Base, SerialDevice):
             raise BadVGND(msg + " to be damaged. You may need to replace the "
                           "op-amp on the control board.")
 
+        self._i2c_scan()
+        
         return self.RETURN_OK
+
+    def _i2c_scan(self):
+        self._i2c_devices = {}
+        logger.info("Scan i2c bus:")
+        # scan for devices on the i2c bus
+        try:
+            for address in self.i2c_scan():
+                try:
+                    node = BaseNode(self, address)
+                    description = ("%s v%s (Firmware v%s, S/N %03d)" % 
+                        (node.name(), node.hardware_version(),
+                         node.software_version(), node.serial_number)) 
+                except:
+                    description = "?" % address
+                self._i2c_devices[address] = description
+                logger.info("\t%d: %s" % (address, description))
+        except: # need to catch exceptions here because this call will
+                # generate an error on old firmware which will prevent us
+                # from getting the opportunity to apply a firmware update.
+            pass
 
     def _read_calibration_data(self):
         R_hv = self.a0_series_resistance
         C_hv = self.a0_series_capacitance
         R_fb = self.a1_series_resistance
         C_fb = self.a1_series_capacitance
-        logger.info("HV series resistors=%s" % R_hv)
-        logger.info("HV series capacitance=%s" % C_hv)
-        logger.info("Feedback series resistors=%s" % R_fb)
-        logger.info("Feedback series capacitance=%s" % C_fb)
+        logger.info("R_hv=%s" % R_hv)
+        logger.info("C_hv=%s" % C_hv)
+        logger.info("R_fb=%s" % R_fb)
+        logger.info("C_fb=%s" % C_fb)
         self.calibration = FeedbackCalibration(R_hv, C_hv, R_fb, C_fb,
                                                hw_version=
                                                Version.fromstring
@@ -1196,6 +1219,9 @@ class DMFControlBoard(Base, SerialDevice):
                                                  state_))
         return self.impedance_buffer_to_feedback_result(buffer)
 
+    def i2c_scan(self):
+        return np.array(Base.i2c_scan(self))
+
     def i2c_write(self, address, data):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
@@ -1213,6 +1239,7 @@ class DMFControlBoard(Base, SerialDevice):
                                               delay_ms))
 
     def test_connection(self, port, baud_rate):
+        logger.info("test_connection(%s, %d)" % (port, baud_rate))
         try:
             if self.connect(port, baud_rate) == self.RETURN_OK:
                 return True

@@ -680,6 +680,14 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+    case CMD_I2C_SCAN:
+      if (payload_length() == 0) {
+        i2c_scan(true);
+        return_code_ = RETURN_OK;
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
+      }
+      break;
 #endif
   }
   send_reply(return_code_);
@@ -910,10 +918,13 @@ void /* DEVICE */ RemoteObject::begin() {
   Serial.println(" V");
 }
 
-void /* DEVICE */ RemoteObject::i2c_scan() {
+void /* DEVICE */ RemoteObject::i2c_scan(bool serialize_to_payload) {
   for (uint8_t i = 8; i < 120; i++) {
     Wire.beginTransmission(i);
     if (Wire.endTransmission() == 0) {
+      if (serialize_to_payload) {
+        serialize(&i, sizeof(i));
+      }
       Serial.print("Found i2c address: ");
       Serial.print(i, DEC);
       Serial.print(" (0x");
@@ -1320,6 +1331,22 @@ void /* HOST */ RemoteObject::i2c_write(uint8_t address,
         function_name);
     }
   }
+}
+
+std::vector<uint8_t> /* HOST */ RemoteObject::i2c_scan() {
+  const char* function_name = "i2c_scan()";
+  log_separator();
+  log_message("send command", function_name);
+  if (send_command(CMD_I2C_SCAN) == RETURN_OK) {
+    std::vector<uint8_t> received_data;
+    for (uint8_t i = 0; i < payload_length(); i++) {
+      received_data.push_back(read<uint8_t>());
+      log_message(str(format("received_data[%d]=%d") % i %
+        received_data[i]).c_str(), function_name);
+    }
+    return received_data;
+  }
+  return std::vector<uint8_t>();
 }
 
 std::vector<uint8_t> /* HOST */ RemoteObject::i2c_read(uint8_t address,
