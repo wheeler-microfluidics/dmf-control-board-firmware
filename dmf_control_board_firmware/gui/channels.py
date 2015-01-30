@@ -82,6 +82,7 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     results['hv_switching_board' % address] = proxy._i2c_devices[address]
     results['software_version'] = proxy.software_version()
     results['hardware_version'] = proxy.hardware_version()
+    results['serial_number'] = str(proxy.serial_number)
     results['aref'] = proxy.__aref__
     results['timestamp'] = datetime.now().isoformat()
     

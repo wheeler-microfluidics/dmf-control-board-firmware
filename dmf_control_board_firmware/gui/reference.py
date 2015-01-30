@@ -266,7 +266,7 @@ class AssistantView(WindowView):
         df = {}
         df['software_version'] = proxy.software_version()
         df['hardware_version'] = proxy.hardware_version()
-        df['serial_number'] = proxy.serial_number
+        df['serial_number'] = str(proxy.serial_number)
         df['aref'] = str(proxy.__aref__) # need to store as string or to_hdf
                                          # will raise an error
         for address, desc in sorted(proxy._i2c_devices.items()):
