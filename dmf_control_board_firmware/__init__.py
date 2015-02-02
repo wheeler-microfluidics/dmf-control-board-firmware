@@ -855,6 +855,8 @@ class DMFControlBoard(Base, SerialDevice):
             self.get_port(baud_rate)
             return self.RETURN_OK
 
+        self._i2c_devices = {}
+
         name = self.name()
         version = self.hardware_version()
         firmware = self.software_version()
@@ -915,7 +917,6 @@ class DMFControlBoard(Base, SerialDevice):
         return self.RETURN_OK
 
     def _i2c_scan(self):
-        self._i2c_devices = {}
         logger.info("Scan i2c bus:")
         # scan for devices on the i2c bus
         try:
