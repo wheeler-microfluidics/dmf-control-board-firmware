@@ -598,21 +598,12 @@ void DMFControlBoard::begin() {
 
   // default amplifier gain
   amplifier_gain_ = 300;
-}
-
-void DMFControlBoard::on_connect() {
-  connected_ = true;
-
-  // turn on the power supply
-  atx_power_on();
 
   Serial.print(name());
   Serial.print(" v");
   Serial.println(hardware_version());
   Serial.print("Firmware version: ");
   Serial.println(software_version());
-
-  i2c_scan();
 
   Serial.print("Configuration version=");
   Serial.print(config_settings_.version.major, DEC);
@@ -664,6 +655,13 @@ void DMFControlBoard::on_connect() {
   Serial.println(config_settings_.waveform_frequency_range[1]);
   Serial.print("max_waveform_voltage=");
   Serial.println(config_settings_.max_waveform_voltage);
+}
+
+void DMFControlBoard::on_connect() {
+  connected_ = true;
+
+  // turn on the power supply
+  atx_power_on();
 
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
