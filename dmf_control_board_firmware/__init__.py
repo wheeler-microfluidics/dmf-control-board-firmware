@@ -904,6 +904,8 @@ class DMFControlBoard(Base, SerialDevice):
                     # from getting the opportunity to apply a firmware update.
                 break
 
+        self._i2c_scan()
+
         if damaged:
             if len(damaged) == 1:
                 msg = "Analog channel %d appears" % damaged[0]
@@ -912,8 +914,6 @@ class DMFControlBoard(Base, SerialDevice):
             raise BadVGND(msg + " to be damaged. You may need to replace the "
                           "op-amp on the control board.")
 
-        self._i2c_scan()
-        
         return self.RETURN_OK
 
     def _i2c_scan(self):
