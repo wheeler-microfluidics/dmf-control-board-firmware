@@ -1,0 +1,31 @@
+= Version 1.0 =
+ * Add i2c_scan function and log i2c devices on connect
+ * Log version info, S/N and Aref on connection
+ * Add check for VGND levels on connect
+ * Only turn on the power supply once a serial connection has been established
+ * Add `use_anti_aliasing_filter` to configuration
+ * Add calibration wizards
+ * Add channel sweep test
+ * Increase default amplifier gain to 300
+ * Return amplifier gain and VGND levels with `measure_impedance()` calls
+ * Add options for post-acquisition filtering (Savitztky-Golay) of feedback results
+ * Add user-configuratble waveform voltage and frequency limits
+ * Marjor improvments to ADC related functions
+ * Stop compiling v1.0 and 1.1 firmware
+ * Add watchdog timer to automatically turn off the power supply if there is no active serial connection
+ * Add baud rate setting to EEPROM (11 months ago)
+ * Add ability to load/save configuration data
+ * Add support for Arduino 1.0
+ * Lots of bug fixes
+
+= Version 0.1.350 =
+ * Make compatible with v2.0 and v2.1 hardware
+ * Add voltage_tolerance to EEPROM settings
+ * Add config values for switching and signal board i2c addresses
+ * Add signed arduino driver
+ * API cleanup
+ * Lots of bug fixes
+
+= Version 0.1.321 =
+ * GUI remains responsive when running a protocol
+ * Allow interruption of feedback measurements in progress
