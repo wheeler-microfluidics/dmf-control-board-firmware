@@ -761,6 +761,20 @@ void DMFControlBoard::update_all_channels() {
   }
 }
 
+// clear the state of all channels
+void DMFControlBoard::clear_all_channels() {
+  // See update_all_channels
+  uint8_t data[2];
+  for (uint8_t chip=0; chip<number_of_channels_/40; chip++) {
+    for (uint8_t port = 0; port < 5; port++) {
+      data[0] = PCA9505_OUTPUT_PORT_REGISTER_ + port;
+      data[1] = 0xFF;
+      i2c_write(config_settings_.switching_board_i2c_address + chip,
+                data, 2);
+    }
+  }
+}
+
 // Update the state of single channel.
 // Note: Do not use this function in a loop to update all channels. If you
 //       want to update all channels, use the update_all_channels function

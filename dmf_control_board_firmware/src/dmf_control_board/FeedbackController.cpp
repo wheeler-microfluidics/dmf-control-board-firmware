@@ -161,6 +161,13 @@ void FeedbackController::interleaved_callback(uint8_t channel_index,
       if (channel.series_resistor_index > 0) {
         set_series_resistor_index(channel_index,
             channel.series_resistor_index - 1);
+      } else {
+        // If we've saturated on the smallest resistor, it means that we've
+        // exceeded the maximum current the system can measure. This probably
+        // means that there's a short, so turn off all channels and set the
+        // waveform voltage to 0.
+        parent_->clear_all_channels();
+        parent_->set_waveform_voltage(0, false);
       }
       channel.post_saturation_ignore = N_IGNORE_POST_SATURATION;
     } else {

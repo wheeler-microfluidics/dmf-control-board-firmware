@@ -397,6 +397,7 @@ public:
   bool watchdog_state() const { return watchdog_.state; }
   void set_watchdog_state(bool state) { watchdog_.state = state; }
   void watchdog_reset() { set_watchdog_state(true); }
+  void clear_all_channels();
 
   /* Callback function when watchdog timer period is finished. */
   void watchdog_timeout() {
