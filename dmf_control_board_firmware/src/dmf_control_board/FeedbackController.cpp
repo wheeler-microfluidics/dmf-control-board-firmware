@@ -450,10 +450,19 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
         target_voltage = parent_->waveform_voltage();
       #endif  // #if ___HARDWARE_MAJOR_VERSION___ == 1 / #else
 
-      // If we're outside of the voltage tolerance, update the gain and
-      // voltage.
+      // The voltage tolerance represents the maximum error we are willing to
+      // accept before the software throws an error message to the user.
+      // We also want to define a secondary (lower) tolerance which will
+      // trigger updating of the voltage/amplifier gain. If we update the
+      // gain/voltage every sampling window, it can lead to oscillations,
+      // so a simple solution is to define an acceptable window within which we
+      // will ignore any difference between the target and set voltage (e.g.,
+      // 50% of the voltage tolerance).
+      //
+      // Alternatively, we could use an adaptive updating scheme (e.g., PID
+      // control or an exponential filter).
       if (abs(measured_voltage - target_voltage) >
-          parent_->config_settings().voltage_tolerance) {
+          0.5 * parent_->config_settings().voltage_tolerance) {
 
         float gain = parent_->amplifier_gain() * measured_voltage / \
           target_voltage;
