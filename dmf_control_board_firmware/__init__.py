@@ -336,17 +336,17 @@ class FeedbackResults():
                 result = self.mean_velocity(tol=tol)
                 if result['dt'] and \
                     result['dt'] > 0.1 * self.time[-1] and result['p'][0] > 0:
-                    if self.calibration._C_drop:
-                        C_drop = self.calibration.C_drop(self.frequency)
+                    if self.calibration._c_drop:
+                        c_drop = self.calibration.c_drop(self.frequency)
                     else:
-                        C_drop = self.capacitance()[-1] / self.area
-                    if self.calibration._C_filler:
-                        C_filler = self.calibration.C_filler(self.frequency)
+                        c_drop = self.capacitance()[-1] / self.area
+                    if self.calibration._c_filler:
+                        c_filler = self.calibration.c_filler(self.frequency)
                     else:
-                        C_filler = 0
+                        c_filler = 0
                     x = result['p'][0]*self.time + result['p'][1]
-                    C = self.area * (x * (C_drop - C_filler) / \
-                                     np.sqrt(self.area) + C_filler)
+                    C = self.area * (x * (c_drop - c_filler) / \
+                                     np.sqrt(self.area) + c_filler)
                     Z1 = 1.0 / (2.0 * math.pi * self.frequency * C)
                     Z1[mlab.find(self.time==result['t_end'])[0]+1:] = \
                         Z1[mlab.find(self.time==result['t_end'])[0]]
@@ -378,11 +378,11 @@ class FeedbackResults():
         '''
         Calculate $x$-position according to:
 
-               __ | C      |
-                           ╲╱ a   ⋅ | - - Cf |
-                  | a      |
+               __ | C       |
+                           ╲╱ a   ⋅ | - - c_f |
+                  | a       |
         x = ──────────────
-                Cd - Cf
+              c_d - c_f
 
         where:
 
@@ -396,18 +396,18 @@ class FeedbackResults():
         Note that this equation for $x$ assumes a single drop moving across a
         square electrode.
         '''
-        if self.calibration._C_drop:
-            C_drop = self.calibration.C_drop(self.frequency)
+        if self.calibration._c_drop:
+            c_drop = self.calibration.c_drop(self.frequency)
         else:
-            C_drop = self.capacitance()[-1] / self.area
-        if self.calibration._C_filler:
-            C_filler = self.calibration.C_filler(self.frequency)
+            c_drop = self.capacitance()[-1] / self.area
+        if self.calibration._c_filler:
+            c_filler = self.calibration.c_filler(self.frequency)
         else:
-            C_filler = 0
+            c_filler = 0
 
         return (self.capacitance(filter_order=filter_order,
                                  window_size=window_size, tol=tol) / self.area
-                - C_filler) / (C_drop - C_filler) * np.sqrt(self.area)
+                - c_filler) / (c_drop - c_filler) * np.sqrt(self.area)
 
     def mean_velocity(self, tol=0.05):
         '''
@@ -577,10 +577,10 @@ class FeedbackResultsSeries():
 
 
 class FeedbackCalibration():
-    class_version = str(Version(0, 2))
+    class_version = str(Version(0, 3))
 
-    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None, C_drop=None,
-                 C_filler=None, hw_version=None):
+    def __init__(self, R_hv=None, C_hv=None, R_fb=None, C_fb=None, c_drop=None,
+                 c_filler=None, hw_version=None):
         if R_hv:
             self.R_hv = np.array(R_hv)
         else:
@@ -597,14 +597,14 @@ class FeedbackCalibration():
             self.C_fb = np.array(C_fb)
         else:
             self.C_fb = np.array([3e-14, 3.2e-10, 3.3e-10, 3.4e-10])
-        if C_drop:
-            self._C_drop = C_drop
+        if c_drop:
+            self._c_drop = c_drop
         else:
-            self._C_drop = None
-        if C_filler:
-            self._C_filler = C_filler
+            self._c_drop = None
+        if c_filler:
+            self._c_filler = c_filler
         else:
-            self._C_filler = None
+            self._c_filler = None
         if hw_version:
             self.hw_version = hw_version
         else:
@@ -612,24 +612,50 @@ class FeedbackCalibration():
         self.version = self.class_version
 
     def C_drop(self, frequency):
-        try:
-            return np.interp(frequency,
-                             self._C_drop['frequency'],
-                             self._C_drop['capacitance']
-            )
-        except:
-            pass
-        return self._C_drop
+        '''
+        This function has been depreciated. It has been replaced by the
+        lowercase version c_drop, which signifies that the capacitance is
+        normalized per unit area (i.e., units are F/mm^2).
+        '''
+        logger.warning('C_drop is depreciated. Use c_drop instead.')
+        return self.c_drop(frequency)
 
     def C_filler(self, frequency):
+        '''
+        This function has been depreciated. It has been replaced by the
+        lowercase version c_filler, which signifies that the capacitance is
+        normalized per unit area (i.e., units are F/mm^2).
+        '''
+        logger.warning('C_filler is depreciated. Use c_filler instead.')
+        return self.c_filler(frequency)
+
+    def c_drop(self, frequency):
+        '''
+        Capacitance of an electrode covered in liquid, normalized per unit
+        area (i.e., units are F/mm^2).
+        '''
         try:
             return np.interp(frequency,
-                             self._C_filler['frequency'],
-                             self._C_filler['capacitance']
+                             self._c_drop['frequency'],
+                             self._c_drop['capacitance']
             )
         except:
             pass
-        return self._C_filler
+        return self._c_drop
+
+    def c_filler(self, frequency):
+        '''
+        Capacitance of an electrode covered in filler media (e.g., air or oil),
+        normalized per unit area (i.e., units are F/mm^2).
+        '''
+        try:
+            return np.interp(frequency,
+                             self._c_filler['frequency'],
+                             self._c_filler['capacitance']
+            )
+        except:
+            pass
+        return self._c_filler
 
     def __getstate__(self):
         """Convert numpy arrays to lists for serialization"""
@@ -644,7 +670,12 @@ class FeedbackCalibration():
         # rename C_drop and C_filler members
         for k in ['C_drop', 'C_filler']:
             if k in state:
-                state['_' + k] = state[k]
+                state['_' + k.lower()] = state[k]
+                del state[k]
+        # rename _C_drop and _C_filler members to their lowercase versions
+        for k in ['_C_drop', '_C_filler']:
+            if k in state:
+                state[k.lower()] = state[k]
                 del state[k]
         self.__dict__ = state
         for k, v in self.__dict__.items():
@@ -672,8 +703,8 @@ class FeedbackCalibration():
                                      version)
         elif version < Version.fromstring(self.class_version):
             if version < Version(0, 1):
-                self._C_filler = None
-                self._C_drop = None
+                self._c_filler = None
+                self._c_drop = None
                 self.version = str(Version(0, 1))
             if version < Version(0, 2):
                 self.hw_version = Version(1)
@@ -683,6 +714,10 @@ class FeedbackCalibration():
             if version < Version(0, 2):
                 self.hw_version = Version(1)
                 self.version = str(Version(0, 2))
+                logging.info('[FeedbackCalibration] upgrade to version %s',
+                             self.version)
+            if version < Version(0, 3):
+                self.version = str(Version(0, 3))
                 logging.info('[FeedbackCalibration] upgrade to version %s',
                              self.version)
         # else the versions are equal and don't need to be upgraded
