@@ -354,6 +354,32 @@ class FeedbackResults():
                     Z1 = np.mean(Z1)*np.ones(Z1.shape)
         return Z1
 
+    def force(self, L=None):
+        '''
+        Estimate the applied force (in Newtons) on a drop according to the
+        electromechanical model [1].
+        
+            L is the width of the actuated electrode in milimeters. By default,
+                use the square root of the actuated electrode area. To get the
+                force normalized by electrode width (i.e., in units of N/mm),
+                set L=1.0.
+
+        1. Chatterjee et al., "Electromechanical model for actuating liquids in
+           a two-plate droplet microfluidic device," Lab on a Chip, no. 9
+           (2009): 1219-1229.
+        '''
+        if self.calibration._c_drop:
+            c_drop = self.calibration.c_drop(self.frequency)
+        else:
+            c_drop = self.capacitance()[-1] / self.area
+        if self.calibration._c_filler:
+            c_filler = self.calibration.c_filler(self.frequency)
+        else:
+            c_filler = 0
+        if L is None:
+            L = np.sqrt(self.area)
+        return 1e3 * L * 0.5 * (c_drop - c_filler) * self.V_actuation()**2
+
     def min_impedance(self):
         return min(self.Z_device())
 
@@ -546,6 +572,9 @@ class FeedbackResultsSeries():
 
     def Z_device(self, *args, **kwargs):
         return self._concatenate_data_from_function('Z_device', *args, **kwargs)
+
+    def force(self, *args, **kwargs):
+        return self._concatenate_data_from_function('force', *args, **kwargs)
 
     def capacitance(self, *args, **kwargs):
         return self._concatenate_data_from_function('capacitance', *args, **kwargs)
