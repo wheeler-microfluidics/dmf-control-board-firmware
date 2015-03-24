@@ -354,15 +354,18 @@ class FeedbackResults():
                     Z1 = np.mean(Z1)*np.ones(Z1.shape)
         return Z1
 
-    def force(self, L=None):
+    def force(self, Ly=None):
         '''
         Estimate the applied force (in Newtons) on a drop according to the
         electromechanical model [1].
         
-            L is the width of the actuated electrode in milimeters. By default,
-                use the square root of the actuated electrode area. To get the
-                force normalized by electrode width (i.e., in units of N/mm),
-                set L=1.0.
+            Ly is the length of the actuated electrode along the y-axis
+                (perpendicular to the direction of motion) in milimeters. By
+                default, use the square root of the actuated electrode area, 
+                i.e.,
+                    Ly=Lx=sqrt(Area)
+                To get the force normalized by electrode width (i.e., in units
+                of N/mm), set Ly=1.0.
 
         1. Chatterjee et al., "Electromechanical model for actuating liquids in
            a two-plate droplet microfluidic device," Lab on a Chip, no. 9
@@ -376,9 +379,9 @@ class FeedbackResults():
             c_filler = self.calibration.c_filler(self.frequency)
         else:
             c_filler = 0
-        if L is None:
-            L = np.sqrt(self.area)
-        return 1e3 * L * 0.5 * (c_drop - c_filler) * self.V_actuation()**2
+        if Ly is None:
+            Ly = np.sqrt(self.area)
+        return 1e3 * Ly * 0.5 * (c_drop - c_filler) * self.V_actuation()**2
 
     def min_impedance(self):
         return min(self.Z_device())
@@ -400,7 +403,8 @@ class FeedbackResults():
             ).interpolate(method='time', downcast=None).values
         )
 
-    def x_position(self, filter_order=None, window_size=None, tol=0.05):
+    def x_position(self, filter_order=None, window_size=None, tol=0.05,
+                   Lx=None):
         '''
         Calculate $x$-position according to:
 
@@ -419,8 +423,10 @@ class FeedbackResults():
            liquid per unit area.
          - $a$ is the area of the actuated electrode(s).
 
-        Note that this equation for $x$ assumes a single drop moving across a
-        square electrode.
+        Note that this equation for $x$ assumes a single drop moving across an
+        electrode with a length along the x-axis of Lx. If no value is provided
+        for Lx, the electrode is assumed to be square, i.e.,
+            Lx=Ly=sqrt(area)
         '''
         if self.calibration._c_drop:
             c_drop = self.calibration.c_drop(self.frequency)
@@ -430,12 +436,13 @@ class FeedbackResults():
             c_filler = self.calibration.c_filler(self.frequency)
         else:
             c_filler = 0
-
+        if Lx is None:
+            Lx = np.sqrt(self.area)
         return (self.capacitance(filter_order=filter_order,
                                  window_size=window_size, tol=tol) / self.area
-                - c_filler) / (c_drop - c_filler) * np.sqrt(self.area)
+                - c_filler) / (c_drop - c_filler) * Lx
 
-    def mean_velocity(self, tol=0.05):
+    def mean_velocity(self, tol=0.05, Lx=None):
         '''
         Calculate the mean velocity for a step (mm/ms which is equivalent to
         m/s). Fit a line to the capacitance data and get the slope.
@@ -449,7 +456,7 @@ class FeedbackResults():
         if self.area == 0:
             return dict(dx=dx, dt=dt, p=p, ind=ind, t_end=t_end)
 
-        x = self.x_position()
+        x = self.x_position(Lx=Lx)
 
         # find the first and last valid indices
         ind_start = mlab.find(x.mask==False)[0]
@@ -503,8 +510,8 @@ class FeedbackResults():
                                    dt / 2.0) * 2.0 + 1
         return window_size
 
-    def dxdt(self, filter_order=None, window_size=None, tol=0.05):
-        x = self.x_position()
+    def dxdt(self, filter_order=None, window_size=None, tol=0.05, Lx=None):
+        x = self.x_position(Lx=Lx)
 
         if filter_order and window_size is None:
             window_size = self._get_window_size(tol)
