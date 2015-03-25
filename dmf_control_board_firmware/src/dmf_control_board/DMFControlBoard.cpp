@@ -585,6 +585,9 @@ void DMFControlBoard::begin() {
   digitalWrite(WAVEFORM_SELECT_, SINE);
 #endif
 
+  // default amplifier gain
+  amplifier_gain_ = 300;
+
   load_config();
 
   // set all digital pots
@@ -598,9 +601,6 @@ void DMFControlBoard::begin() {
     set_pot(POT_INDEX_WAVEOUT_GAIN_1_, config_settings_.waveout_gain_1);
     set_pot(POT_INDEX_WAVEOUT_GAIN_2_, 0);
   #endif
-
-  // default amplifier gain
-  amplifier_gain_ = 300;
 
   Serial.print(name());
   Serial.print(" v");
