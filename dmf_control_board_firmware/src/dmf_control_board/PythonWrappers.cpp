@@ -43,6 +43,7 @@ const uint16_t RemoteObject::MAX_PAYLOAD_LENGTH;
 const uint8_t DMFControlBoard::SINE;
 const uint8_t DMFControlBoard::SQUARE;
 const uint16_t DMFControlBoard::PERSISTENT_CONFIG_SETTINGS;
+const uint8_t DMFControlBoard::RETURN_MAX_CURRENT_EXCEEDED;
 
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
@@ -183,6 +184,8 @@ DMFControlBoard_class.attr("RETURN_BAD_PACKET_SIZE") = \
 DMFControlBoard_class.attr("RETURN_BAD_CRC") = DMFControlBoard::RETURN_BAD_CRC;
 DMFControlBoard_class.attr("RETURN_BAD_VALUE") = \
     DMFControlBoard::RETURN_BAD_VALUE;
+DMFControlBoard_class.attr("RETURN_MAX_CURRENT_EXCEEDED") = \
+    DMFControlBoard::RETURN_MAX_CURRENT_EXCEEDED;
 DMFControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = \
     DMFControlBoard::PERSISTENT_CONFIG_SETTINGS;
 DMFControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = \

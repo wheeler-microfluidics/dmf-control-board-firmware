@@ -66,7 +66,7 @@ public:
     return channels_[channel_index].series_resistor_index;
   }
 
-  static uint16_t measure_impedance(float sampling_window_ms,
+  static uint8_t measure_impedance(float sampling_window_ms,
                              uint16_t n_sampling_windows,
                              float delay_between_windows_ms,
                              float frequency,
@@ -86,6 +86,7 @@ private:
   static uint16_t n_samples_per_window_;
   static DMFControlBoard* parent_;
   static bool rms_;
+  static bool current_limit_exceeded_;
 };
 #endif // defined(AVR) || defined(__SAM3X8E__)
 

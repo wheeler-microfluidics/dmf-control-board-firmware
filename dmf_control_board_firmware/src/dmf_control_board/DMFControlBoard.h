@@ -234,9 +234,11 @@ public:
   //
   // Return codes are uint8_t.  Some generic return codes are defined by the
   // RemoteObject class.  You may also create custom return codes as long as
-  // they are > 0x10.
+  // they are > 0x1F.
   //
   //////////////////////////////////////////////////////////////////////////////
+
+  static const uint8_t RETURN_MAX_CURRENT_EXCEEDED =        0x20;
 
   DMFControlBoard();
   ~DMFControlBoard();

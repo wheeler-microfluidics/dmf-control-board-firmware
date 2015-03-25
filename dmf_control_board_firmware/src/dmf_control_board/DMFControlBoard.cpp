@@ -435,28 +435,31 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
             }
 
             long start_time = micros();
-            feedback_controller_.measure_impedance(sampling_window_ms,
+            return_code_ = feedback_controller_.measure_impedance(
+                                                   sampling_window_ms,
                                                    n_sampling_windows,
                                                    delay_between_windows_ms,
                                                    waveform_frequency_,
                                                    interleave_samples,
                                                    rms);
-            // return the time between sampling windows (dt) in ms
-            float dt_ms = (float)(micros() - start_time) / \
-                (1000.0 * n_sampling_windows);
-            serialize(&dt_ms, sizeof(dt_ms));
+            if (return_code_ == RETURN_OK) {
+              // return the time between sampling windows (dt) in ms
+              float dt_ms = (float)(micros() - start_time) / \
+                  (1000.0 * n_sampling_windows);
+              serialize(&dt_ms, sizeof(dt_ms));
 
-            // return the vgnd values
-            for (uint8_t index = 0;
-                 index < FeedbackController::NUMBER_OF_ADC_CHANNELS;
-                 index++) {
-              serialize(&
-                feedback_controller_.channels()[index].vgnd_exp_filtered,
-                sizeof(float));
+              // return the vgnd values
+              for (uint8_t index = 0;
+                   index < FeedbackController::NUMBER_OF_ADC_CHANNELS;
+                   index++) {
+                serialize(&
+                  feedback_controller_.channels()[index].vgnd_exp_filtered,
+                  sizeof(float));
+              }
+              // return the amplifier gain
+              float gain = amplifier_gain();
+              serialize(&gain, sizeof(float));
             }
-            // return the amplifier gain
-            float gain = amplifier_gain();
-            serialize(&gain, sizeof(float));
           } else {
             return_code_ = RETURN_GENERAL_ERROR;
           }

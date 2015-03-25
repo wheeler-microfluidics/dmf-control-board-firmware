@@ -7,6 +7,7 @@
 uint16_t FeedbackController::n_samples_per_window_;
 DMFControlBoard* FeedbackController::parent_;
 bool FeedbackController::rms_;
+bool FeedbackController::current_limit_exceeded_;
 FeedbackController::ADCChannel FeedbackController::channels_[] = {
     FeedbackController::ADCChannel(),
     FeedbackController::ADCChannel()
@@ -162,12 +163,9 @@ void FeedbackController::interleaved_callback(uint8_t channel_index,
         set_series_resistor_index(channel_index,
             channel.series_resistor_index - 1);
       } else {
-        // If we've saturated on the smallest resistor, it means that we've
-        // exceeded the maximum current the system can measure. This probably
-        // means that there's a short, so turn off all channels and set the
-        // waveform voltage to 0.
-        parent_->clear_all_channels();
-        parent_->set_waveform_voltage(0, false);
+        // if we're saturating the smallest resistor, we've exceeded the
+        // maximum current limit.
+        current_limit_exceeded_ = true;
       }
       channel.post_saturation_ignore = N_IGNORE_POST_SATURATION;
     } else {
@@ -200,7 +198,7 @@ void FeedbackController::fb_channel_callback(uint8_t channel_index,
   interleaved_callback(FB_CHANNEL_INDEX, value);
 }
 
-uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
+uint8_t FeedbackController::measure_impedance(float sampling_window_ms,
                                           uint16_t n_sampling_windows,
                                           float delay_between_windows_ms,
                                           float frequency,
@@ -330,6 +328,8 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
     #endif // #if ___HARDWARE_MAJOR_VERSION___ == 1
   }
 
+  current_limit_exceeded_ = false;
+
   for (uint16_t i = 0; i < n_sampling_windows; i++) {
     for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
          channel_index++) {
@@ -374,6 +374,14 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
 
     for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
          channel_index++) {
+
+      if (current_limit_exceeded_) {
+        // If we've exceeded the current limit, it probably means that there's
+        // a short, so turn off all channels and set the waveform voltage to 0.
+        parent_->clear_all_channels();
+        parent_->set_waveform_voltage(0, false);
+        return parent_->RETURN_MAX_CURRENT_EXCEEDED;
+      }
 
       // get a reference to the channel
       ADCChannel& channel = channels_[channel_index];
@@ -507,9 +515,7 @@ uint16_t FeedbackController::measure_impedance(float sampling_window_ms,
 
   }
 
-  // Return the number of samples that we measured _(i.e, the number of values
-  // available in the result buffers)_.
-  return n_sampling_windows;
+  return parent_->RETURN_OK;
 }
 
 void FeedbackController::find_sampling_rate(float sampling_window_ms,
