@@ -231,6 +231,8 @@ class AssistantView(WindowView):
                 self.impedance_readings = run_experiment(
                     self.control_board, rms_voltage, frequencies=frequencies,
                     on_update=on_update)
+            except:
+                raise
             finally:
                 self.restore_settings()
         gtk.gdk.threads_enter()
