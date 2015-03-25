@@ -82,7 +82,7 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
     # maximum sweep frequency. The maximum current through the device load
     # measurement circuit is 30mA peak-to-peak or *~10mA RMS*.  This current
     # limit is based on the current rating of the [op-amp][1] in the feedback
-    # circuit.
+    # circuit. Use half of this limit to be safe (i.e., 5mA).
     # *N.B.,* The maximum RMS current rating of the [PhotoMOS][2] chips is
     # 50mA@~200V-RMS and 140mA@~110V-RMS.
     #
@@ -91,7 +91,7 @@ def run_experiment(proxy, rms_voltage, test_loads=None, frequencies=None,
     max_capacitance_func = sp.lambdify('i, f, V',
                                        sp.Abs(sp.solve(capacitive_load_func,
                                                        'C')[0]), 'numpy')
-    max_capacitance = max_capacitance_func(0.010, frequencies.max(),
+    max_capacitance = max_capacitance_func(0.005, frequencies.max(),
                                            rms_voltage)
 
     # Only test using capacitance loads that are within the maximum for the
