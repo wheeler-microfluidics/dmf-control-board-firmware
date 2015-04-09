@@ -817,6 +817,20 @@ class DMFControlBoard(Base, SerialDevice):
         self.calibration = None
         self.__aref__ = None
 
+    def force_to_voltage(self, force, frequency):
+        '''
+        Convert a force in uN/mm to voltage.
+        '''
+        c_drop = self.calibration.c_drop(frequency)
+
+        # if c_filler hasn't been set, assume c_filler = 0
+        if self.calibration._c_filler:
+            c_filler = self.calibration.c_filler(frequency)
+        else:
+            c_filler = 0
+
+        return np.sqrt(force * 1e-9/ (0.5 * (c_drop - c_filler)))
+
     @safe_series_resistor_index_read
     def series_capacitance(self, channel, resistor_index=None):
         '''
