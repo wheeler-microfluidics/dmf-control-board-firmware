@@ -320,9 +320,9 @@ class FeedbackResults():
         if filter_order and window_size is None:
             window_size = self._get_window_size(tol)
 
-        # if the filter_order is None or if the window size is smaller than
-        # filter_order + 2, don't filter
-        if filter_order is None or \
+        # if the filter_order or window size is None or if the window size is
+        # smaller than filter_order + 2, don't filter
+        if filter_order is None or window_size is None or \
             (window_size and window_size < filter_order + 2):
             pass
         else:
@@ -518,9 +518,9 @@ class FeedbackResults():
 
         dt = self.time[1]-self.time[0]
 
-        # if the filter_order is None or if the window size is smaller than
-        # filter_order + 2, don't filter
-        if filter_order is None or \
+        # if the filter_order or window size is None or if the window size is
+        # smaller than filter_order + 2, don't filter
+        if filter_order is None or window_size is None or \
             (window_size and window_size < filter_order + 2):
             dx = np.diff(x)
             t = self.time[1:] - dt/2.0
