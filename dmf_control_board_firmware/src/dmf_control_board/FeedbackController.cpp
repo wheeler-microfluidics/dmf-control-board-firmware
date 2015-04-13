@@ -375,9 +375,15 @@ uint8_t FeedbackController::measure_impedance(float sampling_window_ms,
     for (uint8_t channel_index = 0; channel_index < NUMBER_OF_ADC_CHANNELS;
          channel_index++) {
 
-      if (current_limit_exceeded_) {
+      if (current_limit_exceeded_ && ___HARDWARE_MAJOR_VERSION___ > 1) {
         // If we've exceeded the current limit, it probably means that there's
         // a short, so turn off all channels and set the waveform voltage to 0.
+        //
+        // Note: Only throw current limit exception for hardware versions > 1.
+        // Device impedance measurements are not actively used on this older
+        // hardware and the current limit imposes restrictions on the number of
+        // reservoir electrodes that can be actuated simultaneously (breaking
+        // many legacy protocols).
         parent_->clear_all_channels();
         parent_->set_waveform_voltage(0, false);
         return parent_->RETURN_MAX_CURRENT_EXCEEDED;
