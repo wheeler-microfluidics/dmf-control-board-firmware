@@ -816,6 +816,7 @@ class DMFControlBoard(Base, SerialDevice):
         SerialDevice.__init__(self)
         self.calibration = None
         self.__aref__ = None
+        self._number_of_channels = None
 
     def force_to_voltage(self, force, frequency):
         '''
@@ -1235,6 +1236,12 @@ class DMFControlBoard(Base, SerialDevice):
         else:
             pins_.append(pins)
         return np.array(Base.analog_reads(self, pins_, n_samples))
+
+    def number_of_channels(self):
+        # check for cached value
+        if self._number_of_channels is None:
+            self._number_of_channels = Base.number_of_channels(self)
+        return self._number_of_channels
 
     def measure_impedance_non_blocking(self,
                                        sampling_window_ms,
