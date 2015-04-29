@@ -1563,6 +1563,15 @@ class DMFControlBoard(Base, SerialDevice):
         to the function `f`, where `f` is either `self.series_resistance` or
         `self.series_capacitance`.
         '''
+
+        # Create a copy of the new values we intend to write. Otherwise, if
+        # `values` is a reference to the calibration object owned by the
+        # control board, it can be overwritten in the following step which will
+        # prevent the update.
+        #
+        # See http://microfluidics.utoronto.ca/trac/dropbot/ticket/81
+        values = copy.deepcopy(values)
+        
         # Read the current values, and only update the values that are
         # different.
         original_values = self.read_all_series_channel_values(read_f, channel)
