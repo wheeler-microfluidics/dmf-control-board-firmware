@@ -35,6 +35,13 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 #include "RemoteObject.h"
 
 
+#if (___HARDWARE_MAJOR_VERSION___ == 1 && ___HARDWARE_MINOR_VERSION___ < 2)
+#define ___ATX_POWER_CONTROL___    false
+#else
+#define ___ATX_POWER_CONTROL___    true
+#endif
+
+
 class DMFControlBoard : public RemoteObject {
 public:
   static const uint8_t SINE = 0;
@@ -213,13 +220,17 @@ public:
   static const uint8_t CMD_SET_AMPLIFIER_GAIN =             0xB4;
   static const uint8_t CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB5;
   static const uint8_t CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN = 0xB6;
+#if ___ATX_POWER_CONTROL___
   static const uint8_t CMD_GET_POWER_SUPPLY_PIN =           0xB7;
+#endif
   static const uint8_t CMD_GET_WATCHDOG_STATE =             0xB8;
   static const uint8_t CMD_SET_WATCHDOG_STATE =             0xB9;
   static const uint8_t CMD_GET_WATCHDOG_ENABLED =           0xBA;
   static const uint8_t CMD_SET_WATCHDOG_ENABLED =           0xBB;
+#if ___ATX_POWER_CONTROL___
   static const uint8_t CMD_GET_ATX_POWER_STATE =            0xBC;
   static const uint8_t CMD_SET_ATX_POWER_STATE =            0xBD;
+#endif
 
   // Other commands
   static const uint8_t CMD_SYSTEM_RESET =                   0xF1; //TODO
@@ -301,10 +312,12 @@ public:
         return std::string("CMD_GET_WATCHDOG_ENABLED");
       } else if (command == CMD_SET_WATCHDOG_ENABLED) {
         return std::string("CMD_SET_WATCHDOG_ENABLED");
+#if ___ATX_POWER_CONTROL___
       } else if (command == CMD_GET_ATX_POWER_STATE) {
         return std::string("CMD_GET_ATX_POWER_STATE");
       } else if (command == CMD_SET_ATX_POWER_STATE) {
         return std::string("CMD_SET_ATX_POWER_STATE");
+#endif
       } else {
         throw std::runtime_error("Invalid command.");
       }
@@ -325,7 +338,9 @@ public:
   uint8_t power_supply_pin();
   bool watchdog_state();
   bool watchdog_enabled();
+#if ___ATX_POWER_CONTROL___
   bool atx_power_state();
+#endif
 
   // Remote mutators (return code is from reply packet)
   uint8_t set_state_of_channel(const uint16_t channel, const uint8_t state);
@@ -343,7 +358,9 @@ public:
   uint8_t set_auto_adjust_amplifier_gain(bool on);
   uint8_t set_watchdog_state(bool state);
   uint8_t set_watchdog_enabled(bool state);
+#if ___ATX_POWER_CONTROL___
   uint8_t set_atx_power_state(bool state);
+#endif
 
   // other functions
   void measure_impedance_non_blocking(float sampling_window_ms,
@@ -387,6 +404,8 @@ public:
   float waveform_frequency() { return waveform_frequency_; }
   bool auto_adjust_amplifier_gain() { return auto_adjust_amplifier_gain_; }
   float amplifier_gain() { return amplifier_gain_; }
+
+#if ___ATX_POWER_CONTROL___
   /* Note that the ATX power-supply output-enable is _active-low_. */
   void atx_power_on() const {
     digitalWrite(POWER_SUPPLY_ON_PIN_, LOW);
@@ -394,6 +413,7 @@ public:
   }
   void atx_power_off() const { digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH); }
   bool atx_power_state() const { return !digitalRead(POWER_SUPPLY_ON_PIN_); }
+#endif
   bool watchdog_enabled() const { return watchdog_.enabled; }
   void set_watchdog_enabled(bool state) { watchdog_.enabled = state; }
   bool watchdog_state() const { return watchdog_.state; }
@@ -426,7 +446,9 @@ public:
   }
 
   virtual void watchdog_error() {
+#if ___ATX_POWER_CONTROL___
     atx_power_off();
+#endif
     connected_ = false;
   }
 

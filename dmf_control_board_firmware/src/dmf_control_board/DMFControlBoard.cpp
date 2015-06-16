@@ -477,6 +477,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#if ___ATX_POWER_CONTROL___
     case CMD_GET_POWER_SUPPLY_PIN:
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
@@ -486,6 +487,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#endif  // #if ___ATX_POWER_CONTROL___
     case CMD_GET_WATCHDOG_ENABLED:
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
@@ -530,6 +532,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#if ___ATX_POWER_CONTROL___
     case CMD_GET_ATX_POWER_STATE:
       if (payload_length() == 0) {
         return_code_ = RETURN_OK;
@@ -552,6 +555,7 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
+#endif  // #if ___ATX_POWER_CONTROL___
 #endif  // #ifdef AVR
   }
   RemoteObject::process_command(cmd);
@@ -573,10 +577,12 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
 void DMFControlBoard::begin() {
   RemoteObject::begin();
 
+#if ___ATX_POWER_CONTROL___
   // Set the POWER_SUPPLY_ON_PIN_ HIGH. Otherwise, the power supply turns on
   // when we set the pin as an output (i.e., LOW is the default state).
   digitalWrite(POWER_SUPPLY_ON_PIN_, HIGH);
   pinMode(POWER_SUPPLY_ON_PIN_, OUTPUT);
+#endif  // #if ___ATX_POWER_CONTROL___
 
 #if ___HARDWARE_MAJOR_VERSION___ == 1
   pinMode(AD5204_SLAVE_SELECT_PIN_, OUTPUT);
@@ -664,7 +670,9 @@ void DMFControlBoard::on_connect() {
   connected_ = true;
 
   // turn on the power supply
+#if ___ATX_POWER_CONTROL___
   atx_power_on();
+#endif  // #if ___ATX_POWER_CONTROL___
 
   // Check how many switching boards are connected.  Each additional board's
   // address must equal the previous boards address +1 to be valid.
@@ -1173,10 +1181,12 @@ bool DMFControlBoard::watchdog_enabled() {
                                       "watchdog_enabled()");
 }
 
+#if ___ATX_POWER_CONTROL___
 bool DMFControlBoard::atx_power_state() {
     return send_read_command<uint8_t>(CMD_GET_ATX_POWER_STATE,
                                       "atx_power_state()");
 }
+#endif  // #if ___ATX_POWER_CONTROL___
 
 uint8_t DMFControlBoard::set_watchdog_state(bool state) {
   return send_set_command(CMD_SET_WATCHDOG_STATE, "set_watchdog_state()",
@@ -1188,10 +1198,12 @@ uint8_t DMFControlBoard::set_watchdog_enabled(bool on) {
                             (uint8_t)on);
 }
 
+#if ___ATX_POWER_CONTROL___
 uint8_t DMFControlBoard::set_atx_power_state(bool state) {
     return send_set_command(CMD_SET_ATX_POWER_STATE, "set_atx_power_state()",
                             (uint8_t)state);
 }
+#endif  // #if ___ATX_POWER_CONTROL___
 
 uint8_t DMFControlBoard::set_series_resistor_index(const uint8_t channel,
                                                    const uint8_t index) {
