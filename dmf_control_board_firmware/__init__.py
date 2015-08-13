@@ -543,7 +543,7 @@ class FeedbackResults():
             else:
                 # otherwise, leave dx = 0
                 pass
-        return t, dx / dt
+        return t, np.ma.masked_invalid(dx / dt)
 
 
 class FeedbackResultsSeries():
@@ -551,17 +551,45 @@ class FeedbackResultsSeries():
     This class stores the impedance results for a series of measurements versus
     another independent variable.
     """
-    class_version = str(Version(0, 0))
+    class_version = str(Version(0, 1))
 
     def __init__(self, xlabel):
         self.data = []
         self.version = self.class_version
         self.xlabel = xlabel
         self.x = np.zeros(0)
+        self.time = []
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._upgrade()
+
+    def _upgrade(self):
+        """
+        Upgrade the serialized object if necessary.
+
+        Raises:
+            FutureVersionError: file was written by a future version of the
+                software.
+        """
+        logging.debug("[FeedbackResultsSeries]._upgrade()")
+        version = Version.fromstring(self.version)
+        logging.debug('[FeedbackResultsSeries] version=%s, class_version=%s',
+                      str(version), self.class_version)
+        if version > Version.fromstring(self.class_version):
+            logging.debug('[FeedbackResultsSeries] version>class_version')
+            raise FutureVersionError(Version.fromstring(self.class_version),
+                                     version)
+        elif version < Version.fromstring(self.class_version):
+            if version < Version(0, 1):
+                self.time = [None]*len(self.data)
+                self.version = str(Version(0, 1))
+        # else the versions are equal and don't need to be upgraded
 
     def add_data(self, x, feedback_results):
         self.x = np.concatenate((self.x, [x]))
         self.data.append(feedback_results)
+        self.time.append(time.time())
 
     @property
     def frequency(self):
