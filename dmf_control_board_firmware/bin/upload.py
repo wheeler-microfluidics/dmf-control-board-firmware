@@ -1,7 +1,7 @@
 import sys
 from collections import OrderedDict
 
-from arduino_rpc.upload import get_arg_parser, upload
+from arduino_helpers.upload import get_arg_parser, upload
 from .. import get_firmwares
 
 
@@ -23,5 +23,5 @@ if __name__ == '__main__':
     firmwares = OrderedDict(firmware_versions)
     args = parse_args(firmwares.keys())
 
-    upload(args.board_name, lambda b: firmwares[args.board_version], args.port,
-           args.arduino_install_home, verify=not args.skip_verify)
+    print upload(args.board_name, lambda b: firmwares[args.board_version], args.port,
+                 args.arduino_install_home, verify=not args.skip_verify)
