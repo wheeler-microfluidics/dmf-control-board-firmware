@@ -15,10 +15,10 @@ DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
 setup(name='wheeler.dmf-control-board-firmware',
       version=version.getVersion(),
-      description='Arduino-based dmf_control_board firmware and Python API.',
+      description='Arduino-based DMF control board firmware and Python API.',
       author='Ryan Fobel',
       author_email='ryan@fobel.net',
-      url='http://microfluidics.utoronto.ca/git/dmf-control-board.git',
+      url='https://github.com/wheeler-microfluidics/dmf-control-board-firmware',
       license='GPLv2',
       packages=['dmf_control_board_firmware'],
       include_package_data=True,
