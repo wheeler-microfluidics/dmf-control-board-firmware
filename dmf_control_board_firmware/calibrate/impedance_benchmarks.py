@@ -28,11 +28,15 @@ def plot_capacitance_vs_frequency(df, **kwargs):
     for C in fb_resistor_df.test_capacitor.unique():
         axis.plot(frequencies, [C] * len(frequencies), '--', alpha=0.7,
                   color='0.5', linewidth=1)
-    colors = axis._get_lines.color_cycle
+
     # Plot scatter of _measured_ capacitance vs. frequency.
     for k, v in fb_resistor_df[['frequency', 'C']].groupby(level=0):
+        try:
+            color = axis._get_lines.color_cycle.next()
+        except: # make compatible with matplotlib v1.5
+            color = axis._get_lines.prop_cycler.next()['color']
         v.plot(kind='scatter', x='frequency', y='C', loglog=True,
-               label='R$_{fb,%d}$' % k, ax=axis, color=colors.next(),
+               label='R$_{fb,%d}$' % k, ax=axis, color=color,
                s=s, facecolor=facecolor, **kwargs)
     axis.legend(loc='upper right')
     axis.set_xlabel('Frequency (Hz)')

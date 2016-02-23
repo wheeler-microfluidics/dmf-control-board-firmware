@@ -186,12 +186,16 @@ def plot_feedback_params(hw_major_version, max_resistor_readings,
     if axis is None:
         fig = plt.figure()
         axis = fig.add_subplot(111)
-    colors = axis._get_lines.color_cycle
+
     markers = MarkerStyle.filled_markers
 
     def plot_resistor_params(args):
         resistor_index, x = args
-        color = colors.next()
+        
+        try:
+            color = axis._get_lines.color_cycle.next()
+        except: # make compatible with matplotlib v1.5
+            color = axis._get_lines.prop_cycler.next()['color']
 
         F = feedback_params.loc[resistor_index]
         # Broadcast values in case sympy function simplifies to scalar value.
