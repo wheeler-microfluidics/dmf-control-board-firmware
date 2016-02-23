@@ -19,3 +19,4 @@ dmf_control_board_firmware/src/dmf_control_board/Config.h
 paver-minilib.zip
 setup.py
 .ropeproject
+.idea

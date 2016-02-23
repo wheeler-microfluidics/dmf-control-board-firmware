@@ -4,7 +4,7 @@
 
 import re
 
-from arduino_build import ArduinoBuildContext
+from arduino_scons.arduino_build import ArduinoBuildContext
 
 
 Import('SOFTWARE_VERSION')
