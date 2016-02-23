@@ -27,7 +27,7 @@ import math
 import warnings
 
 import numpy as np
-import pandas
+import pandas as pd
 from scipy.signal import savgol_filter
 import matplotlib.mlab as mlab
 from path_helpers import path
@@ -43,6 +43,42 @@ from arduino_helpers.context import auto_context, Board, Uploader
 from calibrate.feedback import compute_from_transfer_function
 
 logger = logging.getLogger()
+
+
+def feedback_results_to_measurements_frame(feedback_result):
+    '''
+    Extract measured data from `FeedbackResults` instance into
+    `pandas.DataFrame`.
+    '''
+    index = pd.Index(feedback_result.time * 1e-3, name='seconds')
+    df_feedback = pd.DataFrame(np.column_stack([feedback_result.V_fb,
+                                                feedback_result.V_hv,
+                                                feedback_result.fb_resistor,
+                                                feedback_result.hv_resistor]),
+                               columns=['V_fb', 'V_hv', 'fb_resistor',
+                                        'hv_resistor'],
+                               index=index)
+    df_feedback.insert(0, 'frequency', feedback_result.frequency)
+    return df_feedback
+
+
+def feedback_results_to_impedance_frame(feedback_result):
+    '''
+    Extract computed impedance data from `FeedbackResults` instance into
+    `pandas.DataFrame`.
+    '''
+    index = pd.Index(feedback_result.time * 1e-3, name='seconds')
+    df_feedback = pd.DataFrame(np.column_stack([feedback_result.V_actuation()
+                                                .filled(np.NaN),
+                                                feedback_result.capacitance()
+                                                .filled(np.NaN),
+                                                feedback_result.Z_device()
+                                                .filled(np.NaN)]),
+                               columns=['V_actuation', 'capacitance',
+                                        'impedance'],
+                               index=index)
+    df_feedback.insert(0, 'frequency', feedback_result.frequency)
+    return df_feedback
 
 
 def package_path():
@@ -249,8 +285,7 @@ class FeedbackResults():
                                                  [self.hv_resistor[ind]],
                                                  f=self.frequency)
         # convert to masked array
-        return np.ma.masked_invalid(pandas.TimeSeries(V1,
-            pandas.to_datetime(self.time, unit='s')
+        return np.ma.masked_invalid(pd.Series(V1, pd.to_datetime(self.time, unit='s')
         ).interpolate(method='time').values)
 
     def V_actuation(self):
@@ -264,7 +299,7 @@ class FeedbackResults():
                          # Hardware V1 #          # Hardware V2 #
 
                          V_1 @ frequency          V_1 @ frequency
-                                                       ┬        ┯                                                       ┯
+                        ┬    ┯                        ┯
                         │  ┌─┴─┐                    ┌─┴─┐    ┌───┐
             V_actuation │  │Z_1│                    │Z_1│  ┌─┤Z_2├─┐
                         │  └─┬─┘                    └─┬─┘  │ └───┘ │
@@ -277,14 +312,15 @@ class FeedbackResults():
                                                            ¯
 
         Note that in the case of hardware version 1, the input voltage `V1` is
-        divided across `Z1` and the feedback measurement load `Z2`.  Therefore,
-        the effective _actuation_ voltage across the DMF device is less than
-        `V1`.  Specifically, the effective _actuation_ voltage is `V1 - V2`.
+        divided across `Z1` *and* the feedback measurement load `Z2`.
+        Therefore, the effective _actuation_ voltage across the DMF device is
+        less than `V1`.  Specifically, the effective _actuation_ voltage is
+        `V1 - V2`.
 
-        In hardware version 2, since the positive terminal of
-        the op-amp is attached to _(virtual)_ ground, the negative op-amp
-        terminal is also at ground potential.  It follows that the actuation
-        voltage is equal to `V1` on hardware version 2.
+        In hardware version 2, since the positive terminal of the op-amp is
+        attached to _(virtual)_ ground, the negative op-amp terminal is also at
+        ground potential.  It follows that the actuation voltage is equal to
+        `V1` on hardware version 2.
         '''
         if self.calibration.hw_version.major == 1:
             return self.V_total() - np.array(self.V_fb)
@@ -311,9 +347,9 @@ class FeedbackResults():
                                                  V2=self.V_fb[ind], R2=R2,
                                                  C2=C2, f=self.frequency)
         # convert to masked array
-        Z1 = np.ma.masked_invalid(pandas.TimeSeries(Z1,
-            pandas.to_datetime(self.time, unit='s')
-        ).interpolate(method='time').values)
+        Z1 = (np.ma.masked_invalid(pd.TimeSeries(Z1, pd.to_datetime(self.time,
+                                                                    unit='s'))
+                                   .interpolate(method='time').values))
 
         # if we're filtering and we don't have a window size specified,
         # automatically determine one
@@ -358,10 +394,10 @@ class FeedbackResults():
         '''
         Estimate the applied force (in Newtons) on a drop according to the
         electromechanical model [1].
-        
+
             Ly is the length of the actuated electrode along the y-axis
                 (perpendicular to the direction of motion) in milimeters. By
-                default, use the square root of the actuated electrode area, 
+                default, use the square root of the actuated electrode area,
                 i.e.,
                     Ly=Lx=sqrt(Area)
                 To get the force normalized by electrode width (i.e., in units
@@ -397,11 +433,10 @@ class FeedbackResults():
         C = 1.0 / (2.0 * math.pi * self.frequency *
                    self.Z_device(filter_order=filter_order,
                                  window_size=window_size, tol=tol))
-        return np.ma.masked_invalid(
-            pandas.TimeSeries(
-                C, pandas.to_datetime(self.time, unit='s')
-            ).interpolate(method='time', downcast=None).values
-        )
+        return np.ma.masked_invalid(pd.TimeSeries(C, pd.to_datetime(self.time,
+                                                                    unit='s'))
+                                    .interpolate(method='time',
+                                                 downcast=None).values)
 
     def x_position(self, filter_order=None, window_size=None, tol=0.05,
                    Lx=None):
@@ -981,9 +1016,9 @@ class DMFControlBoard(Base, SerialDevice):
                 # an error on old firmware which will prevent us from getting
                 # the opportunity to apply a firmware update.
             pass
-        logger.info("Connected to %s v%s (Firmware: %s%s)" % 
+        logger.info("Connected to %s v%s (Firmware: %s%s)" %
                     (name, version, firmware, serial_number_string))
-        
+
         logger.info("Poll control board for series resistors and "
                     "capacitance values.")
 
@@ -1037,9 +1072,9 @@ class DMFControlBoard(Base, SerialDevice):
             for address in self.i2c_scan():
                 try:
                     node = BaseNode(self, address)
-                    description = ("%s v%s (Firmware v%s, S/N %03d)" % 
+                    description = ("%s v%s (Firmware v%s, S/N %03d)" %
                         (node.name(), node.hardware_version(),
-                         node.software_version(), node.serial_number)) 
+                         node.software_version(), node.serial_number))
                 except:
                     description = "?" % address
                 self._i2c_devices[address] = description
@@ -1599,7 +1634,7 @@ class DMFControlBoard(Base, SerialDevice):
         #
         # See http://microfluidics.utoronto.ca/trac/dropbot/ticket/81
         values = copy.deepcopy(values)
-        
+
         # Read the current values, and only update the values that are
         # different.
         original_values = self.read_all_series_channel_values(read_f, channel)
