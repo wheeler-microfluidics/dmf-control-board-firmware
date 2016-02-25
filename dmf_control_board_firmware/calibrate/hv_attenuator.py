@@ -148,6 +148,9 @@ def fit_feedback_params(calibration, max_resistor_readings):
             return e
 
         p1, success = optimize.leastsq(error, p0, args=(x, R1))
+        # take the absolute value of the fitted values, since is possible
+        # for the fit to produce negative resistor and capacitor values
+        p1 = np.abs(p1)
         return pd.DataFrame([p0 + p1.tolist()],
                             columns=['original R', 'original C',
                                      'fitted R', 'fitted C']).T
