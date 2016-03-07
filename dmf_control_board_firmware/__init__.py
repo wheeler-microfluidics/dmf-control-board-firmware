@@ -75,6 +75,10 @@ CRE_REMOTE_ERROR = re.compile(r'Error sending command\s+'
                               r'\((?P<command_int>\d+)\).\s+'
                               r'Return code=(?P<return_code_int>\d+).')
 
+CRE_REMOTE_COMMAND_ERROR = re.compile(r'[Cc]ommand\s+'
+                                      r'0x(?P<command_hex>[0-9a-fA-F]+)\s+'
+                                      r'\((?P<command_int>\d+)\)')
+
 
 class FirmwareError(Exception):
     '''
@@ -931,15 +935,24 @@ def remote_command(function, self, *args, **kwargs):
     try:
         return function(self, *args, **kwargs)
     except RuntimeError, exception:
-        match = CRE_REMOTE_ERROR.match(str(exception))
+        error_message = str(exception)
+        match = CRE_REMOTE_ERROR.match(error_message)
         if match:
             # Exception message matches format of remote firmware error.
             command_code = int(match.group('command_int'))
             return_code = int(match.group('return_code_int'))
             raise FirmwareError(command_code, return_code)
-        else:
-            # Not a remote firmware error, so raise original exception.
-            raise
+
+        match = CRE_REMOTE_COMMAND_ERROR.match(error_message)
+        if match:
+            # Exception message matches format of remote firmware error.
+            command_code = int(match.group('command_int'))
+            command_name = NAMES_BY_COMMAND_CODE[command_code]
+            raise RuntimeError(CRE_REMOTE_COMMAND_ERROR.sub(command_name,
+                                                            error_message))
+
+        # Not a remote firmware error, so raise original exception.
+        raise
 
 
 class DMFControlBoard(Base, SerialDevice):
