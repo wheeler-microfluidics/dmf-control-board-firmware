@@ -1,11 +1,15 @@
 # coding: utf-8
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+import logging
+
 from matplotlib.markers import MarkerStyle
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import scipy.optimize as optimize
 
 from .feedback import compute_from_transfer_function
+
+logger = logging.getLogger(__name__)
 
 
 def measure_board_rms(control_board, n_samples=10, sampling_ms=10,
@@ -13,11 +17,20 @@ def measure_board_rms(control_board, n_samples=10, sampling_ms=10,
     '''
     Read RMS voltage samples from control board high-voltage feedback circuit.
     '''
-    results = control_board.measure_impedance(n_samples, sampling_ms,
-                                              delay_between_samples_ms, True,
-                                              True, [])
-    data = pd.DataFrame({'board measured V': results.V_hv})
-    data['divider resistor index'] = results.hv_resistor
+    try:
+        results = control_board.measure_impedance(n_samples, sampling_ms,
+                                                  delay_between_samples_ms,
+                                                  True, True, [])
+    except RuntimeError:
+        # `RuntimeError` may be raised if, for example, current limit was
+        # reached during measurement.  In such cases, return an empty frame.
+        logger.warning('Error encountered during high-voltage RMS '
+                       'measurement.', exc_info=True)
+        data = pd.DataFrame(None, columns=['board measured V',
+                                           'divider resistor index'])
+    else:
+        data = pd.DataFrame({'board measured V': results.V_hv})
+        data['divider resistor index'] = results.hv_resistor
     return data
 
 
@@ -37,8 +50,7 @@ def find_good(control_board, actuation_steps, resistor_index, start_index,
         data = measure_board_rms(control_board)
         valid_data = data[data['divider resistor index'] >= 0]
 
-        if (valid_data['divider resistor index'] <
-                resistor_index).sum():
+        if (valid_data['divider resistor index'] < resistor_index).sum():
             # We have some measurements from another resistor.
             upper = index
         else:
@@ -104,7 +116,7 @@ def resistor_max_actuation_readings(control_board, frequencies,
         oscope_rms = oscope_reading_func()
         print 'R=%s, f=%s' % (r, f)
         return pd.DataFrame([[r, f, actuation_index, board_measured_rms,
-                            oscope_rms]],
+                              oscope_rms]],
                             columns=['resistor index', 'frequency',
                                      'actuation index', 'board measured V',
                                      'oscope measured V'])
@@ -194,7 +206,7 @@ def plot_feedback_params(hw_major_version, max_resistor_readings,
 
     def plot_resistor_params(args):
         resistor_index, x = args
-        
+
         try:
             color = axis._get_lines.color_cycle.next()
         except: # make compatible with matplotlib v1.5
