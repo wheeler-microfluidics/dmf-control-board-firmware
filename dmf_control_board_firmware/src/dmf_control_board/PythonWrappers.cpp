@@ -45,6 +45,76 @@ const uint8_t DMFControlBoard::SQUARE;
 const uint16_t DMFControlBoard::PERSISTENT_CONFIG_SETTINGS;
 const uint8_t DMFControlBoard::RETURN_MAX_CURRENT_EXCEEDED;
 
+/* # Remote object command codes # */
+const uint8_t RemoteObject::CMD_ANALOG_READ;
+const uint8_t RemoteObject::CMD_ANALOG_WRITE;
+const uint8_t RemoteObject::CMD_DIGITAL_READ;
+const uint8_t RemoteObject::CMD_DIGITAL_WRITE;
+const uint8_t RemoteObject::CMD_GET_ADC_PRESCALER;
+const uint8_t RemoteObject::CMD_GET_AREF;
+const uint8_t RemoteObject::CMD_GET_DEBUG_BUFFER;
+const uint8_t RemoteObject::CMD_GET_DEVICE_NAME;
+const uint8_t RemoteObject::CMD_GET_HARDWARE_VERSION;
+const uint8_t RemoteObject::CMD_GET_MANUFACTURER;
+const uint8_t RemoteObject::CMD_GET_MCU_TYPE;
+const uint8_t RemoteObject::CMD_GET_PROTOCOL_NAME;
+const uint8_t RemoteObject::CMD_GET_PROTOCOL_VERSION;
+const uint8_t RemoteObject::CMD_GET_SAMPLING_RATE;
+const uint8_t RemoteObject::CMD_GET_SOFTWARE_VERSION;
+const uint8_t RemoteObject::CMD_GET_URL;
+const uint8_t RemoteObject::CMD_I2C_READ;
+const uint8_t RemoteObject::CMD_I2C_SCAN;
+const uint8_t RemoteObject::CMD_I2C_WRITE;
+const uint8_t RemoteObject::CMD_ONEWIRE_GET_ADDRESS;
+const uint8_t RemoteObject::CMD_ONEWIRE_READ;
+const uint8_t RemoteObject::CMD_ONEWIRE_WRITE;
+const uint8_t RemoteObject::CMD_PERSISTENT_READ;
+const uint8_t RemoteObject::CMD_PERSISTENT_WRITE;
+const uint8_t RemoteObject::CMD_SET_ADC_PRESCALER;
+const uint8_t RemoteObject::CMD_SET_PIN_MODE;
+const uint8_t RemoteObject::CMD_SET_SAMPLING_RATE;
+const uint8_t RemoteObject::CMD_SPI_SET_BIT_ORDER;
+const uint8_t RemoteObject::CMD_SPI_SET_CLOCK_DIVIDER;
+const uint8_t RemoteObject::CMD_SPI_SET_DATA_MODE;
+const uint8_t RemoteObject::CMD_SPI_TRANSFER;
+
+/* # Control board command codes # */
+const uint8_t DMFControlBoard::CMD_DEBUG_MESSAGE;
+const uint8_t DMFControlBoard::CMD_DEBUG_ON;
+const uint8_t DMFControlBoard::CMD_GET_AMPLIFIER_GAIN;
+const uint8_t DMFControlBoard::CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN;
+const uint8_t DMFControlBoard::CMD_GET_NUMBER_OF_CHANNELS;
+const uint8_t DMFControlBoard::CMD_GET_SERIES_CAPACITANCE;
+const uint8_t DMFControlBoard::CMD_GET_SERIES_RESISTANCE;
+const uint8_t DMFControlBoard::CMD_GET_SERIES_RESISTOR_INDEX;
+const uint8_t DMFControlBoard::CMD_GET_STATE_OF_ALL_CHANNELS;
+const uint8_t DMFControlBoard::CMD_GET_STATE_OF_CHANNEL;
+const uint8_t DMFControlBoard::CMD_GET_WATCHDOG_ENABLED;
+const uint8_t DMFControlBoard::CMD_GET_WATCHDOG_STATE;
+const uint8_t DMFControlBoard::CMD_GET_WAVEFORM;
+const uint8_t DMFControlBoard::CMD_GET_WAVEFORM_FREQUENCY;
+const uint8_t DMFControlBoard::CMD_GET_WAVEFORM_VOLTAGE;
+const uint8_t DMFControlBoard::CMD_LOAD_CONFIG;
+const uint8_t DMFControlBoard::CMD_MEASURE_IMPEDANCE;
+const uint8_t DMFControlBoard::CMD_SET_AMPLIFIER_GAIN;
+const uint8_t DMFControlBoard::CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN;
+const uint8_t DMFControlBoard::CMD_SET_SERIES_CAPACITANCE;
+const uint8_t DMFControlBoard::CMD_SET_SERIES_RESISTANCE;
+const uint8_t DMFControlBoard::CMD_SET_SERIES_RESISTOR_INDEX;
+const uint8_t DMFControlBoard::CMD_SET_STATE_OF_ALL_CHANNELS;
+const uint8_t DMFControlBoard::CMD_SET_STATE_OF_CHANNEL;
+const uint8_t DMFControlBoard::CMD_SET_WATCHDOG_ENABLED;
+const uint8_t DMFControlBoard::CMD_SET_WATCHDOG_STATE;
+const uint8_t DMFControlBoard::CMD_SET_WAVEFORM;
+const uint8_t DMFControlBoard::CMD_SET_WAVEFORM_FREQUENCY;
+const uint8_t DMFControlBoard::CMD_SET_WAVEFORM_VOLTAGE;
+const uint8_t DMFControlBoard::CMD_SYSTEM_RESET;
+#if ___ATX_POWER_CONTROL___
+const uint8_t DMFControlBoard::CMD_GET_POWER_SUPPLY_PIN;
+const uint8_t DMFControlBoard::CMD_GET_ATX_POWER_STATE;
+const uint8_t DMFControlBoard::CMD_SET_ATX_POWER_STATE;
+#endif
+
 BOOST_PYTHON_MODULE(dmf_control_board_base)
 {
   scope().attr("INPUT") = 0;
@@ -169,6 +239,12 @@ DMFControlBoard_class.attr("PERSISTENT_BAUD_RATE_ADDRESS") = \
     DMFControlBoard::PERSISTENT_BAUD_RATE_ADDRESS;
 DMFControlBoard_class.attr("PERSISTENT_SERIAL_NUMBER_ADDRESS") = \
     DMFControlBoard::PERSISTENT_SERIAL_NUMBER_ADDRESS;
+DMFControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = \
+    DMFControlBoard::PERSISTENT_CONFIG_SETTINGS;
+DMFControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = \
+    DMFControlBoard::MAX_PAYLOAD_LENGTH;
+
+/* # Remote return codes # */
 DMFControlBoard_class.attr("RETURN_OK") = DMFControlBoard::RETURN_OK;
 DMFControlBoard_class.attr("RETURN_GENERAL_ERROR") = \
     DMFControlBoard::RETURN_GENERAL_ERROR;
@@ -186,10 +262,76 @@ DMFControlBoard_class.attr("RETURN_BAD_VALUE") = \
     DMFControlBoard::RETURN_BAD_VALUE;
 DMFControlBoard_class.attr("RETURN_MAX_CURRENT_EXCEEDED") = \
     DMFControlBoard::RETURN_MAX_CURRENT_EXCEEDED;
-DMFControlBoard_class.attr("PERSISTENT_CONFIG_SETTINGS") = \
-    DMFControlBoard::PERSISTENT_CONFIG_SETTINGS;
-DMFControlBoard_class.attr("MAX_PAYLOAD_LENGTH") = \
-    DMFControlBoard::MAX_PAYLOAD_LENGTH;
+
+/* # Remote object command codes # */
+DMFControlBoard_class.attr("CMD_ANALOG_READ") = RemoteObject::CMD_ANALOG_READ;
+DMFControlBoard_class.attr("CMD_ANALOG_WRITE") = RemoteObject::CMD_ANALOG_WRITE;
+DMFControlBoard_class.attr("CMD_DIGITAL_READ") = RemoteObject::CMD_DIGITAL_READ;
+DMFControlBoard_class.attr("CMD_DIGITAL_WRITE") = RemoteObject::CMD_DIGITAL_WRITE;
+DMFControlBoard_class.attr("CMD_GET_ADC_PRESCALER") = RemoteObject::CMD_GET_ADC_PRESCALER;
+DMFControlBoard_class.attr("CMD_GET_AREF") = RemoteObject::CMD_GET_AREF;
+DMFControlBoard_class.attr("CMD_GET_DEBUG_BUFFER") = RemoteObject::CMD_GET_DEBUG_BUFFER;
+DMFControlBoard_class.attr("CMD_GET_DEVICE_NAME") = RemoteObject::CMD_GET_DEVICE_NAME;
+DMFControlBoard_class.attr("CMD_GET_HARDWARE_VERSION") = RemoteObject::CMD_GET_HARDWARE_VERSION;
+DMFControlBoard_class.attr("CMD_GET_MANUFACTURER") = RemoteObject::CMD_GET_MANUFACTURER;
+DMFControlBoard_class.attr("CMD_GET_MCU_TYPE") = RemoteObject::CMD_GET_MCU_TYPE;
+DMFControlBoard_class.attr("CMD_GET_PROTOCOL_NAME") = RemoteObject::CMD_GET_PROTOCOL_NAME;
+DMFControlBoard_class.attr("CMD_GET_PROTOCOL_VERSION") = RemoteObject::CMD_GET_PROTOCOL_VERSION;
+DMFControlBoard_class.attr("CMD_GET_SAMPLING_RATE") = RemoteObject::CMD_GET_SAMPLING_RATE;
+DMFControlBoard_class.attr("CMD_GET_SOFTWARE_VERSION") = RemoteObject::CMD_GET_SOFTWARE_VERSION;
+DMFControlBoard_class.attr("CMD_GET_URL") = RemoteObject::CMD_GET_URL;
+DMFControlBoard_class.attr("CMD_I2C_READ") = RemoteObject::CMD_I2C_READ;
+DMFControlBoard_class.attr("CMD_I2C_SCAN") = RemoteObject::CMD_I2C_SCAN;
+DMFControlBoard_class.attr("CMD_I2C_WRITE") = RemoteObject::CMD_I2C_WRITE;
+DMFControlBoard_class.attr("CMD_ONEWIRE_GET_ADDRESS") = RemoteObject::CMD_ONEWIRE_GET_ADDRESS;
+DMFControlBoard_class.attr("CMD_ONEWIRE_READ") = RemoteObject::CMD_ONEWIRE_READ;
+DMFControlBoard_class.attr("CMD_ONEWIRE_WRITE") = RemoteObject::CMD_ONEWIRE_WRITE;
+DMFControlBoard_class.attr("CMD_PERSISTENT_READ") = RemoteObject::CMD_PERSISTENT_READ;
+DMFControlBoard_class.attr("CMD_PERSISTENT_WRITE") = RemoteObject::CMD_PERSISTENT_WRITE;
+DMFControlBoard_class.attr("CMD_SET_ADC_PRESCALER") = RemoteObject::CMD_SET_ADC_PRESCALER;
+DMFControlBoard_class.attr("CMD_SET_PIN_MODE") = RemoteObject::CMD_SET_PIN_MODE;
+DMFControlBoard_class.attr("CMD_SET_SAMPLING_RATE") = RemoteObject::CMD_SET_SAMPLING_RATE;
+DMFControlBoard_class.attr("CMD_SPI_SET_BIT_ORDER") = RemoteObject::CMD_SPI_SET_BIT_ORDER;
+DMFControlBoard_class.attr("CMD_SPI_SET_CLOCK_DIVIDER") = RemoteObject::CMD_SPI_SET_CLOCK_DIVIDER;
+DMFControlBoard_class.attr("CMD_SPI_SET_DATA_MODE") = RemoteObject::CMD_SPI_SET_DATA_MODE;
+DMFControlBoard_class.attr("CMD_SPI_TRANSFER") = RemoteObject::CMD_SPI_TRANSFER;
+
+/* # Control board command codes # */
+DMFControlBoard_class.attr("CMD_DEBUG_MESSAGE") = DMFControlBoard::CMD_DEBUG_MESSAGE;
+DMFControlBoard_class.attr("CMD_DEBUG_ON") = DMFControlBoard::CMD_DEBUG_ON;
+DMFControlBoard_class.attr("CMD_GET_AMPLIFIER_GAIN") = DMFControlBoard::CMD_GET_AMPLIFIER_GAIN;
+DMFControlBoard_class.attr("CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN") = DMFControlBoard::CMD_GET_AUTO_ADJUST_AMPLIFIER_GAIN;
+DMFControlBoard_class.attr("CMD_GET_NUMBER_OF_CHANNELS") = DMFControlBoard::CMD_GET_NUMBER_OF_CHANNELS;
+DMFControlBoard_class.attr("CMD_GET_SERIES_CAPACITANCE") = DMFControlBoard::CMD_GET_SERIES_CAPACITANCE;
+DMFControlBoard_class.attr("CMD_GET_SERIES_RESISTANCE") = DMFControlBoard::CMD_GET_SERIES_RESISTANCE;
+DMFControlBoard_class.attr("CMD_GET_SERIES_RESISTOR_INDEX") = DMFControlBoard::CMD_GET_SERIES_RESISTOR_INDEX;
+DMFControlBoard_class.attr("CMD_GET_STATE_OF_ALL_CHANNELS") = DMFControlBoard::CMD_GET_STATE_OF_ALL_CHANNELS;
+DMFControlBoard_class.attr("CMD_GET_STATE_OF_CHANNEL") = DMFControlBoard::CMD_GET_STATE_OF_CHANNEL;
+DMFControlBoard_class.attr("CMD_GET_WATCHDOG_ENABLED") = DMFControlBoard::CMD_GET_WATCHDOG_ENABLED;
+DMFControlBoard_class.attr("CMD_GET_WATCHDOG_STATE") = DMFControlBoard::CMD_GET_WATCHDOG_STATE;
+DMFControlBoard_class.attr("CMD_GET_WAVEFORM") = DMFControlBoard::CMD_GET_WAVEFORM;
+DMFControlBoard_class.attr("CMD_GET_WAVEFORM_FREQUENCY") = DMFControlBoard::CMD_GET_WAVEFORM_FREQUENCY;
+DMFControlBoard_class.attr("CMD_GET_WAVEFORM_VOLTAGE") = DMFControlBoard::CMD_GET_WAVEFORM_VOLTAGE;
+DMFControlBoard_class.attr("CMD_LOAD_CONFIG") = DMFControlBoard::CMD_LOAD_CONFIG;
+DMFControlBoard_class.attr("CMD_MEASURE_IMPEDANCE") = DMFControlBoard::CMD_MEASURE_IMPEDANCE;
+DMFControlBoard_class.attr("CMD_SET_AMPLIFIER_GAIN") = DMFControlBoard::CMD_SET_AMPLIFIER_GAIN;
+DMFControlBoard_class.attr("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN") = DMFControlBoard::CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN;
+DMFControlBoard_class.attr("CMD_SET_SERIES_CAPACITANCE") = DMFControlBoard::CMD_SET_SERIES_CAPACITANCE;
+DMFControlBoard_class.attr("CMD_SET_SERIES_RESISTANCE") = DMFControlBoard::CMD_SET_SERIES_RESISTANCE;
+DMFControlBoard_class.attr("CMD_SET_SERIES_RESISTOR_INDEX") = DMFControlBoard::CMD_SET_SERIES_RESISTOR_INDEX;
+DMFControlBoard_class.attr("CMD_SET_STATE_OF_ALL_CHANNELS") = DMFControlBoard::CMD_SET_STATE_OF_ALL_CHANNELS;
+DMFControlBoard_class.attr("CMD_SET_STATE_OF_CHANNEL") = DMFControlBoard::CMD_SET_STATE_OF_CHANNEL;
+DMFControlBoard_class.attr("CMD_SET_WATCHDOG_ENABLED") = DMFControlBoard::CMD_SET_WATCHDOG_ENABLED;
+DMFControlBoard_class.attr("CMD_SET_WATCHDOG_STATE") = DMFControlBoard::CMD_SET_WATCHDOG_STATE;
+DMFControlBoard_class.attr("CMD_SET_WAVEFORM") = DMFControlBoard::CMD_SET_WAVEFORM;
+DMFControlBoard_class.attr("CMD_SET_WAVEFORM_FREQUENCY") = DMFControlBoard::CMD_SET_WAVEFORM_FREQUENCY;
+DMFControlBoard_class.attr("CMD_SET_WAVEFORM_VOLTAGE") = DMFControlBoard::CMD_SET_WAVEFORM_VOLTAGE;
+DMFControlBoard_class.attr("CMD_SYSTEM_RESET") = DMFControlBoard::CMD_SYSTEM_RESET;
+#if ___ATX_POWER_CONTROL___
+DMFControlBoard_class.attr("CMD_GET_POWER_SUPPLY_PIN") = DMFControlBoard::CMD_GET_POWER_SUPPLY_PIN;
+DMFControlBoard_class.attr("CMD_GET_ATX_POWER_STATE") = DMFControlBoard::CMD_GET_ATX_POWER_STATE;
+DMFControlBoard_class.attr("CMD_SET_ATX_POWER_STATE") = DMFControlBoard::CMD_SET_ATX_POWER_STATE;
+#endif
 }
 
 #endif //!( defined(AVR) || defined(__SAM3X8E__) )

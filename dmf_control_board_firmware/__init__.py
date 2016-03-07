@@ -1,6 +1,6 @@
 # coding: utf-8
 """
-Copyright 2011 Ryan Fobel
+Copyright 2011-2016 Ryan Fobel and Christian Fobel
 
 This file is part of dmf_control_board.
 
@@ -24,6 +24,7 @@ import time
 import copy
 import logging
 import math
+import re
 import warnings
 
 import numpy as np
@@ -43,6 +44,53 @@ from arduino_helpers.context import auto_context, Board, Uploader
 from calibrate.feedback import compute_from_transfer_function
 
 logger = logging.getLogger()
+
+
+# # Firmware return codes #
+RETURN_ATTRS = [attr for attr in dir(Base)
+                if attr.startswith('RETURN_')]
+RETURN_CODES_BY_NAME = pd.Series([getattr(Base, attr)
+                                  for attr in RETURN_ATTRS],
+                                 index=[attr[len('RETURN_'):]
+                                        for attr in RETURN_ATTRS])
+RETURN_CODES_BY_NAME.sort_values(inplace=True)
+NAMES_BY_RETURN_CODE = pd.Series(RETURN_CODES_BY_NAME.index,
+                                 index=RETURN_CODES_BY_NAME)
+
+# # Firmware command codes #
+COMMAND_ATTRS = [attr for attr in dir(Base)
+                 if attr.startswith('CMD_')]
+COMMAND_CODES_BY_NAME = pd.Series([getattr(Base, attr)
+                                   for attr in COMMAND_ATTRS],
+                                  index=[attr[len('CMD_'):]
+                                         for attr in COMMAND_ATTRS])
+COMMAND_CODES_BY_NAME.sort_values(inplace=True)
+NAMES_BY_COMMAND_CODE = pd.Series(COMMAND_CODES_BY_NAME.index,
+                                  index=COMMAND_CODES_BY_NAME)
+
+# Regex to match control board firmware exception message.  Useful to extract
+# command code and return code.
+CRE_REMOTE_ERROR = re.compile(r'Error sending command\s+'
+                              r'0x(?P<command_hex>[0-9a-fA-F]+)\s+'
+                              r'\((?P<command_int>\d+)\).\s+'
+                              r'Return code=(?P<return_code_int>\d+).')
+
+
+class FirmwareError(Exception):
+    '''
+    Used to indicate an exception encountered while running a remote command on
+    an embedded DMF control board.
+    '''
+    def __init__(self, command_code, return_code):
+        self.command_code = command_code
+        self.return_code = return_code
+
+    def __str__(self):
+        return (r'%s [command=%s]' %
+                (NAMES_BY_RETURN_CODE.get(self.return_code,
+                                          self.return_code),
+                 NAMES_BY_COMMAND_CODE.get(self.command_code,
+                                           self.command_code)))
 
 
 def feedback_results_to_measurements_frame(feedback_result):
@@ -873,6 +921,27 @@ def safe_series_resistor_index_write(f, self, channel, value,
     return value
 
 
+@decorator.decorator
+def remote_command(function, self, *args, **kwargs):
+    '''
+    Catch `RuntimeError` exceptions raised by remote control board firmware
+    commands and re-raise as more specific `FirmwareError` exception type,
+    which includes command code and return code.
+    '''
+    try:
+        return function(self, *args, **kwargs)
+    except RuntimeError, exception:
+        match = CRE_REMOTE_ERROR.match(str(exception))
+        if match:
+            # Exception message matches format of remote firmware error.
+            command_code = int(match.group('command_int'))
+            return_code = int(match.group('return_code_int'))
+            raise FirmwareError(command_code, return_code)
+        else:
+            # Not a remote firmware error, so raise original exception.
+            raise
+
+
 class DMFControlBoard(Base, SerialDevice):
     def __init__(self):
         Base.__init__(self)
@@ -995,6 +1064,7 @@ class DMFControlBoard(Base, SerialDevice):
             self.persistent_read_multibyte(self.PERSISTENT_CONFIG_SETTINGS,
                                            count=3, dtype=np.uint16))
 
+    @remote_command
     def connect(self, port=None, baud_rate=115200):
         if port:
             logger.info("Try connecting to port %s..." % port)
@@ -1232,6 +1302,7 @@ class DMFControlBoard(Base, SerialDevice):
         self.__max_waveform_voltage = value
 
     @property
+    @remote_command
     def state_of_all_channels(self):
         return np.array(Base.state_of_all_channels(self))
 
@@ -1239,6 +1310,7 @@ class DMFControlBoard(Base, SerialDevice):
         self.state_of_all_channels = state
 
     @state_of_all_channels.setter
+    @remote_command
     def state_of_all_channels(self, state):
         state_ = uint8_tVector()
         for i in range(0, len(state)):
@@ -1291,6 +1363,7 @@ class DMFControlBoard(Base, SerialDevice):
             self.persistent_write(self.PERSISTENT_PIN_STATE_ADDRESS + i, ~state
                                   & 0xFF, True)
 
+    @remote_command
     def analog_reads(self, pins, n_samples):
         pins_ = uint8_tVector()
         if hasattr(pins, '__len__'):
@@ -1300,12 +1373,14 @@ class DMFControlBoard(Base, SerialDevice):
             pins_.append(pins)
         return np.array(Base.analog_reads(self, pins_, n_samples))
 
+    @remote_command
     def number_of_channels(self):
         # check for cached value
         if self._number_of_channels is None:
             self._number_of_channels = Base.number_of_channels(self)
         return self._number_of_channels
 
+    @remote_command
     def measure_impedance_non_blocking(self,
                                        sampling_window_ms,
                                        n_sampling_windows,
@@ -1341,10 +1416,12 @@ class DMFControlBoard(Base, SerialDevice):
                                amplifier_gain=amplifier_gain,
                                vgnd_hv=vgnd_hv, vgnd_fb=vgnd_fb)
 
+    @remote_command
     def get_impedance_data(self):
         buffer = np.array(Base.get_impedance_data(self))
         return self.impedance_buffer_to_feedback_result(buffer)
 
+    @remote_command
     def measure_impedance(self,
                           sampling_window_ms,
                           n_sampling_windows,
@@ -1375,18 +1452,22 @@ class DMFControlBoard(Base, SerialDevice):
                                                  state_))
         return self.impedance_buffer_to_feedback_result(buffer)
 
+    @remote_command
     def i2c_scan(self):
         return np.array(Base.i2c_scan(self))
 
+    @remote_command
     def i2c_write(self, address, data):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
             data_.append(int(data[i]))
         Base.i2c_write(self, address, data_)
 
+    @remote_command
     def i2c_read(self, address, n_bytes_to_read):
         return np.array(Base.i2c_read(self, address, n_bytes_to_read))
 
+    @remote_command
     def i2c_send_command(self, address, cmd, data, delay_ms=100):
         data_ = uint8_tVector()
         for i in range(0, len(data)):
