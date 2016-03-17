@@ -26,7 +26,8 @@ setup(name='wheeler.dmf-control-board-firmware',
                         'decorator', 'functools32', 'matplotlib',
                         'microdrop-utility', 'pyserial', 'scipy',
                         'svg-model>=0.5.post20', 'sympy', 'tables',
-                        'wheeler.base-node>=0.3.post2'])
+                        'wheeler.base-node>=0.3.post2'],
+      extras_require={'build': ['arduino-scons>=v0.1.post11', 'SCons>=2.4.1']})
 
 
 @task
