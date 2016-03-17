@@ -23,8 +23,9 @@ setup(name='wheeler.dmf-control-board-firmware',
       packages=['dmf_control_board_firmware'],
       include_package_data=True,
       install_requires=['arduino_helpers>=0.3.post10', 'arduino-scons',
-                        'decorator', 'functools32', 'matplotlib', 'pyserial',
-                        'scipy', 'svg-model>=0.5.post20', 'sympy', 'tables',
+                        'decorator', 'functools32', 'matplotlib',
+                        'microdrop-utility', 'pyserial', 'scipy',
+                        'svg-model>=0.5.post20', 'sympy', 'tables',
                         'wheeler.base-node>=0.3.post2'])
 
 
