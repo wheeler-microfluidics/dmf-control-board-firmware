@@ -288,12 +288,12 @@ def fit_fb_calibration(df, calibration):
                 cov_x_1 = [0]
             CI.append((100 * np.sqrt(chi2r_1 * np.diag(cov_x_1)) /
                        p1_1).tolist() + [0])
-        feedback_records.append([model, df_i.shape[0], R_fb_i, CI[i][0],
+        feedback_records.append([int(i), model, df_i.shape[0], R_fb_i, CI[i][0],
                                  C_fb_i, CI[i][1], F, (1e3 * np.sqrt(chi2r)),
                                  p_value])
 
     calibration_df = pd.DataFrame(feedback_records,
-                                  columns=['Model', 'N', 'R_fb', 'R-CI %',
+                                  columns=['fb_resistor', 'Model', 'N', 'R_fb', 'R-CI %',
                                            'C_fb', 'C-CI %', 'F',
                                            'sqrt(Chi2r*sigma^2)', 'p-value'])
     return calibration_df
@@ -306,9 +306,9 @@ def apply_calibration(df, calibration_df, calibration):
     '''
     from dmf_control_board_firmware import FeedbackResults
 
-    for i, (R_fb, C_fb) in calibration_df[['R_fb', 'C_fb']].iterrows():
-        calibration.R_fb[i] = R_fb
-        calibration.C_fb[i] = C_fb
+    for i, (fb_resistor, R_fb, C_fb) in calibration_df[['fb_resistor', 'R_fb', 'C_fb']].iterrows():
+        calibration.R_fb[int(fb_resistor)] = R_fb
+        calibration.C_fb[int(fb_resistor)] = C_fb
 
     cleaned_df = df.dropna()
     grouped = cleaned_df.groupby(['frequency', 'test_capacitor', 'repeat_index'])
