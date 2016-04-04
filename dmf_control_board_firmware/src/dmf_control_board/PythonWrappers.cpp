@@ -212,8 +212,11 @@ object DMFControlBoard_class
     .def("measure_impedance",&DMFControlBoard::measure_impedance)
     .def("measure_impedance_non_blocking",
          &DMFControlBoard::measure_impedance_non_blocking)
+    .def("sweep_channels_non_blocking",
+         &DMFControlBoard::sweep_channels_non_blocking)
     .def("send_interrupt",&DMFControlBoard::send_interrupt)
-    .def("get_impedance_data",&DMFControlBoard::get_impedance_data)
+    .def("get_measure_impedance_data",&DMFControlBoard::get_measure_impedance_data)
+    .def("get_sweep_channel_data",&DMFControlBoard::get_sweep_channel_data)
     .def("waiting_for_reply",&DMFControlBoard::waiting_for_reply)
     .def("_reset_config_to_defaults",&DMFControlBoard::reset_config_to_defaults)
     .def("load_config",&DMFControlBoard::load_config)

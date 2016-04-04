@@ -238,6 +238,7 @@ public:
   static const uint8_t CMD_DEBUG_ON =                       0xF3; //TODO
   static const uint8_t CMD_MEASURE_IMPEDANCE =              0xF4;
   static const uint8_t CMD_LOAD_CONFIG =                    0xF5;
+  static const uint8_t CMD_SWEEP_CHANNELS =                 0xF6;
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -369,7 +370,15 @@ public:
                                       bool interleave_samples,
                                       bool rms,
                                       const std::vector<uint8_t> state);
-  std::vector<float> get_impedance_data();
+  std::vector<float> get_measure_impedance_data();
+  void sweep_channels_non_blocking(float sampling_window_ms,
+                                   uint16_t n_sampling_windows_per_channel,
+                                   float delay_between_windows_ms,
+                                   bool interleave_samples,
+                                   bool rms,
+                                   const std::vector<uint8_t> channel_mask);
+  std::vector<float> get_sweep_channel_data();
+  std::vector<float> get_impedance_data(uint8_t cmd);
   std::vector<float> measure_impedance(float sampling_window_ms,
                                        uint16_t n_sampling_windows,
                                        float delay_between_windows_ms,
