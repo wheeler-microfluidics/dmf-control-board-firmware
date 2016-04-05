@@ -1554,7 +1554,7 @@ class DMFControlBoard(Base, SerialDevice):
                           delay_between_windows_ms,
                           interleave_samples,
                           rms,
-                          channel_mask_))))
+                          channel_mask_))
         return self.sweep_channels_buffer_to_feedback_result(buffer)
 
     @remote_command
