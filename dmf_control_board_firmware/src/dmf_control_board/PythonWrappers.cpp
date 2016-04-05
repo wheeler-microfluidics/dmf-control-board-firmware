@@ -96,6 +96,7 @@ const uint8_t DMFControlBoard::CMD_GET_WAVEFORM_FREQUENCY;
 const uint8_t DMFControlBoard::CMD_GET_WAVEFORM_VOLTAGE;
 const uint8_t DMFControlBoard::CMD_LOAD_CONFIG;
 const uint8_t DMFControlBoard::CMD_MEASURE_IMPEDANCE;
+const uint8_t DMFControlBoard::CMD_SWEEP_CHANNELS;
 const uint8_t DMFControlBoard::CMD_SET_AMPLIFIER_GAIN;
 const uint8_t DMFControlBoard::CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN;
 const uint8_t DMFControlBoard::CMD_SET_SERIES_CAPACITANCE;
@@ -167,6 +168,7 @@ object DMFControlBoard_class
     .def("analog_write",&DMFControlBoard::analog_write)
     .def("persistent_read",&DMFControlBoard::persistent_read)
     .def("_persistent_write",&DMFControlBoard::persistent_write)
+    .def("serial_data_available",&DMFControlBoard::serial_data_available)
     .def("onewire_address",&DMFControlBoard::onewire_address)
     .def("onewire_read",&DMFControlBoard::onewire_read)
     .def("onewire_write",&DMFControlBoard::onewire_write)
@@ -212,8 +214,13 @@ object DMFControlBoard_class
     .def("measure_impedance",&DMFControlBoard::measure_impedance)
     .def("measure_impedance_non_blocking",
          &DMFControlBoard::measure_impedance_non_blocking)
+    .def("sweep_channels_non_blocking",
+         &DMFControlBoard::sweep_channels_non_blocking)
+    .def("sweep_channels",
+         &DMFControlBoard::sweep_channels)
     .def("send_interrupt",&DMFControlBoard::send_interrupt)
-    .def("get_impedance_data",&DMFControlBoard::get_impedance_data)
+    .def("get_measure_impedance_data",&DMFControlBoard::get_measure_impedance_data)
+    .def("get_sweep_channels_data",&DMFControlBoard::get_sweep_channels_data)
     .def("waiting_for_reply",&DMFControlBoard::waiting_for_reply)
     .def("_reset_config_to_defaults",&DMFControlBoard::reset_config_to_defaults)
     .def("load_config",&DMFControlBoard::load_config)
@@ -314,6 +321,7 @@ DMFControlBoard_class.attr("CMD_GET_WAVEFORM_FREQUENCY") = DMFControlBoard::CMD_
 DMFControlBoard_class.attr("CMD_GET_WAVEFORM_VOLTAGE") = DMFControlBoard::CMD_GET_WAVEFORM_VOLTAGE;
 DMFControlBoard_class.attr("CMD_LOAD_CONFIG") = DMFControlBoard::CMD_LOAD_CONFIG;
 DMFControlBoard_class.attr("CMD_MEASURE_IMPEDANCE") = DMFControlBoard::CMD_MEASURE_IMPEDANCE;
+DMFControlBoard_class.attr("CMD_SWEEP_CHANNELS") = DMFControlBoard::CMD_SWEEP_CHANNELS;
 DMFControlBoard_class.attr("CMD_SET_AMPLIFIER_GAIN") = DMFControlBoard::CMD_SET_AMPLIFIER_GAIN;
 DMFControlBoard_class.attr("CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN") = DMFControlBoard::CMD_SET_AUTO_ADJUST_AMPLIFIER_GAIN;
 DMFControlBoard_class.attr("CMD_SET_SERIES_CAPACITANCE") = DMFControlBoard::CMD_SET_SERIES_CAPACITANCE;
