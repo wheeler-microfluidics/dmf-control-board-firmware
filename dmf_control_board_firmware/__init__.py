@@ -1543,18 +1543,40 @@ class DMFControlBoard(Base, SerialDevice):
         _(i.e., `V2`)_ can be used to compute the impedance of the measured
         load, the input voltage _(i.e., `V1`)_, etc.
         '''
-        channel_mask_ = uint8_tVector()
-        for i in range(0, len(channel_mask)):
-            channel_mask_.append(int(channel_mask[i]))
-        self._channel_mask_cache = np.array(channel_mask, dtype=int)
 
-        buffer = np.array(Base.sweep_channels(self,
-                          sampling_window_ms,
-                          n_sampling_windows_per_channel,
-                          delay_between_windows_ms,
-                          interleave_samples,
-                          rms,
-                          channel_mask_))
+        channel_cumsum = np.cumsum(channel_mask)
+
+        # figure out how many channels are in the mask, and how many we can scan
+        # per request
+        n_channels_in_mask = channel_cumsum[-1]
+        max_channels_per_call = (self.MAX_PAYLOAD_LENGTH - 4*4) / \
+                                 (3*2) / n_sampling_windows_per_channel
+
+        # cache the channel mask
+        self._channel_mask_cache = np.array(channel_mask)
+
+        buffer = np.zeros(4)
+        for i in range(int(math.ceil(n_channels_in_mask / max_channels_per_call))):
+            # figure out which channels to include in this call
+            ind = np.logical_and(channel_cumsum >= i * max_channels_per_call,
+                                 channel_cumsum < (i + 1) * max_channels_per_call)
+
+            # copy those channels from the cached mask
+            channel_mask_ = np.zeros(len(self._channel_mask_cache), dtype=int)
+            channel_mask_[ind] = self._channel_mask_cache[ind]
+
+            # convert it to a uint8_tVector
+            channel_mask_uint8 = uint8_tVector()
+            channel_mask_uint8.extend(channel_mask_)
+
+            buffer = buffer[:-4]
+            buffer = np.concatenate((buffer, np.array(Base.sweep_channels(self,
+                                                     sampling_window_ms,
+                                                     n_sampling_windows_per_channel,
+                                                     delay_between_windows_ms,
+                                                     interleave_samples,
+                                                     rms,
+                                                     channel_mask_uint8))))
         return self.sweep_channels_buffer_to_feedback_result(buffer)
 
     @remote_command
