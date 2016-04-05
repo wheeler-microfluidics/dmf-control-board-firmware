@@ -17,14 +17,14 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
-import os
 from collections import OrderedDict
-import decorator
-import time
 import copy
+import decorator
 import logging
 import math
+import os
 import re
+import time
 import warnings
 
 from arduino_helpers.context import auto_context, Board, Uploader
@@ -226,28 +226,48 @@ class BadVGND(Exception):
 
 
 class FeedbackResults():
-    """
-    This class stores the impedance results for a single step in the protocol.
-    """
+    '''
+    This class stores feedback measurement results over a specified duration
+    at a single actuation state.
+
+    In other words, all measurements stored within a `FeedbackResults` instance
+    share the same:
+
+     - Actuation frequency.
+     - Target actuation voltage.
+     - Active channels.
+    '''
     class_version = str(Version(0, 6))
 
     def __init__(self, voltage, frequency, dt_ms, V_hv, hv_resistor, V_fb,
                  fb_resistor, calibration, area=0, amplifier_gain=None,
                  vgnd_hv=None, vgnd_fb=None):
-        self.voltage = voltage
-        self.frequency = frequency
-        self.V_hv = V_hv
-        self.hv_resistor = hv_resistor
-        self.V_fb = V_fb
-        self.fb_resistor = fb_resistor
-        self.time = np.arange(0, len(V_hv)) * dt_ms
+        # ## One value per set of measurements ##
+        #
+        # Actually, only changes if device is recalibrated.
         self.calibration = calibration
-        self.version = self.class_version
-        self.area = area
-        self.amplifier_gain = amplifier_gain
-        self.vgnd_hv = vgnd_hv
-        self.vgnd_fb = vgnd_fb
+
+        # ## One value per set of measurements ##
+        self.area = area  # Area of actuated surface during measurements.
+
+        # ## One value per measurement ##
+        #
+        # ### Public values ###
+        self.time = np.arange(0, len(V_hv)) * dt_ms  # Relative to 1st measure
+        self.voltage = voltage  # Target actuation voltage
+        self.frequency = frequency  # Actuation frequency
+        # ### Private/debug values ###
+        self.amplifier_gain = amplifier_gain  # Computed gain of amplifier
+        self.vgnd_hv = vgnd_hv  # High voltage virtual ground voltage
+        self.vgnd_fb = vgnd_fb  # Device load feedback virtual ground voltage
+        self.V_hv = V_hv  # Measured actuation voltage
+        self.V_fb = V_fb  # Measured device load voltage
+        self.hv_resistor = hv_resistor  # Index of high voltage resistor
+        self.fb_resistor = fb_resistor  # Index of device load resistor
+
         self._sanitize_data()
+
+        self.version = self.class_version  # Object instance version
 
     def _sanitize_data(self):
         self.V_hv[self.hv_resistor < 0] = np.nan
