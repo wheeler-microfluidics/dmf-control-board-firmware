@@ -961,6 +961,7 @@ class DMFControlBoard(Base, SerialDevice):
         self.calibration = None
         self.__aref__ = None
         self._number_of_channels = None
+        self._channel_mask_cache = None
 
     def force_to_voltage(self, force, frequency):
         '''
@@ -1411,7 +1412,27 @@ class DMFControlBoard(Base, SerialDevice):
                                             rms,
                                             state_)
 
-    def impedance_buffer_to_feedback_result(self, buffer):
+    @remote_command
+    def sweep_channels_non_blocking(self,
+                                       sampling_window_ms,
+                                       n_sampling_windows_per_channel,
+                                       delay_between_windows_ms,
+                                       interleave_samples,
+                                       rms,
+                                       channel_mask):
+        channel_mask_ = uint8_tVector()
+        for i in range(0, len(channel_mask)):
+            channel_mask_.append(int(channel_mask[i]))
+        self._channel_mask_cache = np.array(channel_mask, dtype=int)
+        Base.sweep_channels_non_blocking(self,
+                                            sampling_window_ms,
+                                            n_sampling_windows_per_channel,
+                                            delay_between_windows_ms,
+                                            interleave_samples,
+                                            rms,
+                                            channel_mask_)
+
+    def measure_impedance_buffer_to_feedback_result(self, buffer):
         amplifier_gain = buffer[-1]
         vgnd_hv = buffer[-2]
         vgnd_fb = buffer[-3]
@@ -1428,10 +1449,49 @@ class DMFControlBoard(Base, SerialDevice):
                                amplifier_gain=amplifier_gain,
                                vgnd_hv=vgnd_hv, vgnd_fb=vgnd_fb)
 
+    def sweep_channels_buffer_to_feedback_result(self, buffer):
+        amplifier_gain = buffer[-1]
+        vgnd_hv = buffer[-2]
+        vgnd_fb = buffer[-3]
+        dt_ms = buffer[-4]
+        buffer = buffer[:-4]
+
+        n_channels_in_mask = np.cumsum(self._channel_mask_cache)[-1]
+        n_samples_per_channel = len(buffer) / 4 / n_channels_in_mask
+
+        voltage = self.waveform_voltage()
+        frequency = self.waveform_frequency()
+
+        V_hv = buffer[0::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
+        hv_resistor = buffer[1::4].astype(int)
+        V_fb = buffer[2::4] / (64*1023.0) * self.__aref__ / 2.0 / np.sqrt(2)
+        fb_resistor = buffer[3::4].astype(int)
+
+        results = FeedbackResultsSeries('channel')
+        i = 0
+        for channel in range(len(self._channel_mask_cache)):
+            if self._channel_mask_cache[channel]:
+                results.add_data(int(channel),
+                                 FeedbackResults(voltage, frequency, dt_ms,
+                                                 V_hv[i*n_samples_per_channel:(i+1)*n_samples_per_channel],
+                                                 hv_resistor[i*n_samples_per_channel:(i+1)*n_samples_per_channel],
+                                                 V_fb[i*n_samples_per_channel:(i+1)*n_samples_per_channel],
+                                                 fb_resistor[i*n_samples_per_channel:(i+1)*n_samples_per_channel],
+                                                 self.calibration,
+                                                 amplifier_gain=amplifier_gain,
+                                                 vgnd_hv=vgnd_hv, vgnd_fb=vgnd_fb))
+                i += 1
+        return results
+
     @remote_command
-    def get_impedance_data(self):
-        buffer = np.array(Base.get_impedance_data(self))
-        return self.impedance_buffer_to_feedback_result(buffer)
+    def get_measure_impedance_data(self):
+        buffer = np.array(Base.get_measure_impedance_data(self))
+        return self.measure_impedance_buffer_to_feedback_result(buffer)
+
+    @remote_command
+    def get_sweep_channels_data(self):
+        buffer = np.array(Base.get_sweep_channels_data(self))
+        return self.sweep_channels_buffer_to_feedback_result(buffer)
 
     @remote_command
     def measure_impedance(self,
@@ -1462,7 +1522,40 @@ class DMFControlBoard(Base, SerialDevice):
                                                  interleave_samples,
                                                  rms,
                                                  state_))
-        return self.impedance_buffer_to_feedback_result(buffer)
+        return self.measure_impedance_buffer_to_feedback_result(buffer)
+
+    @remote_command
+    def sweep_channels(self,
+                       sampling_window_ms,
+                       n_sampling_windows_per_channel,
+                       delay_between_windows_ms,
+                       interleave_samples,
+                       rms,
+                       channel_mask):
+        '''
+        Measure voltage across load of each of the following control board
+        feedback circuits:
+
+         - Reference _(i.e., attenuated high-voltage amplifier output)_.
+         - Load _(i.e., voltage across DMF device)_.
+
+        For each channel in the channel mask. The measured voltage
+        _(i.e., `V2`)_ can be used to compute the impedance of the measured
+        load, the input voltage _(i.e., `V1`)_, etc.
+        '''
+        channel_mask_ = uint8_tVector()
+        for i in range(0, len(channel_mask)):
+            channel_mask_.append(int(channel_mask[i]))
+        self._channel_mask_cache = np.array(channel_mask, dtype=int)
+
+        buffer = np.array(Base.sweep_channels(self,
+                          sampling_window_ms,
+                          n_sampling_windows_per_channel,
+                          delay_between_windows_ms,
+                          interleave_samples,
+                          rms,
+                          channel_mask_))))
+        return self.sweep_channels_buffer_to_feedback_result(buffer)
 
     @remote_command
     def i2c_scan(self):

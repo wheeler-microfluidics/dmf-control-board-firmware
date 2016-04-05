@@ -471,8 +471,6 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
     case CMD_SWEEP_CHANNELS:
       if (payload_length() == (sizeof(uint8_t) + sizeof(uint16_t) + \
           2 * sizeof(float) + number_of_channels_ * sizeof(uint8_t))) {
-        return_code_ = RETURN_BAD_PACKET_SIZE;
-      } else {
         return_code_ = RETURN_OK;
 
         float sampling_window_ms = read_float();
@@ -486,11 +484,10 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         bool rms =  (options & (1 << RMS)) > 0;
 
         uint16_t n_channels_in_mask = 0;
-        uint8_t* channel_mask = payload() + bytes_read();
-        for (uint8_t i = 0; i < number_of_channels_ / 8; i++) {
-          uint8_t x  = channel_mask[i];
-          while (x != 0) {
-            x = x & (x-1);
+        uint8_t channel_mask[number_of_channels_];
+        for (uint16_t i = 0; i < number_of_channels_ ; i++) {
+          channel_mask[i] = read_uint8();
+          if (channel_mask[i]) {
             n_channels_in_mask++;
           }
         }
@@ -508,32 +505,25 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
           clear_all_channels();
 
           long start_time = micros();
-          uint16_t channel;
 
-          for (uint8_t i = 0; i < number_of_channels_ / 8; i++) {
-            uint8_t x = read_uint8();
-            for (uint8_t j = 0; j < 8; j++) {
+          for (uint16_t i = 0; i < number_of_channels_; i++) {
+            // if we haven't got any errors yet, keep taking measurements
+            if (return_code_ == RETURN_OK) {
+              // if this channel is on in the mask
+              if (channel_mask[i]) {
+                // turn the channel on
+                update_channel(i, 1);
 
-              // if we haven't got any errors yet, keep taking measurements
-              if (return_code_ == RETURN_OK) {
-                channel = i * 8 + j;
-
-                // if this channel is on in the mask
-                if (x >> j & 0x01) {
-                  // turn the channel on
-                  update_channel(channel, 1);
-
-                  // measure
-                  return_code_ = feedback_controller_.measure_impedance(
-                                                         sampling_window_ms,
-                                                         n_sampling_windows_per_channel,
-                                                         delay_between_windows_ms,
-                                                         waveform_frequency_,
-                                                         interleave_samples,
-                                                         rms);
-                  // turn the channel off
-                  update_channel(channel, 0);
-                }
+                // measure
+                return_code_ = feedback_controller_.measure_impedance(
+                                                       sampling_window_ms,
+                                                       n_sampling_windows_per_channel,
+                                                       delay_between_windows_ms,
+                                                       waveform_frequency_,
+                                                       interleave_samples,
+                                                       rms);
+                // turn the channel off
+                update_channel(i, 0);
               }
             }
           }
@@ -559,6 +549,8 @@ uint8_t DMFControlBoard::process_command(uint8_t cmd) {
         } else {
           return_code_ = RETURN_GENERAL_ERROR;
         }
+      } else {
+        return_code_ = RETURN_BAD_PACKET_SIZE;
       }
       break;
     case CMD_LOAD_CONFIG:
@@ -1378,9 +1370,7 @@ std::vector <float> DMFControlBoard::measure_impedance(
                                  interleave_samples,
                                  rms,
                                  state);
-
-  boost::this_thread::sleep(boost::posix_time::milliseconds(
-      (sampling_window_ms + delay_between_windows_ms) * n_sampling_windows));
+  while (serial_data_available() == false);
   return get_measure_impedance_data();
 }
 
@@ -1409,6 +1399,25 @@ void DMFControlBoard::measure_impedance_non_blocking(
   send_non_blocking_command(CMD_MEASURE_IMPEDANCE);
 }
 
+std::vector <float> DMFControlBoard::sweep_channels(
+                                           float sampling_window_ms,
+                                           uint16_t n_sampling_windows_per_channel,
+                                           float delay_between_windows_ms,
+                                           bool interleave_samples,
+                                           bool rms,
+                                           const std::vector<uint8_t> channel_mask) {
+  float _sampling_rate = sampling_rate();
+  sweep_channels_non_blocking(sampling_window_ms,
+                              n_sampling_windows_per_channel,
+                              delay_between_windows_ms,
+                              interleave_samples,
+                              rms,
+                              channel_mask);
+
+  while (serial_data_available() == false);
+  return get_sweep_channels_data();
+}
+
 void DMFControlBoard::sweep_channels_non_blocking(
                                             float sampling_window_ms,
                                             uint16_t n_sampling_windows_per_channel,
@@ -1434,7 +1443,7 @@ void DMFControlBoard::sweep_channels_non_blocking(
   send_non_blocking_command(CMD_SWEEP_CHANNELS);
 }
 
-std::vector<float> DMFControlBoard::get_sweep_channel_data() {
+std::vector<float> DMFControlBoard::get_sweep_channels_data() {
   return get_impedance_data(CMD_SWEEP_CHANNELS);
 }
 
