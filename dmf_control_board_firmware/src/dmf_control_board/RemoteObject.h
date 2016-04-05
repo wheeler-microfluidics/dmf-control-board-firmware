@@ -268,6 +268,8 @@ public:
       throw std::runtime_error("Invalid command.");
     }
   }
+
+  bool serial_data_available() { return Serial.available() > 0; }
   /////////////////////////////////////////////////////////////////////////
   //
   // Remote accessors
