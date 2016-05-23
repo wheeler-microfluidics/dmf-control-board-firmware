@@ -568,7 +568,7 @@ uint8_t RemoteObject::process_command(uint8_t cmd) {
       }
       break;
     case CMD_I2C_WRITE:
-      if (payload_length() > 1) {
+      if (payload_length() >= 1) {
         uint8_t address = read<uint8_t>();
         Wire.beginTransmission(address);
         for (uint8_t i = 0; i < payload_length()-1; i++) {
