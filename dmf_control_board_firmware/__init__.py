@@ -1629,7 +1629,7 @@ class DMFControlBoard(Base, SerialDevice):
 
     @remote_command
     def i2c_read(self, address, n_bytes_to_read):
-        return np.array(Base.i2c_read(self, address, n_bytes_to_read))
+        return np.array(Base.i2c_read(self, address, n_bytes_to_read), dtype='uint8')
 
     @remote_command
     def i2c_send_command(self, address, cmd, data, delay_ms=100):
