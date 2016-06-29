@@ -410,6 +410,8 @@ class FeedbackResults():
         ind = mlab.find(self.fb_resistor >= 0)
         Z1 = np.empty(self.fb_resistor.shape)
         Z1.fill(np.nan)
+        # convert to masked array
+        Z1 = np.ma.masked_invalid(Z1)
 
         R2 = self.calibration.R_fb[self.fb_resistor[ind]]
         C2 = self.calibration.C_fb[self.fb_resistor[ind]]
@@ -418,10 +420,6 @@ class FeedbackResults():
                                                  V1=self.V_total()[ind],
                                                  V2=self.V_fb[ind], R2=R2,
                                                  C2=C2, f=self.frequency)
-        # convert to masked array
-        Z1 = (np.ma.masked_invalid(pd.TimeSeries(Z1, pd.to_datetime(self.time,
-                                                                    unit='s'))
-                                   .interpolate(method='time').values))
 
         # if we're filtering and we don't have a window size specified,
         # automatically determine one
@@ -502,13 +500,9 @@ class FeedbackResults():
         Note: this assumes impedance is purely capacitive load.
         TODO: Is this assumption ok?
         '''
-        C = 1.0 / (2.0 * math.pi * self.frequency *
-                   self.Z_device(filter_order=filter_order,
-                                 window_size=window_size, tol=tol))
-        return np.ma.masked_invalid(pd.TimeSeries(C, pd.to_datetime(self.time,
-                                                                    unit='s'))
-                                    .interpolate(method='time',
-                                                 downcast=None).values)
+        return 1.0 / (2.0 * math.pi * self.frequency *
+                      self.Z_device(filter_order=filter_order,
+                                    window_size=window_size, tol=tol))
 
     def x_position(self, filter_order=None, window_size=None, tol=0.05,
                    Lx=None):
@@ -546,7 +540,7 @@ class FeedbackResults():
         if Lx is None:
             Lx = np.sqrt(self.area)
         return (self.capacitance(filter_order=filter_order,
-                                 window_size=window_size, tol=tol) / self.area
+                                 window_size=window_size, tol=tol) / self.area \
                 - c_filler) / (c_drop - c_filler) * Lx
 
     def mean_velocity(self, tol=0.05, Lx=None):
