@@ -39,6 +39,12 @@ def create_config():
 
 
 @task
+def nosetests():
+    nose_options = '-v'
+    sh('nosetests %s' % nose_options)
+
+
+@task
 @needs('create_config')
 @cmdopts([('sconsflags=', 'f', 'Flags to pass to SCons.'),
           ('boards=', 'b', 'Comma-separated list of board names to compile '
@@ -55,7 +61,7 @@ def build_firmware():
 
 
 @task
-@needs('generate_setup', 'minilib', 'build_firmware',
+@needs('generate_setup', 'minilib', 'build_firmware', 'nosetests',
        'setuptools.command.sdist')
 def sdist():
     """Overrides sdist to make sure that our setup.py is generated."""
