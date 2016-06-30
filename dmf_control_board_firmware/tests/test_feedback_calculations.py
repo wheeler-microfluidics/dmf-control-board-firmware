@@ -2,14 +2,15 @@ import numpy as np
 import pandas as pd
 from path_helpers import path
 
-def compare_results_to_reference(method, id=1, filter_order=None):
+def compare_results_to_reference(method, reference_results_file, id=1, filter_order=None):
     input_file = path(__file__).parent / path('FeedbackResults') / \
         path('input_1.pickle')
 
     data = input_file.pickle_load()
 
+    # add absolute path
     reference_results_file = path(__file__).parent / path('FeedbackResults') / \
-        path('reference_results.hdf')
+        reference_results_file
 
     f = pd.HDFStore(reference_results_file, 'r')
     reference_results_df = f['/root']
@@ -26,6 +27,8 @@ def compare_results_to_reference(method, id=1, filter_order=None):
 
     if method in ['force', 'V_actuation']:
         results = eval('data.%s()' % method)
+    elif method in ['dxdt']:
+        t, results = eval('data.%s(filter_order=%s)' % (method, filter_order))
     else:
         results = eval('data.%s(filter_order=%s)' % (method, filter_order))
 
@@ -43,22 +46,28 @@ def compare_results_to_reference(method, id=1, filter_order=None):
         assert False
 
 def test_V_actuation():
-    compare_results_to_reference('V_actuation')
+    compare_results_to_reference('V_actuation', 'reference_results.hdf')
 
 def test_x_position():
-    compare_results_to_reference('x_position')
-
-def test_x_position_filter_order_3():
-    compare_results_to_reference('x_position', filter_order=3)
+    compare_results_to_reference('x_position', 'reference_results.hdf')
 
 def test_force():
-    compare_results_to_reference('force')
+    compare_results_to_reference('force', 'reference_results.hdf')
 
 def test_Z_device():
-    compare_results_to_reference('Z_device')
+    compare_results_to_reference('Z_device', 'reference_results.hdf')
+
+def test_Z_device_filter_order_3():
+    compare_results_to_reference('Z_device', 'reference_results.hdf', filter_order=3)
 
 def test_capacitance():
-    compare_results_to_reference('capacitance')
+    compare_results_to_reference('capacitance', 'reference_results.hdf')
+
+def test_velocity():
+    compare_results_to_reference('dxdt', 'reference_results_velocity.hdf')
+
+def test_velocity_filter_order_3():
+    compare_results_to_reference('dxdt', 'reference_results_velocity.hdf', filter_order=3)
 
 def generate_feedback_results_reference(data, id):
     input_file = path(__file__).parent / path('FeedbackResults') / \

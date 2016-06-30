@@ -357,8 +357,11 @@ class FeedbackResults():
                                                  [self.hv_resistor[ind]],
                                                  f=self.frequency)
         # convert to masked array
-        return np.ma.masked_invalid(pd.Series(V1, pd.to_datetime(self.time, unit='s')
-        ).interpolate(method='time').values)
+        V1 = np.ma.masked_invalid(pd.Series(V1, pd.to_datetime(self.time, unit='s')
+            ).interpolate(method='time').values)
+        V1.fill_value = np.nan
+        V1.data[V1.mask] = V1.fill_value
+        return V1
 
     def V_actuation(self):
         '''
@@ -420,6 +423,11 @@ class FeedbackResults():
                                                  V1=self.V_total()[ind],
                                                  V2=self.V_fb[ind], R2=R2,
                                                  C2=C2, f=self.frequency)
+
+        Z1 = np.ma.masked_invalid(pd.Series(Z1, pd.to_datetime(self.time, unit='s')
+            ).interpolate(method='time').values)
+        Z1.fill_value = np.nan
+        Z1.data[Z1.mask] = Z1.fill_value
 
         # if we're filtering and we don't have a window size specified,
         # automatically determine one
@@ -500,9 +508,11 @@ class FeedbackResults():
         Note: this assumes impedance is purely capacitive load.
         TODO: Is this assumption ok?
         '''
-        return 1.0 / (2.0 * math.pi * self.frequency *
-                      self.Z_device(filter_order=filter_order,
-                                    window_size=window_size, tol=tol))
+        C = 1.0 / (2.0 * math.pi * self.frequency *
+                   self.Z_device(filter_order=filter_order,
+                                 window_size=window_size, tol=tol))
+        C.data[C.mask] = C.fill_value
+        return C
 
     def x_position(self, filter_order=None, window_size=None, tol=0.05,
                    Lx=None):
@@ -624,6 +634,7 @@ class FeedbackResults():
         if filter_order is None or window_size is None or \
             (window_size and window_size < filter_order + 2):
             dx = np.diff(x)
+            dx.data[dx.mask] = dx.fill_value
             t = self.time[1:] - dt/2.0
         else: # filter
             t = self.time
@@ -645,6 +656,7 @@ class FeedbackResults():
                 # otherwise, leave dx = 0
                 pass
         return t, np.ma.masked_invalid(dx / dt)
+
 
 
 class FeedbackResultsSeries():
