@@ -19,6 +19,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 """
 from collections import OrderedDict
 import copy
+from datetime import datetime
 import decorator
 import logging
 import math
@@ -1525,7 +1526,6 @@ class DMFControlBoard(Base, SerialDevice):
         df_impedances.set_index(index, inplace=True)
         return df_impedances
 
-
     @remote_command
     def get_measure_impedance_data(self):
         buffer = np.array(Base.get_measure_impedance_data(self))
@@ -1621,6 +1621,77 @@ class DMFControlBoard(Base, SerialDevice):
                                                      rms,
                                                      channel_mask_uint8))))
         return self.sweep_channels_buffer_to_feedback_result(buffer)
+
+
+    @remote_command
+    def sweep_channels_slow(self, sampling_window_ms, n_sampling_windows,
+                            delay_between_windows_ms, interleave_samples,
+                            use_rms, channel_mask):
+        '''
+        Measure voltage across load of each of the following control board
+        feedback circuits:
+
+         - Reference _(i.e., attenuated high-voltage amplifier output)_.
+         - Load _(i.e., voltage across DMF device)_.
+
+        For each channel in the channel mask. The measured voltage _(i.e.,
+        `V2`)_ can be used to compute the impedance of the measured load, the
+        input voltage _(i.e., `V1`)_, etc.
+
+        **N.B.,** Use one firmware call per channel, as opposed to scanning all
+        channels with a single firmware call as in `sweep_channels` method.
+
+        Returns
+        -------
+
+            (pandas.DataFrame) : Table containing one actuation RMS measurement
+                and one device load impedance measurement per row and the
+                columns `frequency`, `voltage`, `channel_i`, `V_actuation`,
+                `capacitance`, and `impedance`.
+        '''
+        channel_count = len(channel_mask)
+        scan_count = sum(channel_mask)
+
+        frames = []
+
+        print ''
+        scan_count_i = 0
+        # Iterate through channel mask, measuring impedance for each selected
+        # channel in the mask.
+        for channel_i, state_i in enumerate(channel_mask):
+            if state_i:
+                scan_count_i += 1
+                print '\rMeasure impedance: {} ({}/{})'.format(channel_i,
+                                                               scan_count_i,
+                                                               scan_count),
+                channel_states_i = [0] * channel_count
+                channel_states_i[channel_i] = 1
+                start_time_i = datetime.utcnow()
+                feedback_results_i = \
+                    self.measure_impedance(sampling_window_ms,
+                                           n_sampling_windows,
+                                           delay_between_windows_ms,
+                                           interleave_samples, use_rms,
+                                           channel_states_i)
+                # Convert custom feedback results object into a
+                # `pandas.DataFrame`.
+                df_result_i =\
+                    feedback_results_to_impedance_frame(feedback_results_i)
+                df_result_i.insert(2, 'channel_i', channel_i)
+                df_result_i.insert(0, 'utc_start', start_time_i)
+                frames.append(df_result_i)
+        print ''
+
+        if not frames:
+            df_result = pd.DataFrame(None, columns=['utc_start', 'seconds',
+                                                    'channel_i', 'frequency',
+                                                    'V_actuation',
+                                                    'capacitance',
+                                                    'impedance'])
+        else:
+            df_result = pd.concat(frames)
+        import pdb; pdb.set_trace()
+        return df_result
 
     @remote_command
     def i2c_scan(self):
