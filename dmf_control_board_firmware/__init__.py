@@ -509,9 +509,10 @@ class FeedbackResults():
         Note: this assumes impedance is purely capacitive load.
         TODO: Is this assumption ok?
         '''
-        C = 1.0 / (2.0 * math.pi * self.frequency *
+        C = np.ma.masked_invalid(1.0 / (2.0 * math.pi * self.frequency *
                    self.Z_device(filter_order=filter_order,
-                                 window_size=window_size, tol=tol))
+                                 window_size=window_size, tol=tol)))
+        C.fill_value = np.nan
         C.data[C.mask] = C.fill_value
         return C
 
