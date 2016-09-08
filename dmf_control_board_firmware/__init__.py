@@ -437,8 +437,7 @@ class FeedbackResults():
 
         # if the filter_order or window size is None or if the window size is
         # smaller than filter_order + 2, don't filter
-        if filter_order is None or window_size is None or \
-            (window_size and window_size < filter_order + 2):
+        if (filter_order is None or window_size is None or window_size < filter_order + 2):
             pass
         else:
             # if the window size is less than half the sample length
@@ -633,32 +632,131 @@ class FeedbackResults():
 
         # if the filter_order or window size is None or if the window size is
         # smaller than filter_order + 2, don't filter
-        if filter_order is None or window_size is None or \
-            (window_size and window_size < filter_order + 2):
+        if (filter_order is None or window_size is None or
+            window_size < filter_order + 2):
             dx = np.diff(x)
             dx.data[dx.mask] = dx.fill_value
             t = self.time[1:] - dt/2.0
         else: # filter
             t = self.time
             dx = np.zeros(t.shape)
-            if window_size:
-                # if the window size is less than half the sample length
-                if window_size < len(x) / 2:
-                    # suppress polyfit warnings
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        dx = savgol_filter(x, window_size, filter_order, 1)
-                else: # use the average velocity
-                    result = self.mean_velocity(tol=tol)
-                    mean_dxdt = 0
-                    if result['p'] is not None:
-                        mean_dxdt = result['p'][0]
-                    dx[:mlab.find(t==result['t_end'])[0]+1] = mean_dxdt * dt
-            else:
-                # otherwise, leave dx = 0
-                pass
+            # if the window size is less than half the sample length
+            if window_size < len(x) / 2:
+                # suppress polyfit warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    dx = savgol_filter(x, window_size, filter_order, 1)
+            else: # use the average velocity
+                result = self.mean_velocity(tol=tol)
+                mean_dxdt = 0
+                if result['p'] is not None:
+                    mean_dxdt = result['p'][0]
+                dx[:mlab.find(t==result['t_end'])[0]+1] = mean_dxdt * dt
         return t, np.ma.masked_invalid(dx / dt)
 
+    def to_df(self, filter_order=3):
+        """
+        Convert data to a `pandas.DataFrame`.
+
+        Parameters
+        ----------
+        filter_order : int
+            Filter order to use when filtering Z_device, capacitance, x_position, and dxdt.
+            Data is filtered using a Savitzky-Golay filter with a window size that is adjusted
+            based on the mean velocity of the drop (see _get_window_size).
+
+        Returns
+        -------
+        pandas.DataFrame
+            This DataFrame is indexed by a utc_timestamp and contains the following columns:
+                frequency: actuation frequency (Hz)
+                target_voltage: target voltage (V)
+                voltage: measured voltage (V)
+                force: actuation force (uN/mm)
+                area: actuated area (mm^2)
+                Z_device_filtered: filtered device impedance for actuated area (Ohms)
+                capacitance_filtered: filtered device capacitance for actuated area (F)
+                x_position_filtered: filtered x-position of the drop (mm)
+                dxdt_filtered: filtered instantaneous velocity of the drop (mm/s)
+                Z_device: device impedance for actuated area (Ohms)
+                capacitance: device capacitance for actuated area (F)
+                x_position: x-position of the drop (mm)
+                dxdt: instantaneous velocity of the drop (mm/s)
+                dx: difference in the drop's x-position over the course of the step (mm)
+                dt: time the drop is considered to have been "moving" (s)
+                mean_velocity: mean drop velocity (mm/s)
+                peak_velocity: peak drop velocity calculated from filtered instantaneous
+                    velocity (mm/s)
+                window_size: windows size used for Savitzky-Golay filter (# bins)
+                filter_order: order used for Savitzky-Golay filter (integer)
+        """
+
+        window_size = self._get_window_size()
+        L = np.sqrt(self.area)
+        velocity_results = self.mean_velocity(Lx=L)
+        mean_velocity = None
+        peak_velocity = None
+        dx = 0
+        dt = 0
+        dxdt = np.zeros(len(self.time))
+        dxdt_filtered = np.zeros(len(self.time))
+
+        # if the window size is too small for filtering, set filter_order to None
+        if filter_order and window_size and window_size < filter_order + 2:
+            filter_order = None
+
+        if velocity_results and velocity_results['dx']:
+            mean_velocity = velocity_results['p'][0] * 1e3
+
+            dx = velocity_results['dx']
+            dt = velocity_results['dt'] * 1e-3 # convert to seconds
+
+            t, dxdt = self.dxdt(Lx=L)
+            dxdt = np.ma.masked_invalid(dxdt)
+
+            # interpolate dxdt to use the same time points as the impedance values.
+            dxdt = np.interp(self.time,
+                             t, dxdt) * 1e3 # multiply by 1000 to convert to mm/s
+
+            t, dxdt_filtered = self.dxdt(filter_order=filter_order, Lx=L)
+            dxdt_filtered = np.ma.masked_invalid(dxdt_filtered)
+
+            # interpolate dxdt_filtered to use the same time points as the impedance values.
+            dxdt_filtered = np.interp(self.time,
+                                      t, dxdt_filtered) * 1e3 # multiply by 1000 to convert to mm/s
+
+            # calculate peak velocity from filtered data
+            peak_velocity = np.max(dxdt_filtered) * 1e3
+
+        index = pd.Index(self.time * 1e-3, name='step_time')
+        df = pd.DataFrame({'target_voltage': self.voltage, # V
+                           'voltage': self.V_actuation(), # V
+                           'force': self.force(Ly=1.0) * 1e6, # uN/mm
+                           'Z_device_filtered': self.Z_device(filter_order=filter_order), # Ohms
+                           'capacitance_filtered': self.capacitance(filter_order=filter_order), # F
+                           'x_position_filtered': self.x_position(filter_order=filter_order), # mm
+                           'dxdt_filtered': dxdt_filtered, # mm/s
+                           'Z_device': self.Z_device(), # Ohms
+                           'capacitance': self.capacitance(), # F
+                           'x_position': self.x_position(), # mm
+                           'dxdt': dxdt, # mm/s
+                          }, index=index)
+
+        df['frequency'] = self.frequency
+        df['area'] = self.area # mm^2
+        df['dx'] = dx # mm
+        df['dt'] = dt # s
+        df['mean_velocity'] = mean_velocity # mm/s
+        df['peak_velocity'] = peak_velocity # mm/s
+        df['window_size'] = window_size
+        df['filter_order'] = filter_order
+
+        # re-order columns
+        return df[[u'frequency', u'target_voltage', u'voltage', u'force', u'area',
+                   u'Z_device_filtered', u'capacitance_filtered', u'x_position_filtered',
+                   u'dxdt_filtered', u'Z_device', u'capacitance', u'x_position', u'dxdt',
+                   u'dx', u'dt', u'mean_velocity', u'peak_velocity',
+                   u'window_size', u'filter_order']]
 
 
 class FeedbackResultsSeries():
