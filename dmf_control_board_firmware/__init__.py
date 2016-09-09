@@ -712,21 +712,19 @@ class FeedbackResults():
             dt = velocity_results['dt'] * 1e-3 # convert to seconds
 
             t, dxdt = self.dxdt(Lx=L)
-            dxdt = np.ma.masked_invalid(dxdt)
-
             # interpolate dxdt to use the same time points as the impedance values.
             dxdt = np.interp(self.time,
                              t, dxdt) * 1e3 # multiply by 1000 to convert to mm/s
+            dxdt = np.ma.masked_invalid(dxdt)
 
             t, dxdt_filtered = self.dxdt(filter_order=filter_order, Lx=L)
-            dxdt_filtered = np.ma.masked_invalid(dxdt_filtered)
-
             # interpolate dxdt_filtered to use the same time points as the impedance values.
             dxdt_filtered = np.interp(self.time,
                                       t, dxdt_filtered) * 1e3 # multiply by 1000 to convert to mm/s
+            dxdt_filtered = np.ma.masked_invalid(dxdt_filtered)
 
             # calculate peak velocity from filtered data
-            peak_velocity = np.max(dxdt_filtered) * 1e3
+            peak_velocity = np.max(dxdt_filtered)
 
         index = pd.Index(self.time * 1e-3, name='step_time')
         df = pd.DataFrame({'target_voltage': self.voltage, # V
@@ -1789,7 +1787,6 @@ class DMFControlBoard(Base, SerialDevice):
                                                     'impedance'])
         else:
             df_result = pd.concat(frames)
-        import pdb; pdb.set_trace()
         return df_result
 
     @remote_command
