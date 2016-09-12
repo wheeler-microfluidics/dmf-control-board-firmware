@@ -654,7 +654,7 @@ class FeedbackResults():
                 dx[:mlab.find(t==result['t_end'])[0]+1] = mean_dxdt * dt
         return t, np.ma.masked_invalid(dx / dt)
 
-    def to_df(self, filter_order=3):
+    def to_frame(self, filter_order=3):
         """
         Convert data to a `pandas.DataFrame`.
 
