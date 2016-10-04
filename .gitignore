@@ -20,3 +20,4 @@ paver-minilib.zip
 setup.py
 .ropeproject
 .idea
+docs/_*
