@@ -1,0 +1,15 @@
+arduino-scons
+arduino_helpers>=0.3.post10
+arrow
+decorator
+functools32
+matplotlib
+microdrop-utility
+numpydoc
+pandas>=0.17
+pyserial
+scipy
+svg-model>=0.5.post20
+sympy
+tables
+wheeler.base-node>=0.3.post2

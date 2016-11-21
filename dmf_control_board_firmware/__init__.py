@@ -342,9 +342,13 @@ class FeedbackResults():
 
     def V_total(self):
         '''
-        Compute the input voltage _(i.e., `V1`)_ based on the measured
-        high-voltage feedback values for `V2`, using the high-voltage transfer
-        function.
+        Compute the input voltage (i.e., ``V1``) based on the measured
+        high-voltage feedback values for ``V2``, using the high-voltage
+        transfer function.
+
+        See also
+        --------
+        :meth:`V_actuation` for diagram with ``V1`` and ``V2`` labelled.
         '''
         ind = mlab.find(self.hv_resistor >= 0)
         V1 = np.empty(self.hv_resistor.shape)
@@ -366,11 +370,13 @@ class FeedbackResults():
 
     def V_actuation(self):
         '''
-        Return the voltage drop across the device _(i.e., the `Z1` load)_ for
+        Return the voltage drop across the device (i.e., the ``Z1`` load) for
         each feedback measurement.
 
         Consider the feedback circuit diagrams below for the feedback
         measurement circuits of the two the control board hardware versions.
+
+        .. code-block:: none
 
                          # Hardware V1 #          # Hardware V2 #
 
@@ -387,16 +393,16 @@ class FeedbackResults():
                              ¯                            ═╧═
                                                            ¯
 
-        Note that in the case of hardware version 1, the input voltage `V1` is
-        divided across `Z1` *and* the feedback measurement load `Z2`.
-        Therefore, the effective _actuation_ voltage across the DMF device is
-        less than `V1`.  Specifically, the effective _actuation_ voltage is
-        `V1 - V2`.
+        Note that in the case of **hardware version 1**, the input voltage
+        ``V1`` is divided across ``Z1`` *and* the feedback measurement load
+        ``Z2``. Therefore, the effective *actuation* voltage across the DMF
+        device is less than ``V1``.  Specifically, the effective *actuation*
+        voltage is ``V1 - V2``.
 
-        In hardware version 2, since the positive terminal of the op-amp is
-        attached to _(virtual)_ ground, the negative op-amp terminal is also at
+        In **hardware version 2**, since the positive terminal of the op-amp is
+        attached to *(virtual)* ground, the negative op-amp terminal is also at
         ground potential.  It follows that the actuation voltage is equal to
-        `V1` on hardware version 2.
+        ``V1`` on **hardware version 2**.
         '''
         if self.calibration.hw_version.major == 1:
             return self.V_total() - np.array(self.V_fb)
@@ -405,11 +411,11 @@ class FeedbackResults():
 
     def Z_device(self, filter_order=None, window_size=None, tol=0.05):
         '''
-        Compute the impedance _(including resistive and capacitive load)_ of
-        the DMF device _(i.e., dielectric and droplet)_.
+        Compute the impedance *(including resistive and capacitive load)* of
+        the DMF device *(i.e., dielectric and droplet)*.
 
-        See `dmf_control_board.calibrate.compute_from_transfer_function`
-        docstring for details.
+        See :func:`calibrate.compute_from_transfer_function`
+        for details.
         '''
         ind = mlab.find(self.fb_resistor >= 0)
         Z1 = np.empty(self.fb_resistor.shape)
@@ -1091,6 +1097,19 @@ class DMFControlBoard(Base, SerialDevice):
     def force_to_voltage(self, force, frequency):
         '''
         Convert a force in uN/mm to voltage.
+
+        Parameters
+        ----------
+        force : float
+            Force in **uN/mm**.
+        frequency : float
+            Actuation frequency.
+
+        Returns
+        -------
+        float
+            Actuation voltage to apply :data:`force` at an actuation frequency
+            of :data:`frequency`.
         '''
         c_drop = self.calibration.c_drop(frequency)
 
@@ -1105,14 +1124,29 @@ class DMFControlBoard(Base, SerialDevice):
     @safe_series_resistor_index_read
     def series_capacitance(self, channel, resistor_index=None):
         '''
-        Return the current series capacitance value for the specified channel.
+        Parameters
+        ----------
+        channel : int
+            Analog channel index.
+        resistor_index : int, optional
+            Series resistor channel index.
 
-        If `resistor_index` is not specified, the resistor-index from the
-        current context _(i.e., the result of `self.series_resistor_index`)_ is
-        used.  Otherwise, the series-resistor is temporarily set to the value
-        of `resistor_index` to read the capacitance before restoring back to
-        the original value.  See definition of
-        `safe_series_resistor_index_read` decorator.
+            If :data:`resistor_index` is not specified, the resistor-index from
+            the current context _(i.e., the result of
+            :attr:`series_resistor_index`)_ is used.
+
+            Otherwise, the series-resistor is temporarily set to the value of
+            :data:`resistor_index` to read the capacitance before restoring
+            back to the original value.
+
+            See definition of :meth:`safe_series_resistor_index_read`
+            decorator.
+
+        Returns
+        -------
+        float
+            Return the current series capacitance value for the specified
+            channel.
         '''
         if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
@@ -1129,14 +1163,29 @@ class DMFControlBoard(Base, SerialDevice):
     @safe_series_resistor_index_read
     def series_resistance(self, channel, resistor_index=None):
         '''
-        Return the current series resistance value for the specified channel.
+        Parameters
+        ----------
+        channel : int
+            Analog channel index.
+        resistor_index : int, optional
+            Series resistor channel index.
 
-        If `resistor_index` is not specified, the resistor-index from the
-        current context _(i.e., the result of `self.series_resistor_index`)_ is
-        used.  Otherwise, the series-resistor is temporarily set to the value
-        of `resistor_index` to read the resistance before restoring back to the
-        original value.  See definition of `safe_series_resistor_index_read`
-        decorator.
+            If :data:`resistor_index` is not specified, the resistor-index from
+            the current context _(i.e., the result of
+            :attr:`series_resistor_index`)_ is used.
+
+            Otherwise, the series-resistor is temporarily set to the value of
+            :data:`resistor_index` to set the capacitance before restoring back
+            to the original value.
+
+            See definition of :meth:`safe_series_resistor_index_read`
+            decorator.
+
+        Returns
+        -------
+        float
+            Return the current series resistance value for the specified
+            channel.
         '''
         if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
@@ -1155,12 +1204,27 @@ class DMFControlBoard(Base, SerialDevice):
         '''
         Set the current series capacitance value for the specified channel.
 
-        If `resistor_index` is not specified, the resistor-index from the
-        current context _(i.e., the result of `self.series_resistor_index`)_ is
-        used.  Otherwise, the series-resistor is temporarily set to the value
-        of `resistor_index` to set the capacitance before restoring back to
-        the original value.  See definition of
-        `safe_series_resistor_index_write` decorator.
+        Parameters
+        ----------
+        channel : int
+            Analog channel index.
+        value : float
+            Series capacitance value.
+        resistor_index : int, optional
+            Series resistor channel index.
+
+            If :data:`resistor_index` is not specified, the resistor-index from
+            the current context _(i.e., the result of
+            :attr:`series_resistor_index`)_ is used.
+
+            Otherwise, the series-resistor is temporarily set to the value of
+            :data:`resistor_index` to read the resistance before restoring
+            back to the original value.
+
+        Returns
+        -------
+        int
+            Return code from embedded call.
         '''
         if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
@@ -1178,12 +1242,30 @@ class DMFControlBoard(Base, SerialDevice):
         '''
         Set the current series resistance value for the specified channel.
 
-        If `resistor_index` is not specified, the resistor-index from the
-        current context _(i.e., the result of `self.series_resistor_index`)_ is
-        used.  Otherwise, the series-resistor is temporarily set to the value
-        of `resistor_index` to set the resistance before restoring back to the
-        original value.  See definition of `safe_series_resistor_index_write`
-        decorator.
+        Parameters
+        ----------
+        channel : int
+            Analog channel index.
+        value : float
+            Series resistance value.
+        resistor_index : int, optional
+            Series resistor channel index.
+
+            If :data:`resistor_index` is not specified, the resistor-index from
+            the current context _(i.e., the result of
+            :attr:`series_resistor_index`)_ is used.
+
+            Otherwise, the series-resistor is temporarily set to the value of
+            :data:`resistor_index` to set the resistance before restoring back
+            to the original value.
+
+            See definition of :meth:`safe_series_resistor_index_read`
+            decorator.
+
+        Returns
+        -------
+        int
+            Return code from embedded call.
         '''
         if resistor_index is None:
             resistor_index = self.series_resistor_index(channel)
@@ -1634,12 +1716,8 @@ class DMFControlBoard(Base, SerialDevice):
         return self.sweep_channels_buffer_to_feedback_result(buffer)
 
     @remote_command
-    def measure_impedance(self,
-                          sampling_window_ms,
-                          n_sampling_windows,
-                          delay_between_windows_ms,
-                          interleave_samples,
-                          rms,
+    def measure_impedance(self, sampling_window_ms, n_sampling_windows,
+                          delay_between_windows_ms, interleave_samples, rms,
                           state):
         '''
         Measure voltage across load of each of the following control board
@@ -1648,8 +1726,42 @@ class DMFControlBoard(Base, SerialDevice):
          - Reference _(i.e., attenuated high-voltage amplifier output)_.
          - Load _(i.e., voltage across DMF device)_.
 
-        The measured voltage _(i.e., `V2`)_ can be used to compute the
-        impedance of the measured load, the input voltage _(i.e., `V1`)_, etc.
+        The measured voltage _(i.e., ``V2``)_ can be used to compute the
+        impedance of the measured load, the input voltage _(i.e., ``V1``)_,
+        etc.
+
+        Parameters
+        ----------
+        sampling_window_ms : float
+            Length of sampling window (in milleseconds) for each
+            RMS/peak-to-peak voltage measurement.
+        n_sampling_windows : int
+            Number of RMS/peak-to-peak voltage measurements to take.
+        delay_between_windows_ms : float
+            Delay (in milleseconds) between RMS/peak-to-peak voltage
+            measurements.
+        interleave_samples : bool
+            If ``True``, interleave RMS/peak-to-peak measurements for analog
+            channels.
+
+            For example, ``[<i_0>, <j_0>, <i_1>, <j_1>, ..., <i_n>, <j_n>]``
+            where ``i`` and ``j`` correspond to two different analog channels.
+
+            If ``False``, all measurements for each analog channel are taken
+            together.  For example, ``[<i_0>, ..., <i_n>, <j_0>, ..., <j_n>]``
+            where ``i`` and ``j`` correspond to two different analog channels.
+        rms : bool
+            If ``True``, a RMS voltage measurement is collected for each
+            sampling window.
+
+            Otherwise, peak-to-peak measurements are collected.
+        state : list
+            State of device channels.  Length should be equal to the number of
+            device channels.
+
+        Returns
+        -------
+        :class:`FeedbackResults`
         '''
         state_ = uint8_tVector()
         for i in range(0, len(state)):
@@ -1679,9 +1791,48 @@ class DMFControlBoard(Base, SerialDevice):
          - Reference _(i.e., attenuated high-voltage amplifier output)_.
          - Load _(i.e., voltage across DMF device)_.
 
-        For each channel in the channel mask. The measured voltage
-        _(i.e., `V2`)_ can be used to compute the impedance of the measured
-        load, the input voltage _(i.e., `V1`)_, etc.
+        For each channel in the channel mask. The measured voltage _(i.e.,
+        ``V2``)_ can be used to compute the impedance of the measured load, the
+        input voltage _(i.e., ``V1``)_, etc.
+
+        Parameters
+        ----------
+        sampling_window_ms : float
+            Length of sampling window (in milleseconds) for each
+            RMS/peak-to-peak voltage measurement.
+        n_sampling_windows_per_channel : int
+            Number of RMS/peak-to-peak voltage measurements to take.
+        delay_between_windows_ms : float
+            Delay (in milleseconds) between RMS/peak-to-peak voltage
+            measurements.
+        interleave_samples : bool
+            If ``True``, interleave RMS/peak-to-peak measurements for analog
+            channels.
+
+            For example, ``[<i_0>, <j_0>, <i_1>, <j_1>, ..., <i_n>, <j_n>]``
+            where ``i`` and ``j`` correspond to two different analog channels.
+
+            If ``False``, all measurements for each analog channel are taken
+            together.  For example, ``[<i_0>, ..., <i_n>, <j_0>, ..., <j_n>]``
+            where ``i`` and ``j`` correspond to two different analog channels.
+        rms : bool
+            If ``True``, a RMS voltage measurement is collected for each
+            sampling window.
+
+            Otherwise, peak-to-peak measurements are collected.
+        channel_mask : array-like
+            State of device channels.  Length should be equal to the number of
+            device channels.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Table containing one actuation RMS measurement and one device load
+            impedance measurement per row and the columns ``frequency``,
+            ``voltage``, ``channel_i``, ``V_actuation``, ``capacitance``, and
+            ``impedance``.
+
+            Rows are indexed by time since first measurement in frame.
         '''
 
         channel_cumsum = np.cumsum(channel_mask)
@@ -1732,19 +1883,22 @@ class DMFControlBoard(Base, SerialDevice):
          - Load _(i.e., voltage across DMF device)_.
 
         For each channel in the channel mask. The measured voltage _(i.e.,
-        `V2`)_ can be used to compute the impedance of the measured load, the
-        input voltage _(i.e., `V1`)_, etc.
+        ``V2``)_ can be used to compute the impedance of the measured load, the
+        input voltage _(i.e., ``V1``)_, etc.
 
         **N.B.,** Use one firmware call per channel, as opposed to scanning all
-        channels with a single firmware call as in `sweep_channels` method.
+        channels with a single firmware call as in :meth:`sweep_channels`
+        method.
 
         Returns
         -------
+        pandas.DataFrame
+            Table containing one actuation RMS measurement and one device load
+            impedance measurement per row and the columns ``frequency``,
+            ``voltage``, ``channel_i``, ``V_actuation``, ``capacitance``, and
+            ``impedance``.
 
-            (pandas.DataFrame) : Table containing one actuation RMS measurement
-                and one device load impedance measurement per row and the
-                columns `frequency`, `voltage`, `channel_i`, `V_actuation`,
-                `capacitance`, and `impedance`.
+            Rows are indexed by time since first measurement in frame.
         '''
         channel_count = len(channel_mask)
         scan_count = sum(channel_mask)
@@ -1791,10 +1945,24 @@ class DMFControlBoard(Base, SerialDevice):
 
     @remote_command
     def i2c_scan(self):
+        '''
+        Returns
+        -------
+        numpy.array
+            Array of addresses of I2C devices responding to I2C scan.
+        '''
         return np.array(Base.i2c_scan(self))
 
     @remote_command
     def i2c_write(self, address, data):
+        '''
+        Parameters
+        ----------
+        address : int
+            Address of I2C device.
+        data : array-like
+            Array of bytes to send to device.
+        '''
         data_ = uint8_tVector()
         for i in range(0, len(data)):
             data_.append(int(data[i]))
