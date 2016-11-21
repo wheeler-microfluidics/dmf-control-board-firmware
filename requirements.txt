@@ -6,8 +6,8 @@ functools32
 matplotlib
 microdrop-utility
 pandas>=0.17
-pyserial
 scipy
+serial_device>=0.3
 svg-model>=0.5.post20
 sympy
 tables
