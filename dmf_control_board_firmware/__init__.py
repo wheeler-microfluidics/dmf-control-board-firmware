@@ -26,6 +26,7 @@ import math
 import os
 import re
 import time
+import types
 import warnings
 
 from arduino_helpers.context import auto_context, Board, Uploader
@@ -34,16 +35,44 @@ from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW  # Firmware consts
 from microdrop_utility import Version, FutureVersionError
 from path_helpers import path
 from scipy.signal import savgol_filter
-from serial_device import SerialDevice
 import matplotlib.mlab as mlab
 import numpy as np
 import pandas as pd
+import serial_device as sd
 
 from .calibrate.feedback import compute_from_transfer_function
 from .dmf_control_board_base import DMFControlBoard as Base
 from .dmf_control_board_base import uint8_tVector
 
 logger = logging.getLogger()
+
+
+def serial_ports():
+    '''
+    Returns
+    -------
+    pandas.DataFrame
+        Table of serial ports that match the USB vendor ID and product IDs for
+        Arduino Mega2560 (from `official Arduino Windows driver`_).
+
+    .. official Arduino Windows driver: https://github.com/arduino/Arduino/blob/27d1b8d9a190469e185af7484b52cc5884e7d731/build/windows/dist/drivers/arduino.inf#L95-L98
+    '''
+    df_comports = sd.comports()
+    # Match COM ports with USB vendor ID and product IDs for Arduino Mega2560
+    # (from [official Arduino Windows driver][1]).
+    #
+    # [1]: https://github.com/arduino/Arduino/blob/27d1b8d9a190469e185af7484b52cc5884e7d731/build/windows/dist/drivers/arduino.inf#L95-L98
+    df_mega2560_comports = df_comports.loc[df_comports.hardware_id.str
+                                           .contains('VID:PID=('
+                                                      # mega2560rev3
+                                                     '2341:0042|'
+                                                      # mega2560
+                                                     '2341:0010|'
+                                                      # megaADK
+                                                     '2341:003F|'
+                                                      # megaADKrev3
+                                                     '2341:0044)')]
+    return df_mega2560_comports
 
 
 # # Firmware return codes #
@@ -1085,10 +1114,9 @@ def remote_command(function, self, *args, **kwargs):
         raise
 
 
-class DMFControlBoard(Base, SerialDevice):
+class DMFControlBoard(Base):
     def __init__(self):
         Base.__init__(self)
-        SerialDevice.__init__(self)
         self.calibration = None
         self.__aref__ = None
         self._number_of_channels = None
@@ -1286,15 +1314,61 @@ class DMFControlBoard(Base, SerialDevice):
 
     @remote_command
     def connect(self, port=None, baud_rate=115200):
-        if port:
-            logger.info("Try connecting to port %s..." % port)
-            Base.connect(self, port, baud_rate)
-            self.port = port
-        else:
-            self.get_port(baud_rate)
-            return self.RETURN_OK
+        '''
+        Parameters
+        ----------
+        port : str or list-like, optional
+            Port (or list of ports) to try to connect to as a DMF Control
+            Board.
+        baud_rate : int, optional
 
-        self._i2c_devices = {}
+        Returns
+        -------
+        str
+            Port DMF control board was connected on.
+
+        Raises
+        ------
+        RuntimeError
+            If connection could not be established.
+        IOError
+            If no ports were specified and Arduino Mega2560 not found on any
+            port.
+        '''
+        if isinstance(port, types.StringTypes):
+            ports = [port]
+        else:
+            ports = port
+
+        if not ports:
+            # No port was specified.
+            #
+            # Try ports matching Mega2560 USB vendor/product ID.
+            ports = serial_ports().index.tolist()
+            if not ports:
+                raise IOError("Arduino Mega2560 not found on any port.")
+
+        for comport_i in ports:
+            if self.connected():
+                self.disconnect()
+                self.port = None
+                self._i2c_devices = {}
+
+            # Try to connect to control board on available ports.
+            try:
+                logger.debug('Try to connect to: %s', comport_i)
+                Base.connect(self, comport_i, baud_rate)
+                self.port = comport_i
+                break
+            except BadVGND, exception:
+                logger.warning(exception)
+                break
+            except RuntimeError, exception:
+                continue
+        else:
+            raise RuntimeError('Could not connect to control board on any '
+                                'of the following ports: %s' % ports)
+        return self.port
 
         name = self.name()
         version = self.hardware_version()
@@ -1979,15 +2053,6 @@ class DMFControlBoard(Base, SerialDevice):
             data_.append(int(data[i]))
         return np.array(Base.i2c_send_command(self, address, cmd, data_,
                                               delay_ms))
-
-    def test_connection(self, port, baud_rate):
-        logger.info("test_connection(%s, %d)" % (port, baud_rate))
-        try:
-            if self.connect(port, baud_rate) == self.RETURN_OK:
-                return True
-        except Exception, why:
-            logger.info('On port %s, %s' % (port, why))
-        return False
 
     def flash_firmware(self, hardware_version=None):
         logger.info("[DMFControlBoard].flash_firmware()")
