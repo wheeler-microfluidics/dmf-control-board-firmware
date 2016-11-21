@@ -48,7 +48,7 @@ def nosetests():
 @task
 @needs('create_config')
 @cmdopts([('sconsflags=', 'f', 'Flags to pass to SCons.'),
-          ('boards=', 'b', 'Comma-separated list of board names to compile '
+          ('boards=', '', 'Comma-separated list of board names to compile '
            'for (e.g., `mega2560`).')])
 def build_firmware():
     scons_flags = getattr(options, 'sconsflags', '')
@@ -66,4 +66,12 @@ def build_firmware():
        'setuptools.command.sdist')
 def sdist():
     """Overrides sdist to make sure that our setup.py is generated."""
+    pass
+
+
+@task
+@needs('generate_setup', 'minilib', 'build_firmware', 'nosetests',
+       'setuptools.command.bdist_wheel')
+def bdist_wheel():
+    """Overrides bdist_wheel to make sure that our setup.py is generated."""
     pass
