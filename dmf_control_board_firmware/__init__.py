@@ -1375,9 +1375,8 @@ class DMFControlBoard(Base):
         serial_number_string = ""
         try:
             serial_number_string = ", S/N %03d" % self.serial_number
-        except: # need to catch exceptions here because this call will generate
-                # an error on old firmware which will prevent us from getting
-                # the opportunity to apply a firmware update.
+        except:
+            # Firmware does not support `serial_number` attribute.
             pass
         logger.info("Connected to %s v%s (Firmware: %s%s)" %
                     (name, version, firmware, serial_number_string))
@@ -1390,41 +1389,41 @@ class DMFControlBoard(Base):
         try:
             self.__aref__ = self._aref()
             logger.info("Analog reference = %.2f V" % self.__aref__)
-        except: # need to catch exceptions here because this call will generate
-                # an error on old firmware which will prevent us from getting
-                # the opportunity to apply a firmware update.
+        except:
+            # Firmware does not support `__aref__` attribute.
             pass
 
         # Check VGND for both analog channels
-        expected = 2**10/2
+        expected = 2 ** 10/2
         v = {}
-        channels = [0,1]
+        channels = [0, 1]
         damaged = []
         for channel in channels:
             try:
                 v[channel] = np.mean(self.analog_reads(channel, 10))
-                logger.info("A%d VGND = %.2f V (%.2f%% of Aref)" % (
-                    channel, self.__aref__ * v[channel] / (2**10),
-                    100.0 * v[channel] / (2**10)))
+                logger.info("A%d VGND = %.2f V (%.2f%% of Aref)", channel,
+                            self.__aref__ * v[channel] / (2 ** 10), 100.0 *
+                            v[channel] / (2 ** 10))
                 # Make sure that the VGND is close to the expected value;
                 # otherwise, the op-amp may be damaged (expected error
                 # is <= 10%).
                 if np.abs(v[channel] - expected) / expected > .1:
                     damaged.append(channel)
-            except: # need to catch exceptions here because this call will
-                    # generate an error on old firmware which will prevent us
-                    # from getting the opportunity to apply a firmware update.
+            except:
+                # Firmware does not support `__aref__` attribute.
                 break
 
-        self._i2c_scan()
-
         if damaged:
+            # At least one of the analog input channels appears to be damaged.
             if len(damaged) == 1:
                 msg = "Analog channel %d appears" % damaged[0]
             else:
                 msg = "Analog channels %s appear" % damaged
             raise BadVGND(msg + " to be damaged. You may need to replace the "
                           "op-amp on the control board.")
+
+        # Scan I2C bus to generate list of connected devices.
+        self._i2c_scan()
 
         return self.RETURN_OK
 
@@ -1436,15 +1435,17 @@ class DMFControlBoard(Base):
                 try:
                     node = BaseNode(self, address)
                     description = ("%s v%s (Firmware v%s, S/N %03d)" %
-                        (node.name(), node.hardware_version(),
-                         node.software_version(), node.serial_number))
+                                   (node.name(), node.hardware_version(),
+                                    node.software_version(),
+                                    node.serial_number))
                 except:
                     description = "?" % address
                 self._i2c_devices[address] = description
                 logger.info("\t%d: %s" % (address, description))
-        except: # need to catch exceptions here because this call will
-                # generate an error on old firmware which will prevent us
-                # from getting the opportunity to apply a firmware update.
+        except:
+            # Need to catch exceptions here because this call will generate an
+            # error on old firmware which will prevent us from getting the
+            # opportunity to apply a firmware update.
             pass
 
     def _read_calibration_data(self):
@@ -1466,15 +1467,42 @@ class DMFControlBoard(Base):
         '''
         Write a single byte to an address in persistent memory.
 
-        If refresh_config is True, load_config() is called afterward to
-        refresh the configuration settings.
+        Parameters
+        ----------
+        address : int
+            Address in persistent memory (e.g., EEPROM).
+        byte : int
+            Value to write to address.
+        refresh_config : bool, optional
+            Is ``True``, :meth:`load_config()` is called afterward to refresh
+            the configuration settings.
         '''
         self._persistent_write(address, byte)
         if refresh_config:
             self.load_config(False)
 
-    def persistent_read_multibyte(self, address, count=None,
-                                  dtype=np.uint8):
+    def persistent_read_multibyte(self, address, count=None, dtype=np.uint8):
+        '''
+        Read a chunk of data from persistent memory.
+
+        Parameters
+        ----------
+        address : int
+            Address in persistent memory (e.g., EEPROM).
+        count : int, optional
+            Number of values to read.
+
+            If not set, read a single value of the specified :data:`dtype`.
+        dtype : numpy.dtype, optional
+            The type of the value(s) to read.
+
+        Returns
+        -------
+        dtype or numpy.array(dtype=dtype)
+            If :data:`count` is ``None``, return single value.
+
+            Otherwise, return array of values.
+        '''
         nbytes = np.dtype(dtype).itemsize
         if count is not None:
             nbytes *= count
@@ -1497,8 +1525,15 @@ class DMFControlBoard(Base):
         '''
         Write multiple bytes to an address in persistent memory.
 
-        If refresh_config is True, load_config() is called afterward to
-        refresh the configuration settings.
+        Parameters
+        ----------
+        address : int
+            Address in persistent memory (e.g., EEPROM).
+        data : numpy.array
+            Data to write.
+        refresh_config : bool, optional
+            Is ``True``, :meth:`load_config()` is called afterward to refresh
+            the configuration settings.
         '''
         for i, byte in enumerate(data.view(np.uint8)):
             self.persistent_write(address + i, int(byte))
