@@ -1366,9 +1366,8 @@ class DMFControlBoard(Base):
             except RuntimeError, exception:
                 continue
         else:
-            raise RuntimeError('Could not connect to control board on any '
-                                'of the following ports: %s' % ports)
-        return self.port
+            raise RuntimeError('Could not connect to control board on any of '
+                               'the following ports: %s' % ports)
 
         name = self.name()
         version = self.hardware_version()
