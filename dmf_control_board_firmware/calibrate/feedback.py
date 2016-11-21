@@ -107,7 +107,7 @@ def z_transfer_functions():
     voltage measured by either control board analog feedback circuits.
 
     According to the figure below, the transfer function describes the
-    following relationship:
+    following relationship::
 
           # Hardware V1 #                        # Hardware V2 #
 
@@ -118,8 +118,10 @@ def z_transfer_functions():
     where $V_{1}$ denotes the high-voltage actuation signal from the amplifier
     output and $V_{2}$ denotes the signal sufficiently attenuated to fall
     within the measurable input range of the analog-to-digital converter
-    _(approx. 5V)_.  The feedback circuits for control board hardware version 1
-    and hardware version 2 are shown below.
+    *(approx. 5V)*.  The feedback circuits for control board **hardware version
+    1** and **hardware version 2** are shown below.
+
+    .. code-block:: none
 
           # Hardware V1 #                        # Hardware V2 #
 
@@ -142,10 +144,10 @@ def z_transfer_functions():
      - The symbolic equality can be solved for any symbol, _e.g.,_ $V_{1}$ or
        $V_{2}$.
      - A symbolically solved representation can be converted to a Python function
-       using [`sympy.utilities.lambdify.lambdify`][1], to compute results for
+       using `sympy.utilities.lambdify.lambdify`_, to compute results for
        specific values of the remaining parameters.
 
-    [1]: http://docs.sympy.org/dev/modules/utilities/lambdify.html
+    .. _`sympy.utilities.lambdify.lambdify`: http://docs.sympy.org/dev/modules/utilities/lambdify.html
     '''
     # Define transfer function as a symbolic equality using SymPy.
     V1, V2, Z1, Z2 = sp.symbols('V1 V2 Z1 Z2')
@@ -159,20 +161,22 @@ def z_transfer_functions():
 
 def rc_transfer_function(eq, Zs=None):
     '''
-    Substitute resistive and capacitive components for all `Zs` terms _(all
-    terms starting with `Z` by default)_ in the provided equation, where $Z$ is
-    equivalent to parallel resistive and capacitive impedances, as shown below.
+    Substitute resistive and capacitive components for all ``Zs`` terms _(all
+    terms starting with ``Z`` by default)_ in the provided equation, where $Z$
+    is equivalent to parallel resistive and capacitive impedances, as shown
+    below.
+
+    .. code-block:: none
 
                                         Z_C
             ┌───┐                    ┌──┤ ├──┐
           ┄─┤ Z ├─┄                 ┄┤  Z_R  ├┄
             └───┘                    └─/\/\/─┘
 
-    See the definitions of $Z_R$ _(resistive impedance)_ and $Z_C$
-    _(capacitive impedance)_ [here][1], where $\omega$ is the
-    [angular frequency][2].
+    See the definitions of $Z_R$ *(resistive impedance)* and $Z_C$ *(capacitive
+    impedance)* `here`_, where $\omega$ is the `angular frequency`_.
 
-    Specifically,
+    Specifically::
 
                 1
         Z = ─────────
@@ -180,8 +184,8 @@ def rc_transfer_function(eq, Zs=None):
             ⅈ⋅C⋅ω + ─
                     R
 
-    [1]: http://en.wikipedia.org/wiki/Electrical_impedance#Device_examples
-    [2]: http://en.wikipedia.org/wiki/Angular_frequency
+    .. _`here`: http://en.wikipedia.org/wiki/Electrical_impedance#Device_examples
+    .. _`angular frequency`: http://en.wikipedia.org/wiki/Angular_frequency
     '''
     if Zs is None:
         Zs = [s.name for s in eq.atoms(sp.Symbol) if s.name.startswith('Z')]
@@ -198,16 +202,29 @@ def rc_transfer_function(eq, Zs=None):
 @lru_cache(maxsize=500)
 def get_transfer_function(hardware_major_version, solve_for=None, Zs=None):
     '''
-    Return feedback measurement circuit symbolic transfer function for
-    specified control board hardware version as `sympy` equality.
+    Parameters
+    ----------
+    hardware_major_version : int
+        Major version of control board hardware *(1 or 2)*.
+    solve_for : str, optional
+        Rearrange equality with ``solve_for`` symbol as LHS.
+    Zs : list
+      List of impedance (i.e., ``Z``) to substitute with resistive and
+      capacitive terms.
 
-    Keyword arguments:
-     - `solve_for`: Rearrange equality with `solve_for` symbol as LHS.
-     - `Zs`:
-      * List of impedance _(i.e., `Z`)_ to substitute with resistive and
-        capacitive terms.
-      * By default, all `Z` terms are substituted with corresponding `R` and
-        `C` values.
+      By default, all ``Z`` terms are substituted with corresponding ``R`` and
+      ``C`` values.
+
+    Returns
+    -------
+    sympy.Equality
+        Feedback measurement circuit symbolic transfer function for specified
+        control board hardware version.
+
+    Note
+    ----
+    This function is memoized, to improve performance for repeated calls with
+    the same arguments.
     '''
     xfer_func = z_transfer_functions()[hardware_major_version]
     symbols = OrderedDict([(s.name, s)
@@ -227,32 +244,35 @@ def get_transfer_function(hardware_major_version, solve_for=None, Zs=None):
 def compute_from_transfer_function(hardware_major_version, solve_for,
                                    **kwargs):
     '''
-    Positional arguments:
-
-     - `hardware_major_version`:
-      * Major version of control board hardware _(1 or 2)_.
-     - `solve_for`: Variable in feedback transfer function to solve for.
-      * See
-      * _e.g.,_ `Z1`, `V1`, `V2`, etc.
-
-    Keyword arguments:
-
-     - `symbolic`: Return `sympy` symbolic equality.
-     - Other:
-      * Scalar or array-like value to substitute for term with corresponding
-        name in transfer function.
-      * In the case of the frequency term, `f`, if set to `True`, substitute
-        `2 * pi * f` for angular frequency _(i.e., `omega`)_ in transfer function.
-
     Conventions:
 
-     - Symbols starting with `Z` are assumed to be impedance terms.
-     - Symbols starting with `R` are assumed to be resistive impedance terms.
-     - Symbols starting with `C` are assumed to be capacitive impedance terms.
-     - `omega` is assumed to be an angular frequency term.
-     - `f` is assumed to be a frequency term _(i.e., `omega = 2 * pi * f`).
+     - Symbols starting with ``Z`` are assumed to be impedance terms.
+     - Symbols starting with ``R`` are assumed to be resistive impedance terms.
+     - Symbols starting with ``C`` are assumed to be capacitive impedance
+       terms.
+     - ``omega`` is assumed to be an angular frequency term.
+     - ``f`` is assumed to be a frequency term (i.e., ``omega = 2 * pi * f``).
 
-    Either `f` or `omega` may be specified, _not_ both.
+    Parameters
+    ----------
+    hardware_major_version : int
+        Major version of control board hardware *(1 or 2)*.
+    solve_for : str
+        Variable in feedback transfer function to solve for e.g.,_ ``Z1``,
+        ``V1``, ``V2``, etc.).
+    symbolic : bool, optional
+        If ``True``, return :mod:`sympy` symbolic equality.
+    **kwargs
+      Scalar or array-like value to substitute for term with corresponding name
+      in transfer function.
+
+      In the case of the frequency term, ``f``, if set to ``True``, substitute
+      ``2 * pi * f`` for angular frequency (i.e., ``omega``) in transfer
+      function.
+
+    Note
+    ----
+    Either ``f`` or ``omega`` may be specified, *not* both.
     '''
     symbolic = kwargs.pop('symbolic', False)
     # Get list of all `Z` terms provided as keyword arguments.
