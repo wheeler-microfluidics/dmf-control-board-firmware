@@ -71,6 +71,8 @@ def serial_ports():
         df_mega2560_comports = \
             df_comports.loc[df_comports.hardware_id.str
                             .contains('VID:PID=('
+                                       # [Genuino Mega 2560][2341:0242]
+                                      '2341:0242|'
                                        # mega2560rev3
                                       '2341:0042|'
                                        # mega2560
@@ -79,6 +81,8 @@ def serial_ports():
                                       '2341:003F|'
                                        # megaADKrev3
                                       '2341:0044)')]
+
+    # [2341:0242]: https://principiantedelinux.wordpress.com/2016/04/16/arduino-mega-2560-ubuntu-14-04-bootloader-dfu-16u2-usbasp-pickit2-y-la-mar-en-coche/
     return df_mega2560_comports
 
 
