@@ -62,16 +62,23 @@ def serial_ports():
     # (from [official Arduino Windows driver][1]).
     #
     # [1]: https://github.com/arduino/Arduino/blob/27d1b8d9a190469e185af7484b52cc5884e7d731/build/windows/dist/drivers/arduino.inf#L95-L98
-    df_mega2560_comports = df_comports.loc[df_comports.hardware_id.str
-                                           .contains('VID:PID=('
-                                                      # mega2560rev3
-                                                     '2341:0042|'
-                                                      # mega2560
-                                                     '2341:0010|'
-                                                      # megaADK
-                                                     '2341:003F|'
-                                                      # megaADKrev3
-                                                     '2341:0044)')]
+    with warnings.catch_warnings():
+        # Suppress [pandas warning][2] that the `contains` expression below
+        # contains groups.
+        #
+        # [2]: http://stackoverflow.com/questions/39901550#39902267
+        warnings.simplefilter("ignore")
+        df_mega2560_comports = \
+            df_comports.loc[df_comports.hardware_id.str
+                            .contains('VID:PID=('
+                                       # mega2560rev3
+                                      '2341:0042|'
+                                       # mega2560
+                                      '2341:0010|'
+                                       # megaADK
+                                      '2341:003F|'
+                                       # megaADKrev3
+                                      '2341:0044)')]
     return df_mega2560_comports
 
 
