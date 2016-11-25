@@ -1425,6 +1425,9 @@ class DMFControlBoard(Base):
                 # Firmware does not support `__aref__` attribute.
                 break
 
+        # Scan I2C bus to generate list of connected devices.
+        self._i2c_scan()
+
         if damaged:
             # At least one of the analog input channels appears to be damaged.
             if len(damaged) == 1:
@@ -1433,9 +1436,6 @@ class DMFControlBoard(Base):
                 msg = "Analog channels %s appear" % damaged
             raise BadVGND(msg + " to be damaged. You may need to replace the "
                           "op-amp on the control board.")
-
-        # Scan I2C bus to generate list of connected devices.
-        self._i2c_scan()
 
         return self.RETURN_OK
 
