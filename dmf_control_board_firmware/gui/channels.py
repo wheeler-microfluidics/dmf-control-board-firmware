@@ -41,6 +41,30 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     n_channels = proxy.number_of_channels()
 
     def measure_load(channel, expected_load):
+        '''
+        Parameters
+        ----------
+        channel : int
+            Channel to actuate in isolation.
+        expected_load : float
+            Expected capacitive load of actuated :data:`channel`.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Table of:
+
+             * Actuation parameters.
+             * Background capacitance (i.e., capacitance measured when no
+               electrodes are actuated.
+             * Expected capacitance load value.
+
+            and replicates of:
+
+             * Measured load voltages
+             * Capacitance load measurements
+             * RMS error.
+        '''
         states = pd.Series(np.zeros(n_channels))
         states[channel] = 1
         results = proxy.measure_impedance(5, n_samples, 0, True, True,
@@ -65,15 +89,22 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
         df['vgnd_hv'] = results.vgnd_hv
         df['vgnd_fb'] = results.vgnd_fb
         result = df.dropna()
+
+        # Call callback function.
         on_update(result)
         return result
 
     result_frames = []
+
+    # Measure the capacitive load of each channel, comparing against the
+    # respective expected load value.
     for channel, v in test_loads.iteritems():
         result_frames.append(measure_load(channel, v))
 
+    # Compute the median measured capacitive load for each channel.
     results = pd.concat(result_frames).groupby('channel').agg('median')
 
+    # Add additional metadata columns to results table.
     address = proxy.switching_board_i2c_address + channel / 40
     results['hv_switching_board'] = proxy._i2c_devices.get(address)
     results['software_version'] = proxy.software_version()
@@ -81,11 +112,24 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     results['serial_number'] = str(proxy.serial_number)
     results['aref'] = proxy.__aref__
     results['timestamp'] = datetime.now().isoformat()
-    
+
     return results
 
 
 def plot_channel_sweep(proxy, start_channel):
+    '''
+    Parameters
+    ----------
+    proxy : DMFControlBoard
+    start_channel : int
+        Channel number from which to start a channel sweep (should be a
+        multiple of 40, e.g., 0, 40, 80).
+
+    Returns
+    -------
+    pandas.DataFrame
+        See description of return of :func:`sweep_channels`.
+    '''
     test_loads = TEST_LOADS.copy()
     test_loads.index += start_channel
 
@@ -305,7 +349,7 @@ class AssistantView(WindowView):
         gtk.main_quit()
 
     def to_hdf(self, output_path, complib='zlib', complevel=6):
-        
+
         def write_results(output_path, df, append=True):
             # Save measurements taken during sweep.
             df.to_hdf(str(output_path), '/channel_sweeps',
@@ -319,6 +363,7 @@ class AssistantView(WindowView):
             df = pd.read_hdf(str(output_path), '/channel_sweeps')
             self.readings = pd.concat([self.readings, df])
             write_results(output_path, self.readings, append=False)
+
 
 if __name__ == '__main__':
     control_board = DMFControlBoard()
