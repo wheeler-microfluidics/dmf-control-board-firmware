@@ -2,21 +2,17 @@
 import pkg_resources
 import re
 
-import numpy as np
-import pandas as pd
-import gtk
-from pygtkhelpers.delegates import WindowView
-from pygtkhelpers.ui.form_view_dialog import create_form_view
-from flatland.schema import Form, Integer, Enum
-from flatland.validation import ValueAtLeast, ValueAtMost
+from datetime import datetime
 from dmf_control_board_firmware import DMFControlBoard
 from dmf_control_board_firmware.calibrate.impedance import TEST_LOADS
-from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as
-                                                FigureCanvasGTK)
-from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as
-                                                NavigationToolbar)
+from matplotlib.backends.backend_gtkagg import (FigureCanvasGTKAgg as FigureCanvasGTK)
+from matplotlib.backends.backend_gtkagg import (NavigationToolbar2GTKAgg as NavigationToolbar)
 from matplotlib.figure import Figure
-from datetime import datetime
+from pygtkhelpers.delegates import WindowView
+import gtk
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 
 def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
