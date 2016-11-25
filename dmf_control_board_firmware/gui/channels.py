@@ -46,7 +46,7 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
         results = proxy.measure_impedance(5, n_samples, 0, True, True,
                                           states)
         df = pd.DataFrame(results.capacitance(),
-                          columns=['measured capacitance'])
+                          columns=['measured capacitance']).dropna()
         df['measured impedance'] = results.Z_device()
         df['actuation voltage'] = results.V_actuation()
         df['expected capacitance'] = expected_load
