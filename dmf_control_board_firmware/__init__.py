@@ -1128,10 +1128,11 @@ def remote_command(function, self, *args, **kwargs):
 class DMFControlBoard(Base):
     def __init__(self):
         Base.__init__(self)
-        self.calibration = None
         self.__aref__ = None
-        self._number_of_channels = None
         self._channel_mask_cache = None
+        self._i2c_devices = {}
+        self._number_of_channels = None
+        self.calibration = None
 
     def force_to_voltage(self, force, frequency):
         '''

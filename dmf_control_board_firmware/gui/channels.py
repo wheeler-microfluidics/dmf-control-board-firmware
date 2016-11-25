@@ -79,7 +79,7 @@ def sweep_channels(proxy, test_loads, voltage=10, frequency=None,
     results = pd.concat(result_frames).groupby('channel').agg('median')
 
     address = proxy.switching_board_i2c_address + channel / 40
-    results['hv_switching_board' % address] = proxy._i2c_devices[address]
+    results['hv_switching_board'] = proxy._i2c_devices.get(address)
     results['software_version'] = proxy.software_version()
     results['hardware_version'] = proxy.hardware_version()
     results['serial_number'] = str(proxy.serial_number)
