@@ -86,7 +86,7 @@ def serial_ports():
                                       '2341:003f|'
                                       '2341:0044|'
                                       '2A03:003f|'
-                                      '2A03:0044))')]
+                                      '2A03:0044)')]
 
 
     # [2341:0242]: https://principiantedelinux.wordpress.com/2016/04/16/arduino-mega-2560-ubuntu-14-04-bootloader-dfu-16u2-usbasp-pickit2-y-la-mar-en-coche/
