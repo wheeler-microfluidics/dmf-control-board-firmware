@@ -58,16 +58,16 @@ def serial_ports():
     .. official Arduino Windows driver: https://github.com/arduino/Arduino/blob/27d1b8d9a190469e185af7484b52cc5884e7d731/build/windows/dist/drivers/arduino.inf#L95-L98
     '''
     vid_pids = [# mega.name=Arduino/Genuino Mega or Mega 2560
-                '2341:0010'
-                '2341:0042'
-                '2A03:0010'
-                '2A03:0042'
-                '2341:0210'
-                '2341:0242'
+                '2341:0010',
+                '2341:0042',
+                '2A03:0010',
+                '2A03:0042',
+                '2341:0210',
+                '2341:0242',
                 # megaADK.name=Arduino Mega ADK
-                '2341:003f'
-                '2341:0044'
-                '2A03:003f'
+                '2341:003f',
+                '2341:0044',
+                '2A03:003f',
                 '2A03:0044']
     # Prefer COM ports with USB vendor ID and product IDs for [Arduino
     # Mega2560][1] and [Arduino Mega ADK][2] (from [official Arduino Windows
