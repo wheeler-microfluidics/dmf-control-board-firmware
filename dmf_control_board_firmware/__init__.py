@@ -57,40 +57,26 @@ def serial_ports():
 
     .. official Arduino Windows driver: https://github.com/arduino/Arduino/blob/27d1b8d9a190469e185af7484b52cc5884e7d731/build/windows/dist/drivers/arduino.inf#L95-L98
     '''
-    df_comports = sd.comports()
-
-    # Match COM ports with USB vendor ID and product IDs for [Arduino
-    # Mega2560][1] and [Arduino Mega ADK][2] (from
-    # [official Arduino Windows driver][3]).
+    vid_pids = [# mega.name=Arduino/Genuino Mega or Mega 2560
+                '2341:0010'
+                '2341:0042'
+                '2A03:0010'
+                '2A03:0042'
+                '2341:0210'
+                '2341:0242'
+                # megaADK.name=Arduino Mega ADK
+                '2341:003f'
+                '2341:0044'
+                '2A03:003f'
+                '2A03:0044']
+    # Prefer COM ports with USB vendor ID and product IDs for [Arduino
+    # Mega2560][1] and [Arduino Mega ADK][2] (from [official Arduino Windows
+    # driver][3]), but include all available COM ports.
     #
     # [1]: https://github.com/arduino/Arduino/blob/1a97ec448182c57bc8fc0278075f429f3877b2a2/hardware/arduino/avr/boards.txt#L173-L186
     # [2]: https://github.com/arduino/Arduino/blob/1a97ec448182c57bc8fc0278075f429f3877b2a2/hardware/arduino/avr/boards.txt#L234-L243
     # [3]: https://github.com/arduino/Arduino/blob/1a97ec448182c57bc8fc0278075f429f3877b2a2/hardware/arduino/avr/boards.txt
-    with warnings.catch_warnings():
-        # Suppress [pandas warning][2] that the `contains` expression below
-        # contains groups.
-        #
-        # [2]: http://stackoverflow.com/questions/39901550#39902267
-        warnings.simplefilter("ignore")
-        df_mega2560_comports = \
-            df_comports.loc[df_comports.hardware_id.str.lower().str
-                            .contains('VID:PID=('
-                                      # mega.name=Arduino/Genuino Mega or Mega 2560
-                                      '2341:0010|'
-                                      '2341:0042|'
-                                      '2A03:0010|'
-                                      '2A03:0042|'
-                                      '2341:0210|'
-                                      '2341:0242|'
-                                      # megaADK.name=Arduino Mega ADK
-                                      '2341:003f|'
-                                      '2341:0044|'
-                                      '2A03:003f|'
-                                      '2A03:0044)')]
-
-
-    # [2341:0242]: https://principiantedelinux.wordpress.com/2016/04/16/arduino-mega-2560-ubuntu-14-04-bootloader-dfu-16u2-usbasp-pickit2-y-la-mar-en-coche/
-    return df_mega2560_comports
+    return sd.comports(vid_pid=vid_pids, include_all=True)
 
 
 # # Firmware return codes #

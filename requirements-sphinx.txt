@@ -7,8 +7,8 @@ matplotlib
 microdrop-utility
 numpydoc
 pandas>=0.17
-pyserial
 scipy
+serial_device>=0.4
 svg-model>=0.5.post20
 sympy
 tables
