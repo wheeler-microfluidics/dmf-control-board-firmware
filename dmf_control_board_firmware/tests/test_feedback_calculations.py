@@ -76,44 +76,52 @@ def generate_feedback_results_reference(data, id):
     # save a pickled version of the feedback results object
     input_file.pickle_dump(data, -1)
 
-    reference_results_file = path(__file__).parent / path('FeedbackResults') / \
-        path('reference_results.hdf')
+    for fname in ['reference_results.hdf', 'reference_results_velocity.hdf']:
+        reference_results_file = path(__file__).parent / \
+            path('FeedbackResults') / path(fname)
 
-    if reference_results_file.exists():
-        f = pd.HDFStore(reference_results_file, 'r')
-        reference_results_df = f['/root']
-        f.close()
+        if reference_results_file.exists():
+            f = pd.HDFStore(reference_results_file, 'r')
+            reference_results_df = f['/root']
+            f.close()
 
-        # remove any existing data with the same id
-        reference_results_df = reference_results_df[reference_results_df['id'] != id]
-    else:
-        reference_results_df = pd.DataFrame()
-
-    for filter_order in [None, 3]:
-        d = {'V_actuation': data.V_actuation(),
-             'force': data.force(),
-             'Z_device': data.Z_device(filter_order=filter_order),
-             'capacitance': data.capacitance(filter_order=filter_order),
-             'x_position': data.x_position(filter_order=filter_order),
-             'time': data.time,
-        }
-
-        results_df = pd.DataFrame(d)
-        results_df['id'] = id
-
-        # store filter_order=None as -1
-        if filter_order is None:
-            results_df['filter_order'] = -1
+            # remove any existing data with the same id
+            reference_results_df = reference_results_df[reference_results_df['id'] != id]
         else:
-            results_df['filter_order'] = filter_order
+            reference_results_df = pd.DataFrame()
 
-        reference_results_df = reference_results_df.append(results_df)
+        for filter_order in [None, 3]:
+            if fname == 'reference_results_velocity.hdf':
+                t, dxdt = data.dxdt(filter_order=filter_order)
+                d = {'dxdt': dxdt,
+                     'time': t,
+                }
+            else:
+                d = {'V_actuation': data.V_actuation(),
+                     'force': data.force(),
+                     'Z_device': data.Z_device(filter_order=filter_order),
+                     'capacitance': data.capacitance(filter_order=filter_order),
+                     'x_position': data.x_position(filter_order=filter_order),
+                     'time': data.time,
+                }
 
-    # save an hdf file containing the reference feedback results calculations
-    reference_results_df.to_hdf(reference_results_file, '/root', complib='blosc', complevel=2)
+            results_df = pd.DataFrame(d)
+            results_df['id'] = id
+
+            # store filter_order=None as -1
+            if filter_order is None:
+                results_df['filter_order'] = -1
+            else:
+                results_df['filter_order'] = filter_order
+
+            reference_results_df = reference_results_df.append(results_df)
+
+        # save an hdf file containing the reference feedback results calculations
+        reference_results_df.to_hdf(reference_results_file, '/root', complib='blosc', complevel=2)
 
 def test_get_window_size():
     input_file = path(__file__).parent / path('FeedbackResults') / \
         path('input_1.pickle')
     data = input_file.pickle_load()
     assert data._get_window_size() == 21.0
+
