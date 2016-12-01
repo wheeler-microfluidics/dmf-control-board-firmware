@@ -34,7 +34,7 @@ from base_node import BaseNode
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW  # Firmware consts
 from microdrop_utility import Version, FutureVersionError
 from path_helpers import path
-from scipy.signal import savgol_filter
+from scipy import signal
 import matplotlib.mlab as mlab
 import numpy as np
 import pandas as pd
@@ -45,6 +45,31 @@ from .dmf_control_board_base import DMFControlBoard as Base
 from .dmf_control_board_base import uint8_tVector
 
 logger = logging.getLogger()
+
+
+def savgol_filter(x, window_length, polyorder, deriv=0, delta=1.0, axis=-1, mode='interp', cval=0.0):
+    '''
+    Wrapper for the scipy.signal.savgol_filter function that handles Nan values.
+
+    See: https://github.com/wheeler-microfluidics/dmf-control-board-firmware/issues/3
+
+    Returns
+    -------
+    y : ndarray, same shape as `x`
+        The filtered data.
+    '''
+    # linearly interpolate missing values before filtering
+    x = np.ma.masked_invalid(pd.Series(x).interpolate())
+
+    try:
+        # start filtering from the first non-zero value since these won't be addressed by
+        # the interpolation above
+        ind = np.isfinite(x).nonzero()[0][0]
+        x[ind:] = signal.savgol_filter(x[ind:], window_length, polyorder, deriv=0,
+                                       delta=1.0, axis=-1, mode='interp', cval=0.0)
+    except IndexError:
+        pass
+    return np.ma.masked_invalid(x)
 
 
 def serial_ports():
