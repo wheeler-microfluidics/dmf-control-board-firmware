@@ -1387,7 +1387,13 @@ class DMFControlBoard(Base):
             # Try to connect to control board on available ports.
             try:
                 logger.debug('Try to connect to: %s', comport_i)
-                Base.connect(self, comport_i, baud_rate)
+                # Explicitly cast `comport_i` to string since `Base.connect`
+                # Boost Python binding does not support unicode strings.
+                #
+                # Fixes [issue 8][issue-8].
+                #
+                # [issue-8]: https://github.com/wheeler-microfluidics/dmf-control-board-firmware/issues/8
+                Base.connect(self, str(comport_i), baud_rate)
                 self.port = comport_i
                 break
             except BadVGND, exception:
