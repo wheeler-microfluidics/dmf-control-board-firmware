@@ -245,14 +245,17 @@ void SimpleSerial::doWrite()
         copy(pimpl->writeQueue.begin(),pimpl->writeQueue.end(),
                 pimpl->writeBuffer.get());
         pimpl->writeQueue.clear();
-        async_write(pimpl->port,asio::buffer(pimpl->writeBuffer.get(),
-                pimpl->writeBufferSize),
-                boost::bind(&SimpleSerial::writeEnd, this, asio::placeholders::error));
+        async_write(pimpl->port,
+                    asio::buffer(pimpl->writeBuffer.get(),
+                                 pimpl->writeBufferSize),
+                    boost::bind(&SimpleSerial::writeEnd, this,
+                                asio::placeholders::error,
+                                asio::placeholders::bytes_transferred));
     }
 }
 
-void SimpleSerial::writeEnd(const boost::system::error_code& error)
-{
+void SimpleSerial::writeEnd(const boost::system::error_code& error,
+                            std::size_t bytes_transferred) {
     if(!error)
     {
         lock_guard<mutex> l(pimpl->writeQueueMutex);
@@ -269,8 +272,10 @@ void SimpleSerial::writeEnd(const boost::system::error_code& error)
                 pimpl->writeBuffer.get());
         pimpl->writeQueue.clear();
         async_write(pimpl->port,asio::buffer(pimpl->writeBuffer.get(),
-                pimpl->writeBufferSize),
-                boost::bind(&SimpleSerial::writeEnd, this, asio::placeholders::error));
+                    pimpl->writeBufferSize),
+                    boost::bind(&SimpleSerial::writeEnd, this,
+                                asio::placeholders::error,
+                                asio::placeholders::bytes_transferred));
     } else {
         setErrorStatus(true);
         doClose();

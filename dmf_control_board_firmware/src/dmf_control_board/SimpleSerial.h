@@ -214,7 +214,8 @@ private:
      * if there is more data to write, restarts a new write operation.
      * This callback is called by the io_service in the spawned thread.
      */
-    void writeEnd(const boost::system::error_code& error);
+    void writeEnd(const boost::system::error_code& error,
+                  std::size_t bytes_transferred);
 
     /**
      * Callback to close serial port
