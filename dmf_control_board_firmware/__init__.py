@@ -29,7 +29,6 @@ import time
 import types
 import warnings
 
-from arduino_helpers.context import auto_context, Board, Uploader
 from base_node import BaseNode
 from dmf_control_board_base import INPUT, OUTPUT, HIGH, LOW  # Firmware consts
 from microdrop_utility import Version, FutureVersionError
@@ -38,6 +37,7 @@ from scipy import signal
 import matplotlib.mlab as mlab
 import numpy as np
 import pandas as pd
+import platformio_helpers.upload as piou
 import serial_device as sd
 
 from .calibrate.feedback import compute_from_transfer_function
@@ -2132,20 +2132,21 @@ class DMFControlBoard(Base):
                 hardware_version = Version.fromstring(self.hardware_version())
             self.disconnect()
         try:
-            hex_path = package_path().joinpath('firmware', 'mega2560', '%s_%s'
-                                               % (hardware_version.major,
-                                                  hardware_version.minor),
-                                               'dmf_control_board.hex')
-            logger.info("hex_path=%s" % hex_path)
+            # Use PlatformIO to upload firmware matching control board hardware
+            # version.
+            platformio_env_name = ('mega2560_hw_v%s_%s' %
+                                   (hardware_version.major,
+                                    hardware_version.minor))
+            logger.info("platformio_env_name=%s" % platformio_env_name)
 
-            context = auto_context()
-            board = Board(context, 'mega2560')
-            uploader = Uploader(board)
+            logger.info("flashing firmware: hardware version %s" %
+                        (hardware_version))
 
-            logger.info("flashing firmware: hardware version %s"
-                        % (hardware_version))
-
-            logger.info(uploader.upload(hex_path.abspath(), self.port))
+            extra_args = ['-p', self.port] if self.port else []
+            output = piou.upload_conda('dmf-control-board-firmware',
+                                       env_name=platformio_env_name,
+                                       extra_args=extra_args)
+            logger.info(output)
 
             if reconnect:
                 # need to sleep here, otherwise reconnect fails
