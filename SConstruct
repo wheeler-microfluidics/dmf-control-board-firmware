@@ -101,8 +101,7 @@ env.Append(CPPPATH=[ch.conda_prefix().joinpath('Library', 'include')])
 
 # # Build host binaries #
 Export('env')
-SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.host',
-            variant_dir='build/host', duplicate=0)
+SConscript('src/SConscript.host', variant_dir='build/host', duplicate=0)
 
 # # Build Arduino binaries #
 # sketch_build_root = path('build/arduino').abspath()
