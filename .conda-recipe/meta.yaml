@@ -42,7 +42,9 @@ requirements:
     - platformio-tool-scons
     - platformio-tool-avrdude
     - python 2.7*
+
     - arrow
+    - decorator
     - functools32
     - matplotlib
     - microdrop-utility
