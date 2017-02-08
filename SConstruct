@@ -99,32 +99,14 @@ else:
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
 env.Append(CPPPATH=[ch.conda_prefix().joinpath('Library', 'include')])
 
-# # Build host binaries #
+# # Build host binary #
 Export('env')
 SConscript('src/SConscript.host', variant_dir='build/host', duplicate=0)
-
-# # Build Arduino binaries #
-# sketch_build_root = path('build/arduino').abspath()
-# Export('sketch_build_root')
-# SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.arduino')
-
-# Import('arduino_hex')
-# Import('arduino_hexes')
 Import('pyext')
-# Import('build_context')
-
-# # Install compiled firmwares to `firmwares` directory #
-# package_hexes = []
-
-# for k, v in arduino_hexes.iteritems():
-    # firmware_path = path('dmf_control_board_firmware').joinpath('firmware',
-                                                       # build_context
-                                                       # .ARDUINO_BOARD, k)
-    # package_hexes.append(env.Install(firmware_path, v)[0])
 package_pyext = Install('dmf_control_board_firmware', pyext)
 
 # # Build documentation #
 if 'docs' in COMMAND_LINE_TARGETS:
-    SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.docs')
+    SConscript('src/SConscript.docs')
     Import('doc')
     Alias('docs', doc)
