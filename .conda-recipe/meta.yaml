@@ -25,6 +25,8 @@ requirements:
     - pytables
     #- base-node
 
+    - boost-cpp ==1.46.1
+    - tdm-mingw
     - paver
     - pip
     - platformio-framework-arduinoavr

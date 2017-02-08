@@ -1,0 +1,32 @@
+#######################################
+# Syntax Coloring Map For AdvancedADC
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+finished            KEYWORD2
+setChannel	        KEYWORD2
+setChannels         KEYWORD2
+setPrescaler	      KEYWORD2
+setLeftAlignResult	KEYWORD2
+setAutoTrigger	    KEYWORD2
+setTriggerSource    KEYWORD2
+setBuffer           KEYWORD2
+next                KEYWORD2
+enableDigitalInputs KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+AdvancedADC	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
