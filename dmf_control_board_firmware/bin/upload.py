@@ -1,27 +1,8 @@
-import sys
-from collections import OrderedDict
-
-from arduino_helpers.upload import get_arg_parser, upload
-from .. import get_firmwares
-
-
-def parse_args(firmwares, argv=None):
-    if argv is None:
-        argv = sys.argv[1:]
-
-    parser = get_arg_parser()
-    parser.add_argument('board_version', nargs='?', choices=firmwares,
-                        default=firmwares[-1])
-
-    return parser.parse_args(argv)
+from platformio_helpers.upload import upload_conda, parse_args
 
 
 if __name__ == '__main__':
-    firmware_versions = [(p.parent.name.replace('_', '.'), p)
-                         for p in get_firmwares()['mega2560']]
-    firmware_versions.sort()
-    firmwares = OrderedDict(firmware_versions)
-    args = parse_args(firmwares.keys())
-
-    print upload(args.board_name, lambda b: firmwares[args.board_version], args.port,
-                 args.arduino_install_home, verify=not args.skip_verify)
+    args = parse_args()
+    extra_args = ['-p', args.port] if args.port else []
+    print upload_conda('dmf-control-board-firmware', env_name=args.env_name,
+                       extra_args=extra_args)
