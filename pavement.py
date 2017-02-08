@@ -33,8 +33,7 @@ setup(name='wheeler.dmf-control-board-firmware',
 
 @task
 def create_config():
-    sketch_directory = path('dmf_control_board_firmware').joinpath('src',
-                                                          'dmf_control_board')
+    sketch_directory = path('src')
     sketch_directory.joinpath('Config.h.skeleton').copy(sketch_directory
                                                         .joinpath('Config.h'))
 
