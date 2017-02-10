@@ -23,38 +23,44 @@ requirements:
     - sympy
     - pandas
     - pytables
-    #- base-node
+    - base-node
 
+    - arduino-advanced-adc
+    - arduino-timer-three
     - boost-cpp ==1.46.1
-    - tdm-mingw
     - paver
     - pip
     - platformio-framework-arduinoavr
     - platformio-helpers
-    - platformio-tool-scons
-    - platformio-tool-avrdude
     - platformio-platform-atmelavr
+    - platformio-tool-avrdude
+    - platformio-tool-scons
     - platformio-toolchain-atmelavr
     - python 2.7*
+    - tdm-mingw
 
   run:
+    # Arduino dependencies
+    - arduino-advanced-adc
+    - arduino-timer-three
     - platformio-helpers
     - platformio-tool-scons
     - platformio-tool-avrdude
     - python 2.7*
 
+    # Python dependencies
     - arrow
+    - base-node
     - decorator
     - functools32
     - matplotlib
     - microdrop-utility
+    - pandas
+    - pytables
     - scipy
     - serial-device
     - svg-model
     - sympy
-    - pandas
-    - pytables
-    #- base-node
 
 about:
   home: https://github.com/wheeler-microfluidics/dmf-control-board-firmware
