@@ -64,4 +64,4 @@ requirements:
 
 about:
   home: https://github.com/wheeler-microfluidics/dmf-control-board-firmware
-  license: MIT
+  license: BSD
