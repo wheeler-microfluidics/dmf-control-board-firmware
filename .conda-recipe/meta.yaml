@@ -62,6 +62,10 @@ requirements:
     - svg-model
     - sympy
 
+test:
+  imports:
+    - dmf_control_board_firmware
+
 about:
   home: https://github.com/wheeler-microfluidics/dmf-control-board-firmware
   license: BSD
