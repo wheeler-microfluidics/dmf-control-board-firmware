@@ -1469,12 +1469,14 @@ class DMFControlBoard(Base):
         try:
             for address in self.i2c_scan():
                 try:
+                    # Try to query properties of I2C `BaseNode` device.
                     node = BaseNode(self, address)
                     description = ("%s v%s (Firmware v%s, S/N %03d)" %
                                    (node.name(), node.hardware_version(),
                                     node.software_version(),
                                     node.serial_number))
                 except:
+                    # Device is not a `BaseNode`
                     description = "?" % address
                 self._i2c_devices[address] = description
                 logger.info("\t%d: %s" % (address, description))
