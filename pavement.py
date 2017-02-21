@@ -34,16 +34,19 @@ setup(name='wheeler.dmf-control-board-firmware',
 @task
 def create_config():
     def get_version_string():
-        version = sp.check_output('git describe', shell=True)
-        branch = sp.check_output('git rev-parse --abbrev-ref HEAD', shell=True)
-        m = re.search('^v(?P<major>\d+)\.(?P<minor>\d+)(-(?P<micro>\d+))?(?P<tags>.*)',
-                      version)
+        version = sp.check_output('git describe', shell=True).strip()
+        branch = sp.check_output('git rev-parse --abbrev-ref HEAD',
+                                 shell=True).strip()
+        if branch == "master":
+            tags = ""
+        else:
+            tags = "-" + branch
+        m = re.search('^v(?P<major>\d+)\.(?P<minor>\d+)(-(?P<micro>\d+))?', version)
         if m.group('micro'):
             micro = m.group('micro')
         else:
             micro = '0'
-        return "%s.%s.%s%s" % (m.group('major'), m.group('minor'), micro,
-                               m.group('tags'))
+        return "%s.%s.%s%s" % (m.group('major'), m.group('minor'), micro, tags)
     sketch_directory = path('src')
     source_data = sketch_directory.joinpath('Config.h.skeleton').bytes()
     config_data = source_data.replace('#define ___SOFTWARE_VERSION___ "0.1.0"',
