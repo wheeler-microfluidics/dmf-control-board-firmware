@@ -2144,10 +2144,25 @@ class DMFControlBoard(Base):
             logger.info("flashing firmware: hardware version %s" %
                         (hardware_version))
 
-            extra_args = ['-p', self.port] if self.port else []
-            output = piou.upload_conda('dmf-control-board-firmware',
-                                       env_name=platformio_env_name,
-                                       extra_args=extra_args)
+            # Get original upload port (if any).
+            original_env_port = os.environ.get('PLATFORMIO_UPLOAD_PORT')
+            if self.port:
+                # Set environment variable to select COM port for upload.
+                os.environ['PLATFORMIO_UPLOAD_PORT'] = str(self.port)
+            try:
+                # Upload firmware.
+                output = piou.upload_conda('dmf-control-board-firmware',
+                                           env_name=platformio_env_name)
+            finally:
+                # Restore original upload port environment variable.
+                if not original_env_port and ('PLATFORMIO_UPLOAD_PORT' in
+                                              os.environ):
+                    # No PlatformIO upload port was set originally, so remove
+                    # environment variable.
+                    del os.environ['PLATFORMIO_UPLOAD_PORT']
+                elif self.port != original_env_port:
+                    os.environ['PLATFORMIO_UPLOAD_PORT'] = original_env_port
+
             logger.info(output)
 
             if reconnect:
