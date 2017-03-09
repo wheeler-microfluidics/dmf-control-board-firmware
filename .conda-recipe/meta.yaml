@@ -37,7 +37,7 @@ requirements:
     - platformio-tool-scons
     - platformio-toolchain-atmelavr
     - python 2.7*
-    - tdm-mingw
+    - tdm-mingw  # [win]
 
   run:
     # Arduino dependencies

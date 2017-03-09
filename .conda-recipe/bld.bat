@@ -1,12 +1,18 @@
 @echo off
 set PKG_NAME=dmf-control-board-firmware
+set MODULE_NAME=dmf_control_board_firmware
 setlocal enableextensions
 md "%PREFIX%"\Library\bin\platformio\%PKG_NAME%\mega2560_hw_v1_1
 md "%PREFIX%"\Library\bin\platformio\%PKG_NAME%\mega2560_hw_v1_2
 md "%PREFIX%"\Library\bin\platformio\%PKG_NAME%\mega2560_hw_v1_3
 md "%PREFIX%"\Library\bin\platformio\%PKG_NAME%\mega2560_hw_v2_0
 md "%PREFIX%"\Library\bin\platformio\%PKG_NAME%\mega2560_hw_v2_1
+md "%SP_DIR%"\dmf_control_board_firmware
 endlocal
+
+REM Copy mingw linked library to package directory.
+copy "%PREFIX%"\Library\tdm-mingw\bin\mingwm10.dll "%SP_DIR%"\dmf_control_board_firmware\mingwm10.dll
+if errorlevel 1 exit 1
 
 REM Generate Arduino/Python code
 paver create_config
