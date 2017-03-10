@@ -1,0 +1,71 @@
+# source will be downloaded prior to filling in jinja templates
+# Example assumes that this folder has setup.py in it
+source:
+  git_url: ../
+
+package:
+  name: dmf-control-board-firmware
+{% if GIT_DESCRIBE_NUMBER > '0' %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}.post{{ GIT_DESCRIBE_NUMBER }}
+{% else %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}.0
+{% endif %}
+
+requirements:
+  build:
+    - arrow
+    - functools32
+    - matplotlib
+    - microdrop-utility
+    - scipy
+    - serial-device
+    - svg-model
+    - sympy
+    - pandas
+    - pytables
+    - base-node
+
+    - arduino-advanced-adc
+    - arduino-timer-three
+    - boost-cpp ==1.46.1
+    - paver
+    - pip
+    - platformio-framework-arduinoavr
+    - platformio-helpers
+    - platformio-platform-atmelavr
+    - platformio-tool-avrdude
+    - platformio-tool-scons
+    - platformio-toolchain-atmelavr
+    - python 2.7*
+    - tdm-mingw  # [win]
+
+  run:
+    # Arduino dependencies
+    - arduino-advanced-adc
+    - arduino-timer-three
+    - platformio-helpers
+    - platformio-tool-scons
+    - platformio-tool-avrdude
+    - python 2.7*
+
+    # Python dependencies
+    - arrow
+    - base-node
+    - decorator
+    - functools32
+    - matplotlib
+    - microdrop-utility
+    - pandas
+    - pytables
+    - scipy
+    - serial-device
+    - svg-model
+    - sympy
+
+test:
+  imports:
+    - dmf_control_board_firmware
+
+about:
+  home: https://github.com/wheeler-microfluidics/dmf-control-board-firmware
+  license: BSD

@@ -1,5 +1,3 @@
-arduino-scons
-arduino_helpers>=0.3.post10
 arrow
 decorator
 functools32

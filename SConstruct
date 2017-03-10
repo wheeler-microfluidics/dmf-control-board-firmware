@@ -1,14 +1,12 @@
 import distutils.sysconfig
-from pprint import pprint
 import re
 import os
-import warnings
 import sys
 
-import yaml
 from path_helpers import path
 
 import auto_config
+import conda_helpers as ch
 from get_libs import get_lib
 from git_util import GitUtil
 
@@ -36,6 +34,7 @@ env = Environment()
 print 'COMMAND_LINE_TARGETS:', COMMAND_LINE_TARGETS
 
 SOFTWARE_VERSION = get_version_string()
+print 'SOFTWARE_VERSION:', SOFTWARE_VERSION
 Export('SOFTWARE_VERSION')
 
 HARDWARE_MAJOR_VERSION_DEFAULT = 2
@@ -50,44 +49,44 @@ Import('PYTHON_LIB')
 
 
 if os.name == 'nt':
-    Import('BOOST_HOME')
-    Import('BOOST_LIB_PATH')
     Import('PYTHON_LIB_PATH')
     Import('PYTHON_INC_PATH')
     print PYTHON_LIB_PATH
     print PYTHON_INC_PATH
-    print(BOOST_HOME)
-    print(BOOST_LIB_PATH)
 
     # Initialize ENV with OS environment.  Without this, PATH is not set
     # correctly, leading to doxygen not being found in Windows.
+    mingw_bin = ch.conda_prefix().joinpath('Library', 'tdm-mingw', 'bin')
+    os.environ['PATH'] = '{};'.format(mingw_bin) + os.environ['PATH']
+    print os.environ['PATH']
     env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
-    lib_path = [PYTHON_LIB_PATH, BOOST_LIB_PATH]
+    lib_path = [PYTHON_LIB_PATH, ch.conda_prefix().joinpath('Library', 'bin'),
+                ch.conda_prefix().joinpath('Library', 'lib')]
 
     BUILD_STATIC = True
     if BUILD_STATIC:
-        env.Append(LIBS=[get_lib(lib, LIBPATH=lib_path) \
-                            for lib in ['libboost_python*-mt-*.dll.a',
-                                        'libboost_filesystem*-mt-*.a',
-                                        'libboost_thread*-mt-*.a',
-                                        'libboost_system*-mt-*.a',]]
-                                    + ['ws2_32', PYTHON_LIB])
-        env.Append(CPPDEFINES=dict(BOOST_SYSTEM_STATIC_LINK=1, BOOST_THREAD_USE_LIB=1))
+        env.Append(LIBS=[get_lib(lib, LIBPATH=lib_path)
+                         for lib in ['libboost_python*-mt-*.dll.a',
+                                     'libboost_filesystem*-mt-*.a',
+                                     'libboost_thread*-mt-*.a',
+                                     'libboost_system*-mt-*.a',]] +
+                   ['ws2_32', PYTHON_LIB])
+        env.Append(CPPDEFINES=dict(BOOST_SYSTEM_STATIC_LINK=1,
+                                   BOOST_THREAD_USE_LIB=1))
     else:
         env.Append(LIBS=[PYTHON_LIB,
-                        'boost_filesystem-mt',
-                        'boost_thread-mt',
-                        'boost_python-mt',
-                        'boost_system-mt',
-                        'ws2_32'])
-    env.Append(CPPPATH=[PYTHON_INC_PATH, BOOST_HOME])
+                         'boost_filesystem-mt',
+                         'boost_thread-mt',
+                         'boost_python-mt',
+                         'boost_system-mt',
+                         'ws2_32'])
+    env.Append(CPPPATH=[PYTHON_INC_PATH])
     env.Append(LIBPATH=lib_path)
     env.Append(CPPFLAGS=['-ftemplate-depth-128', '-fno-inline'])
 
     #  - Copy dlls to the current directory if necessary.
-    libs = [get_lib('libboost_python-*-mt-*.dll'),
-            get_lib('mingwm10.dll')]
+    libs = [get_lib('libboost_python-*-mt-*.dll', LIBPATH=lib_path)]
     for lib in libs:
         lib_destination = path('dmf_control_board_firmware').joinpath(lib.name)
         if not lib_destination.exists():
@@ -99,34 +98,16 @@ else:
                                               'libboost_system.so']] +
                [PYTHON_LIB])
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
+env.Append(CPPPATH=[ch.conda_prefix().joinpath('Library', 'include')])
 
-# # Build host binaries #
+# # Build host binary #
 Export('env')
-SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.host',
-            variant_dir='build/host', duplicate=0)
-
-# # Build Arduino binaries #
-sketch_build_root = path('build/arduino').abspath()
-Export('sketch_build_root')
-SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.arduino')
-
-Import('arduino_hex')
-Import('arduino_hexes')
+SConscript('src/SConscript.host', variant_dir='build/host', duplicate=0)
 Import('pyext')
-Import('build_context')
-
-# # Install compiled firmwares to `firmwares` directory #
-package_hexes = []
-
-for k, v in arduino_hexes.iteritems():
-    firmware_path = path('dmf_control_board_firmware').joinpath('firmware',
-                                                       build_context
-                                                       .ARDUINO_BOARD, k)
-    package_hexes.append(env.Install(firmware_path, v)[0])
 package_pyext = Install('dmf_control_board_firmware', pyext)
 
 # # Build documentation #
 if 'docs' in COMMAND_LINE_TARGETS:
-    SConscript('dmf_control_board_firmware/src/dmf_control_board/SConscript.docs')
+    SConscript('src/SConscript.docs')
     Import('doc')
     Alias('docs', doc)
