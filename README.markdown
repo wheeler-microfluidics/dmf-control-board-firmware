@@ -94,6 +94,11 @@ from included recipe:
 
     conda build .conda-recipe
 
+**(Optional)** Install built Conda package (including control board firmware
+and host C-extension driver):
+
+    conda install -c wheeler-microfluidics --use-local dmf-control-board-firmware
+
 -------------------------------------------------------------------------------
 
 Develop
