@@ -92,7 +92,7 @@ Install `conda-build`:
 Build Conda package (including firmware binaries and host C-extension driver)
 from included recipe:
 
-    conda build .
+    conda build .conda-recipe
 
 -------------------------------------------------------------------------------
 
