@@ -3,7 +3,7 @@ import re
 import subprocess as sp
 import sys
 
-from paver.easy import task, needs, path, sh, cmdopts, options
+from paver.easy import task, needs, path, sh
 from paver.setuputils import setup
 import conda_helpers as ch
 import path_helpers as ph
@@ -86,7 +86,7 @@ def bdist_wheel():
 
 
 @task
-def develop_link():
+def develop_link(options, info):
     '''
     Prepare development environment.
 
@@ -107,15 +107,23 @@ def develop_link():
     project_dir = ph.path(__file__).parent.realpath()
 
     # Uninstall ``dmf_control_board_firmware`` if installed as Conda package.
-    ch.conda_exec('uninstall', '-y', 'dmf-control-board-firmware',
-                  verbose=True)
+    info('Check if Conda package is installed...')
+    version_info = ch.conda_version_info('dmf-control-board-firmware')
+    if version_info.get('installed') is not None:
+        info('Uninstall `dmf-control-board-firmware` package...')
+        ch.conda_exec('uninstall', '-y', 'dmf-control-board-firmware',
+                      verbose=True)
+    else:
+        info('`dmf-control-board-firmware` package is not installed.')
 
     # Install build and run-time Conda dependencies.
+    info('Install build and run-time Conda dependencies...')
     recipe_dir = project_dir.joinpath('.conda-recipe').realpath()
     ch.conda_exec('install', '-y', '-n', 'root', 'conda-build', verbose=True)
     ch.development_setup(recipe_dir, verbose=True)
 
     # Link working ``.pioenvs`` directory into Conda ``Library`` directory.
+    info('Link working firmware directories into Conda environment.')
     pio_bin_dir = pioh.conda_bin_path()
 
     fw_bin_dir = pio_bin_dir.joinpath('dmf-control-board-firmware')
@@ -129,11 +137,13 @@ def develop_link():
 
     # Link ``dmf_control_board_firmware`` Python package `conda.pth` in site
     # packages directory.
+    info('Link working Python directory into Conda environment...')
     ch.conda_exec('develop', project_dir, verbose=True)
+    info(72 * '-' + '\nFinished')
 
 
 @task
-def develop_unlink():
+def develop_unlink(options, info):
     '''
     Prepare development environment.
 
@@ -150,6 +160,7 @@ def develop_unlink():
     project_dir = ph.path(__file__).parent.realpath()
 
     # Unlink working ``.pioenvs`` directory into Conda ``Library`` directory.
+    info('Unlink working firmware directories from Conda environment.')
     pio_bin_dir = pioh.conda_bin_path()
     fw_bin_dir = pio_bin_dir.joinpath('dmf-control-board-firmware')
 
@@ -161,4 +172,6 @@ def develop_unlink():
 
     # Remove link to ``dmf_control_board_firmware`` Python package in
     # `conda.pth` in site packages directory.
+    info('Unlink working Python directory from Conda environment...')
     ch.conda_exec('develop', '-u', project_dir, verbose=True)
+    info(72 * '-' + '\nFinished')
