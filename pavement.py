@@ -63,18 +63,8 @@ def nosetests():
 
 @task
 @needs('create_config')
-@cmdopts([('sconsflags=', 'f', 'Flags to pass to SCons.'),
-          ('boards=', '', 'Comma-separated list of board names to compile '
-           'for (e.g., `mega2560`).')])
 def build_firmware():
-    scons_flags = getattr(options, 'sconsflags', '')
-    boards = [b.strip() for b in getattr(options, 'boards', '').split(',')
-              if b.strip()]
-    if not boards:
-        boards = DEFAULT_ARDUINO_BOARDS
-    for board in boards:
-        # Compile firmware once for each specified board.
-        sh('scons %s ARDUINO_BOARD="%s"' % (scons_flags, board))
+    sp.call(['pio', 'run'])
 
 
 @task
