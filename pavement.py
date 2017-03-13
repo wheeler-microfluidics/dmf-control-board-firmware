@@ -16,7 +16,7 @@ import version
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
-setup(name='wheeler.dmf-control-board-firmware',
+setup(name='dmf-control-board-firmware',
       version=version.getVersion(),
       description='Arduino-based DMF control board firmware and Python API.',
       author='Ryan Fobel and Christian Fobel',
