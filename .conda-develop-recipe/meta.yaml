@@ -4,7 +4,7 @@ source:
   git_url: ../
 
 package:
-  name: dmf-control-board-firmware
+  name: dmf-control-board-firmware-develop
 {% if GIT_DESCRIBE_NUMBER > '0' %}
   version: {{ GIT_DESCRIBE_TAG[1:] }}.post{{ GIT_DESCRIBE_NUMBER }}
 {% else %}
@@ -12,17 +12,27 @@ package:
 {% endif %}
 
 requirements:
-  build:
-    - dmf-control-board-firmware-develop  # Dev dependencies meta-package
-
   run:
+    # Build/compilation dependencies
+    - boost-cpp ==1.46.1
+    - git
+    - paver
+    - pip
+    - python 2.7*
+    - tdm-mingw  # [win]
+
     # Arduino dependencies
     - arduino-advanced-adc
     - arduino-timer-three
+    - platformio-framework-arduinoavr
     - platformio-helpers
-    - platformio-tool-scons
+    - platformio-helpers
+    - platformio-platform-atmelavr
     - platformio-tool-avrdude
-    - python 2.7*
+    - platformio-tool-avrdude
+    - platformio-tool-scons
+    - platformio-tool-scons
+    - platformio-toolchain-atmelavr
 
     # Python dependencies
     - arrow
@@ -38,10 +48,6 @@ requirements:
     - serial-device
     - svg-model
     - sympy
-
-test:
-  imports:
-    - dmf_control_board_firmware
 
 about:
   home: https://github.com/wheeler-microfluidics/dmf-control-board-firmware

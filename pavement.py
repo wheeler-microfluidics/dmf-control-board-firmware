@@ -1,4 +1,3 @@
-from pprint import pprint
 import os
 import re
 import subprocess as sp
@@ -6,6 +5,9 @@ import sys
 
 from paver.easy import task, needs, path, sh, cmdopts, options
 from paver.setuputils import setup
+import conda_helpers as ch
+import path_helpers as ph
+import platformio_helpers as pioh
 
 # add the current directory as the first listing on the python path
 # so that we import the correct version.py
@@ -14,7 +16,7 @@ import version
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
-setup(name='wheeler.dmf-control-board-firmware',
+setup(name='dmf-control-board-firmware',
       version=version.getVersion(),
       description='Arduino-based DMF control board firmware and Python API.',
       author='Ryan Fobel and Christian Fobel',
@@ -63,18 +65,8 @@ def nosetests():
 
 @task
 @needs('create_config')
-@cmdopts([('sconsflags=', 'f', 'Flags to pass to SCons.'),
-          ('boards=', '', 'Comma-separated list of board names to compile '
-           'for (e.g., `mega2560`).')])
 def build_firmware():
-    scons_flags = getattr(options, 'sconsflags', '')
-    boards = [b.strip() for b in getattr(options, 'boards', '').split(',')
-              if b.strip()]
-    if not boards:
-        boards = DEFAULT_ARDUINO_BOARDS
-    for board in boards:
-        # Compile firmware once for each specified board.
-        sh('scons %s ARDUINO_BOARD="%s"' % (scons_flags, board))
+    sp.call(['pio', 'run'])
 
 
 @task
@@ -91,3 +83,82 @@ def sdist():
 def bdist_wheel():
     """Overrides bdist_wheel to make sure that our setup.py is generated."""
     pass
+
+
+@task
+def develop_link():
+    '''
+    Prepare development environment.
+
+    Perform the following steps:
+
+     - Uninstall ``dmf_control_board_firmware`` if installed as Conda package.
+     - Install build and run-time Conda dependencies.
+     - Link working ``.pioenvs`` directory into Conda ``Library`` directory to
+       make development versions of compiled firmware binaries available to
+       Python API.
+     - Link ``dmf_control_board_firmware`` Python package into site packages
+       directory.
+
+    See Also
+    --------
+    :func:`develop_unlink`
+    '''
+    project_dir = ph.path(__file__).parent.realpath()
+
+    # Uninstall ``dmf_control_board_firmware`` if installed as Conda package.
+    ch.conda_exec('uninstall', '-y', 'dmf-control-board-firmware',
+                  verbose=True)
+
+    # Install build and run-time Conda dependencies.
+    recipe_dir = project_dir.joinpath('.conda-recipe').realpath()
+    ch.conda_exec('install', '-y', '-n', 'root', 'conda-build', verbose=True)
+    ch.development_setup(recipe_dir, verbose=True)
+
+    # Link working ``.pioenvs`` directory into Conda ``Library`` directory.
+    pio_bin_dir = pioh.conda_bin_path()
+
+    fw_bin_dir = pio_bin_dir.joinpath('dmf-control-board-firmware')
+
+    if not fw_bin_dir.exists():
+        project_dir.joinpath('.pioenvs').junction(fw_bin_dir)
+
+    fw_config_ini = fw_bin_dir.joinpath('platformio.ini')
+    if not fw_config_ini.exists():
+        project_dir.joinpath('platformio.ini').link(fw_config_ini)
+
+    # Link ``dmf_control_board_firmware`` Python package `conda.pth` in site
+    # packages directory.
+    ch.conda_exec('develop', project_dir, verbose=True)
+
+
+@task
+def develop_unlink():
+    '''
+    Prepare development environment.
+
+    Perform the following steps:
+
+     - Unlink working ``.pioenvs`` directory into Conda ``Library`` directory.
+     - Unlink ``dmf_control_board_firmware`` Python package from site packages
+       directory.
+
+    See Also
+    --------
+    :func:`develop_link`
+    '''
+    project_dir = ph.path(__file__).parent.realpath()
+
+    # Unlink working ``.pioenvs`` directory into Conda ``Library`` directory.
+    pio_bin_dir = pioh.conda_bin_path()
+    fw_bin_dir = pio_bin_dir.joinpath('dmf-control-board-firmware')
+
+    if fw_bin_dir.exists():
+        fw_config_ini = fw_bin_dir.joinpath('platformio.ini')
+        if fw_config_ini.exists():
+            fw_config_ini.unlink()
+        fw_bin_dir.unlink()
+
+    # Remove link to ``dmf_control_board_firmware`` Python package in
+    # `conda.pth` in site packages directory.
+    ch.conda_exec('develop', '-u', project_dir, verbose=True)
