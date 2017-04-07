@@ -118,6 +118,15 @@ Develop
 
         paver develop_link
 
+ 4. Restart terminal and reactivate Conda environment (e.g., `activate` if
+    Conda was installed with default settings).
+
+Step **4** is necessary since at least one of the installed dependencies sets
+environment variables, which are only initialized on subsequent activations of
+the Conda environment (i.e., they do not take effect immediately within the
+running environment).
+
+
 ### Build firmware ###
 
 Run the following command within the root of the cloned repository to **build
