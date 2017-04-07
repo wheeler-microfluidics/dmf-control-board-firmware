@@ -31,7 +31,7 @@ The latest [`dmf-control-board-firmware` release][3] is available as a
 
 To install `dmf-control-board-firmware` in a Conda environment, run:
 
-    conda install -c wheeler-microfluidics dmf-control-board-firmware
+    conda install -c wheeler-microfluidics -c conda-forge dmf-control-board-firmware
 
 -------------------------------------------------------------------------------
 
@@ -97,7 +97,7 @@ from included recipe:
 **(Optional)** Install built Conda package (including control board firmware
 and host C-extension driver):
 
-    conda install -c wheeler-microfluidics --use-local dmf-control-board-firmware
+    conda install -c wheeler-microfluidics -c conda-forge --use-local dmf-control-board-firmware
 
 -------------------------------------------------------------------------------
 
@@ -110,7 +110,7 @@ Develop
  2. **Install development dependencies** (including dependencies required for
     `paver develop_link` command in **3**):
 
-    conda install -c wheeler-microfluidics dmf-control-board-firmware-develop
+    conda install -c wheeler-microfluidics -c conda-forge dmf-control-board-firmware-develop
 
  3. Run the following command within the root of the cloned repository to
     **install run-time dependencies** and link working copy of firmware
