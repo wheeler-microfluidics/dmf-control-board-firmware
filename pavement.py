@@ -104,7 +104,7 @@ def develop_link(options, info):
     --------
     :func:`develop_unlink`
     '''
-    project_dir = ph.path(__file__).parent.realpath()
+    project_dir = ph.path(__file__).realpath().parent
 
     # Uninstall ``dmf_control_board_firmware`` if installed as Conda package.
     info('Check if Conda package is installed...')
@@ -157,7 +157,7 @@ def develop_unlink(options, info):
     --------
     :func:`develop_link`
     '''
-    project_dir = ph.path(__file__).parent.realpath()
+    project_dir = ph.path(__file__).realpath().parent
 
     # Unlink working ``.pioenvs`` directory into Conda ``Library`` directory.
     info('Unlink working firmware directories from Conda environment.')
