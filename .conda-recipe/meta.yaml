@@ -14,6 +14,7 @@ package:
 requirements:
   build:
     - dmf-control-board-firmware-develop  # Dev dependencies meta-package
+    - scons
 
   run:
     # Arduino dependencies
