@@ -65,8 +65,8 @@ def savgol_filter(x, window_length, polyorder, deriv=0, delta=1.0, axis=-1, mode
         # start filtering from the first non-zero value since these won't be addressed by
         # the interpolation above
         ind = np.isfinite(x).nonzero()[0][0]
-        x[ind:] = signal.savgol_filter(x[ind:], window_length, polyorder, deriv,
-                                       delta, axis, mode, cval)
+        x[ind:] = signal.savgol_filter(x[ind:], window_length, polyorder, deriv=0,
+                                       delta=1.0, axis=-1, mode='interp', cval=0.0)
     except IndexError:
         pass
     return np.ma.masked_invalid(x)

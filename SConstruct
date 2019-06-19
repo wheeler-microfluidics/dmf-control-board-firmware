@@ -49,9 +49,7 @@ Import('PYTHON_LIB')
 
 
 if os.name == 'nt':
-    Import('PYTHON_LIB_PATH')
     Import('PYTHON_INC_PATH')
-    print PYTHON_LIB_PATH
     print PYTHON_INC_PATH
 
     # Initialize ENV with OS environment.  Without this, PATH is not set
@@ -61,7 +59,8 @@ if os.name == 'nt':
     print os.environ['PATH']
     env = Environment(tools=['mingw'], ENV=os.environ)
     env['LIBPREFIX'] = ''
-    lib_path = [PYTHON_LIB_PATH, ch.conda_prefix().joinpath('Library', 'bin'),
+    lib_path = [ch.conda_prefix(),
+                ch.conda_prefix().joinpath('Library', 'bin'),
                 ch.conda_prefix().joinpath('Library', 'lib')]
 
     BUILD_STATIC = True
