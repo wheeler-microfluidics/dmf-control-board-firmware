@@ -15,7 +15,7 @@ copy "%PREFIX%"\Library\tdm-mingw\bin\mingwm10.dll "%SP_DIR%"\dmf_control_board_
 if errorlevel 1 exit 1
 
 REM Generate Arduino/Python code
-paver create_config
+"%PYTHON%" -m paver create_config
 
 REM REM Build firmware
 pio run
