@@ -28,7 +28,6 @@ requirements:
     - arrow
     - base-node
     - conda-helpers >=0.4
-    - decorator
     - functools32
     - matplotlib
     - microdrop-utility

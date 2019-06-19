@@ -20,7 +20,7 @@ along with dmf_control_board.  If not, see <http://www.gnu.org/licenses/>.
 from collections import OrderedDict
 import copy
 from datetime import datetime
-import decorator
+import functools as ft
 import logging
 import math
 import os
@@ -1062,8 +1062,7 @@ class FeedbackCalibration():
         # else the versions are equal and don't need to be upgraded
 
 
-@decorator.decorator
-def safe_series_resistor_index_read(f, self, channel, resistor_index=None):
+def safe_series_resistor_index_read(f):
     '''
     This decorator checks the resistor-index from the current context _(i.e.,
     the result of `self.series_resistor_index`)_.  If the resistor-index
@@ -1072,24 +1071,25 @@ def safe_series_resistor_index_read(f, self, channel, resistor_index=None):
     value of `resistor_index` to execute the wrapped function before restoring
     back to the original value.
     '''
-    if resistor_index is not None:
-        original_resistor_index = self.series_resistor_index(channel)
-        # Save state of resistor-index
-        if resistor_index != original_resistor_index:
-            self.set_series_resistor_index(channel, resistor_index)
+    @ft.wraps(f)
+    def _wrapped(self, channel, resistor_index=None):
+        if resistor_index is not None:
+            original_resistor_index = self.series_resistor_index(channel)
+            # Save state of resistor-index
+            if resistor_index != original_resistor_index:
+                self.set_series_resistor_index(channel, resistor_index)
 
-    value = f(self, channel)
+        value = f(self, channel)
 
-    if (resistor_index is not None and
-            resistor_index != original_resistor_index):
-        # Restore state of resistor-index
-        self.set_series_resistor_index(channel, original_resistor_index)
-    return value
+        if (resistor_index is not None and
+                resistor_index != original_resistor_index):
+            # Restore state of resistor-index
+            self.set_series_resistor_index(channel, original_resistor_index)
+        return value
+    return _wrapped
 
 
-@decorator.decorator
-def safe_series_resistor_index_write(f, self, channel, value,
-                                     resistor_index=None):
+def safe_series_resistor_index_write(f):
     '''
     This decorator checks the resistor-index from the current context _(i.e.,
     the result of `self.series_resistor_index`)_.  If the resistor-index
@@ -1098,49 +1098,54 @@ def safe_series_resistor_index_write(f, self, channel, value,
     value of `resistor_index` to execute the wrapped function before restoring
     back to the original value.
     '''
-    if resistor_index is not None:
-        original_resistor_index = self.series_resistor_index(channel)
-        # Save state of resistor-index
-        if resistor_index != original_resistor_index:
-            self.set_series_resistor_index(channel, resistor_index)
+    @ft.wraps(f)
+    def _wrapped(self, channel, value, resistor_index=None):
+        if resistor_index is not None:
+            original_resistor_index = self.series_resistor_index(channel)
+            # Save state of resistor-index
+            if resistor_index != original_resistor_index:
+                self.set_series_resistor_index(channel, resistor_index)
 
-    value = f(self, channel, value)
+        value = f(self, channel, value)
 
-    if (resistor_index is not None and
-            resistor_index != original_resistor_index):
-        # Restore state of resistor-index
-        self.set_series_resistor_index(channel, original_resistor_index)
-    return value
+        if (resistor_index is not None and
+                resistor_index != original_resistor_index):
+            # Restore state of resistor-index
+            self.set_series_resistor_index(channel, original_resistor_index)
+        return value
+    return _wrapped
 
 
-@decorator.decorator
-def remote_command(function, self, *args, **kwargs):
+def remote_command(function):
     '''
     Catch `RuntimeError` exceptions raised by remote control board firmware
     commands and re-raise as more specific `FirmwareError` exception type,
     which includes command code and return code.
     '''
-    try:
-        return function(self, *args, **kwargs)
-    except RuntimeError, exception:
-        error_message = str(exception)
-        match = CRE_REMOTE_ERROR.match(error_message)
-        if match:
-            # Exception message matches format of remote firmware error.
-            command_code = int(match.group('command_int'))
-            return_code = int(match.group('return_code_int'))
-            raise FirmwareError(command_code, return_code)
+    @ft.wraps(function)
+    def _wrapped(self, *args, **kwargs):
+        try:
+            return function(self, *args, **kwargs)
+        except RuntimeError, exception:
+            error_message = str(exception)
+            match = CRE_REMOTE_ERROR.match(error_message)
+            if match:
+                # Exception message matches format of remote firmware error.
+                command_code = int(match.group('command_int'))
+                return_code = int(match.group('return_code_int'))
+                raise FirmwareError(command_code, return_code)
 
-        match = CRE_REMOTE_COMMAND_ERROR.match(error_message)
-        if match:
-            # Exception message matches format of remote firmware error.
-            command_code = int(match.group('command_int'))
-            command_name = NAMES_BY_COMMAND_CODE[command_code]
-            raise RuntimeError(CRE_REMOTE_COMMAND_ERROR.sub(command_name,
-                                                            error_message))
+            match = CRE_REMOTE_COMMAND_ERROR.match(error_message)
+            if match:
+                # Exception message matches format of remote firmware error.
+                command_code = int(match.group('command_int'))
+                command_name = NAMES_BY_COMMAND_CODE[command_code]
+                raise RuntimeError(CRE_REMOTE_COMMAND_ERROR.sub(command_name,
+                                                                error_message))
 
-        # Not a remote firmware error, so raise original exception.
-        raise
+            # Not a remote firmware error, so raise original exception.
+            raise
+    return _wrapped
 
 
 class DMFControlBoard(Base):
