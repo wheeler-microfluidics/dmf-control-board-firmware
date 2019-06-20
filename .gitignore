@@ -13,7 +13,6 @@ dist
 *.so
 *.yml
 .settings
-RELEASE-VERSION
 *.egg-info
 dmf_control_board_firmware/src/dmf_control_board/Config.h
 paver-minilib.zip

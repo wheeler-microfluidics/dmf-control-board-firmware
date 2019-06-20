@@ -1,8 +1,8 @@
 include README.md
 include CHANGELOG
-include RELEASE-VERSION
-include version.py
 include pavement.py
 include paver-minilib.zip
 include setup.py
 recursive-include dmf_control_board_firmware *
+include versioneer.py
+include dmf_control_board_firmware/_version.py

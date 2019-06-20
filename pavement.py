@@ -9,15 +9,14 @@ import conda_helpers as ch
 import path_helpers as ph
 import platformio_helpers as pioh
 
-# add the current directory as the first listing on the python path
-# so that we import the correct version.py
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-import version
+import versioneer
+
 
 DEFAULT_ARDUINO_BOARDS = ['mega2560']
 
 setup(name='dmf-control-board-firmware',
-      version=version.getVersion(),
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description='Arduino-based DMF control board firmware and Python API.',
       author='Ryan Fobel and Christian Fobel',
       author_email='ryan@fobel.net and christian@fobel.net',
